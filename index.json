@@ -5,74 +5,74 @@
     {
       "id": "k3panel",
       "name": "K3Panel 商籁深度精调",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Folia Mod Samples",
       "description": "面向商籁（sonnet）动画的深度精调：通过 Folium tunings 暴露相机、逐字运动、视差、转场等 11 个原版设置未提供的倍率，出现在商籁的设置卡片下方，拖动实时生效并随导出保留。",
       "origin": "official",
       "path": "mods/official/k3panel",
-      "digest": "sha256:b14748d68de213fe9587fb01d8b42b1ed88730eb8649e6fa2eab1b7beb2d364e",
+      "digest": "sha256:1e3e3d904cabd0c93c77a7fa0c82462377c610cb27e35f6f56ba904d6af57f8e",
       "keyId": "folium-2026-1",
-      "signedAt": "2026-09-24T17:58:56.377Z"
+      "signedAt": "2026-09-24T19:10:07.800Z"
     },
     {
       "id": "sample-aurora-visualizer",
       "name": "虹光歌词动画（样例）",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Folia Mod Samples",
       "description": "通过 Folium 注册的全屏歌词动画：当前句居中展示，逐字虹光扫过。纯渲染端模组（只有 client 入口），可用于播放、预览与透明导出。",
       "origin": "official",
       "path": "mods/official/sample-aurora-visualizer",
-      "digest": "sha256:d71b93b0fd654f894b6c6e259b26d8b7ea2c88bf27eee003b483432d8756f34f",
+      "digest": "sha256:c150fae14af8213777fc5e528f096470d7e1bc654df0b16cb10ca5498d21b14f",
       "keyId": "folium-2026-1",
-      "signedAt": "2026-09-24T17:58:56.389Z"
+      "signedAt": "2026-09-24T19:10:07.802Z"
     },
     {
       "id": "sample-progress-bar",
       "name": "进度条增强（样例）",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Folia Mod Samples",
       "description": "纯模组改造进度条：右侧加书签按钮、换进度条样式、在轨道上画出从外部 URL 定时拉取的标记（点击跳转）。演示 controlButtons / styles / progressLayers / settingsSections / net.fetch / storage。",
       "origin": "official",
       "path": "mods/official/sample-progress-bar",
-      "digest": "sha256:a084e8faa6adee927af6fbc57fbf56e1e2910970aa5a097823579737f4ce4083",
+      "digest": "sha256:600b929b04dd5e9a9dde124e26de86e8988f397b66c77a080d4247a9851bc77f",
       "keyId": "folium-2026-1",
-      "signedAt": "2026-09-24T17:58:56.396Z"
+      "signedAt": "2026-09-24T19:10:07.803Z"
     },
     {
       "id": "sample-rickroll",
       "name": "播放页外挂视频（样例）",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Folia Mod Samples",
       "description": "纯模组在播放页上叠一个外部视频窗口（YouTube 嵌入）。演示 stageLayers + folium.ui.embed + embedOrigins，以及用命令开关图层。",
       "origin": "official",
       "path": "mods/official/sample-rickroll",
-      "digest": "sha256:743c8acf41b55653b6882fde9b8fc68ac69f32e00a5995c186c2acea4df55d51",
+      "digest": "sha256:31285c45822ff937bc4f1e326a7d6b589d106f5e1167dcc595a1ecbfc4b5873e",
       "keyId": "folium-2026-1",
-      "signedAt": "2026-09-24T17:58:56.396Z"
+      "signedAt": "2026-09-24T19:10:07.804Z"
     },
     {
       "id": "transparent-mov-export",
       "name": "透明 MOV 歌词动画导出",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Folia Mod Samples",
       "description": "将当前歌曲的歌词动画渲染为带透明背景（Alpha 通道）的视频。演示 client 注册命令、经 rpc 交给 main 调用导出服务。",
       "origin": "official",
       "path": "mods/official/sample-transparent-mov-export",
-      "digest": "sha256:aadc67de1b4039b0c5c8b9b91c448b2162556c1113a8ecf4a29c76f34984d19d",
+      "digest": "sha256:390bf9089896b6ffae42294681eb17b8df3c3e90f9af04396070a952ce44cb78",
       "keyId": "folium-2026-1",
-      "signedAt": "2026-09-24T17:58:56.397Z"
+      "signedAt": "2026-09-24T19:10:07.805Z"
     },
     {
       "id": "visualizer52hz",
       "name": "52Hz",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Folia Mod Samples",
       "description": "PixiJS 歌词动画：当前句整句出现并逐字点亮，每个节拍从字形轮廓外发出一圈年轮，响度决定粗细与亮度；纯音乐时从随机髓心生长。演示 visualizers + settings + ctx.audio（Folium 1.2）+ 思索教程（ponder.targets），以及模组自带第三方库（vendor/pixi.min.mjs）。",
       "origin": "official",
       "path": "mods/official/visualizer52hz",
-      "digest": "sha256:b82d8491b1cf377ab67017d210781960e1b7ce39ecb3763e1cd2021b55694f28",
+      "digest": "sha256:a39803db7b3028adfb03dc10b2af3cb4d4da47f989c37965048049f38cf00447",
       "keyId": "folium-2026-1",
-      "signedAt": "2026-09-24T17:58:56.432Z"
+      "signedAt": "2026-09-24T19:10:07.806Z"
     }
   ]
 }

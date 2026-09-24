@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { verifyMod } from '../tools/lib/signing.mjs';
+import { readModIdentity, verifyMod } from '../tools/lib/signing.mjs';
+import { checkPreview } from '../tools/lib/image.mjs';
 import { REPO_ROOT, listModDirs, readRevokedDigests, readTrustedKeys } from '../tools/lib/repo.mjs';
 
 test('the trusted key list is well formed', () => {
@@ -25,6 +26,12 @@ test('every mod verifies', () => {
     const revokedDigests = readRevokedDigests();
     for (const target of listModDirs()) {
         assert.equal(verifyMod(target.dir, keys, { revokedDigests }).status, 'verified', target.relative);
+    }
+});
+
+test('every mod carries a valid introduction image', () => {
+    for (const target of listModDirs()) {
+        assert.deepEqual(checkPreview(target.dir, readModIdentity(target.dir).manifest).errors, [], target.relative);
     }
 });
 

@@ -52,8 +52,12 @@ const renderCard = (mod) => {
     // Only https links: community.json values come from the submission form, and a
     // javascript: URL would survive HTML escaping.
     const source = /^https:\/\//.test(mod.source ?? '') ? `<a class="source" href="${escapeHtml(mod.source)}" rel="noopener noreferrer nofollow" target="_blank">${t('source', '源码')}</a>` : '';
+    const preview = mod.preview
+        ? `<a class="preview" href="${escapeHtml(mod.preview.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(mod.preview.url)}" width="${Number(mod.preview.width)}" height="${Number(mod.preview.height)}" alt="${escapeHtml(mod.name)}" loading="lazy" decoding="async"></a>`
+        : '';
     return `
       <article class="card" data-origin="${escapeHtml(mod.origin)}" data-search="${escapeHtml(searchText)}">
+        ${preview}
         <header class="card-head">
           <div class="monogram ${hueClass(mod.id)}" aria-hidden="true">${escapeHtml(initial)}</div>
           <div class="card-title">

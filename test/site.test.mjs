@@ -15,6 +15,7 @@ import { REPO_ROOT } from '../tools/lib/repo.mjs';
 import { createZip, crc32, readZip } from '../tools/lib/zip.mjs';
 import { buildSite } from '../tools/site/build.mjs';
 import { escapeHtml } from '../tools/site/render.mjs';
+import { makePng } from './fixtures.mjs';
 
 const TEST_PUBLIC = { kty: 'OKP', crv: 'Ed25519', x: 'eFPb57OC44VB-NMjj74WnUVLARt7gz38aBcXpykspvE' };
 const TEST_PRIVATE = { ...TEST_PUBLIC, d: 'CmEPWKhK8Rtwoh4xPYIMdKzUh34cc1pJhKqPFaOCWJI' };
@@ -49,10 +50,11 @@ const siteRepo = ({ sign = true } = {}) => {
     const modDir = path.join(root, 'mods', 'community', 'evil-mod');
     fs.mkdirSync(modDir, { recursive: true });
     fs.writeFileSync(path.join(modDir, 'mod.json'), JSON.stringify({
-        folium: 1, id: 'evil-mod', name: '<img src=x onerror=alert(1)>', version: '1.2.3', client: 'client.mjs',
+        folium: 1, id: 'evil-mod', name: '<img src=x onerror=alert(1)>', version: '1.2.3', client: 'client.mjs', preview: 'preview.png',
         author: '"quoted" & <b>', description: '</p><script>alert(1)</script>', permissions: ['net.fetch'],
     }));
     fs.writeFileSync(path.join(modDir, 'client.mjs'), 'export default function activate(folium) {}\n');
+    fs.writeFileSync(path.join(modDir, 'preview.png'), makePng(1280, 720));
     fs.writeFileSync(path.join(modDir, '.DS_Store'), 'junk');
     fs.writeFileSync(path.join(root, 'community.json'), JSON.stringify({ mods: { 'evil-mod': { owners: ['dev'], source: 'javascript:alert(1)' } } }));
     if (sign) {
@@ -76,7 +78,9 @@ test('the build publishes verified zips, a catalog and an escaped page', () => {
     const archive = fs.readFileSync(path.join(outDir, 'downloads', 'evil-mod-1.2.3.zip'));
     assert.equal(archive.length, mod.download.size);
     const names = readZip(archive).map((entry) => entry.name);
-    assert.deepEqual(names, ['evil-mod/client.mjs', 'evil-mod/mod.json', 'evil-mod/folium.sig.json']);
+    assert.deepEqual(names, ['evil-mod/client.mjs', 'evil-mod/mod.json', 'evil-mod/preview.png', 'evil-mod/folium.sig.json']);
+    assert.deepEqual(mod.preview, { url: '/previews/evil-mod-1.2.3.png', width: 1280, height: 720 });
+    assert.ok(fs.existsSync(path.join(outDir, 'previews', 'evil-mod-1.2.3.png')));
 
     // Same input, same bytes: a rebuild never changes a download.
     buildSite({ root, outDir: path.join(root, 'dist2'), commit: 'abc1234def' });
@@ -85,6 +89,7 @@ test('the build publishes verified zips, a catalog and an escaped page', () => {
     const html = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
     assert.ok(!html.includes('<script>alert(1)</script>'));
     assert.ok(!html.includes('<img src=x'));
+    assert.ok(html.includes('<img src="/previews/evil-mod-1.2.3.png" width="1280" height="720"'));
     assert.ok(html.includes(escapeHtml('</p><script>alert(1)</script>')));
     assert.ok(!html.includes('javascript:'), 'non-https source links are dropped');
     assert.ok(!/<script>(?!<)/.test(html.replace('<script src="/assets/app.js" defer></script>', '')), 'no inline script');

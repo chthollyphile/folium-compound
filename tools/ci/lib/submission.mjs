@@ -13,6 +13,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { SIGNATURE_FILE, collectSignedFiles } from '../../lib/signing.mjs';
 import { isValidRef, normalizeModPath, normalizeRepositoryUrl } from './source.mjs';
+import { checkPreview } from '../../lib/image.mjs';
 
 const require = createRequire(import.meta.url);
 const { validateManifest, parseDependency } = require('../../vendor/folia-manifest.cjs');
@@ -155,6 +156,7 @@ export const checkModTree = ({ modDir, modId, existing = null, knownModIds = [] 
             const entryPath = path.join(modDir, entry);
             if (!entryPath.startsWith(modDir + path.sep) || !fs.existsSync(entryPath)) errors.push(`入口文件 \`${entry}\` 不存在`);
         }
+        errors.push(...checkPreview(modDir, manifest).errors);
         (Array.isArray(manifest.depends) ? manifest.depends : []).forEach((dependency) => {
             const parsed = parseDependency(dependency);
             if (parsed.ok && !knownModIds.includes(parsed.id)) warnings.push(`依赖 \`${parsed.id}\` 不在本仓库里`);

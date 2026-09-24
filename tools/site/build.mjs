@@ -4,6 +4,7 @@
 //   dist/index.html                 the market page, rendered at build time
 //   dist/catalog.json               machine-readable catalog (download URLs, sizes, hashes)
 //   dist/downloads/<id>-<version>.zip
+//   dist/previews/<id>-<version>.<ext>   each mod's introduction image (mod.json `preview`)
 //   dist/assets/*                   copied from site/assets
 //
 // Only a fully verified repository is published: any unsigned or invalid mod
@@ -21,6 +22,7 @@ import { SIGNATURE_FILE, collectSignedFiles, readModIdentity, verifyMod } from '
 import { REPO_ROOT, readRevokedDigests, readTrustedKeys } from '../lib/repo.mjs';
 import { buildIndex } from '../lib/index.mjs';
 import { createZip, readZip } from '../lib/zip.mjs';
+import { checkPreview } from '../lib/image.mjs';
 import { renderMarketPage } from './render.mjs';
 import { SITE_REPOSITORY } from './config.mjs';
 
@@ -66,6 +68,7 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
 
     fs.rmSync(outDir, { recursive: true, force: true });
     fs.mkdirSync(path.join(outDir, 'downloads'), { recursive: true });
+    fs.mkdirSync(path.join(outDir, 'previews'), { recursive: true });
 
     const mods = indexed.map((entry) => {
         const modDir = path.join(root, entry.path);
@@ -77,6 +80,12 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
         }
         const fileName = `${entry.id}-${entry.version}.zip`;
         fs.writeFileSync(path.join(outDir, 'downloads', fileName), archive);
+
+        // Every published mod has a valid introduction image (tests enforce it on main too).
+        const preview = checkPreview(modDir, manifest);
+        if (preview.errors.length > 0) throw new Error(`${entry.path}: ${preview.errors.join('; ')}`);
+        const previewName = `${entry.id}-${entry.version}${path.extname(preview.info.file).toLowerCase()}`;
+        fs.copyFileSync(path.join(modDir, ...preview.info.file.split('/')), path.join(outDir, 'previews', previewName));
         return {
             ...entry,
             keyLabel: keyLabels[entry.keyId] ?? entry.keyId,
@@ -88,6 +97,7 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
             hasMain: typeof manifest.main === 'string',
             hasClient: typeof manifest.client === 'string',
             download: { url: `/downloads/${fileName}`, fileName, size: archive.length, sha256: sha256(archive) },
+            preview: { url: `/previews/${previewName}`, width: preview.info.width, height: preview.info.height },
         };
     });
 

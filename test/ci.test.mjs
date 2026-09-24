@@ -33,6 +33,7 @@ import {
     stageModFiles,
 } from '../tools/ci/lib/source.mjs';
 import { evaluateIssue } from '../tools/ci/lib/evaluate.mjs';
+import { makePng } from './fixtures.mjs';
 import { importAndSign, loadSigningKey, resignRepository } from '../tools/ci/lib/signflow.mjs';
 
 const TEST_KEY_ID = 'folium-test-vector';
@@ -71,7 +72,8 @@ const updateBody = (overrides = {}) => {
     return ['modId', 'ref', 'changes', 'confirmations'].map((key) => `### ${FORM_FIELDS[key]}\n\n${values[key]}`).join('\n\n');
 };
 
-const manifestText = (modId, version, extra = {}) => `${JSON.stringify({ folium: 1, id: modId, name: modId, version, client: 'client.mjs', ...extra }, null, 2)}\n`;
+const manifestText = (modId, version, extra = {}) => `${JSON.stringify({ folium: 1, id: modId, name: modId, version, client: 'client.mjs', preview: 'preview.png', ...extra }, null, 2)}\n`;
+const PREVIEW_PNG = makePng(1280, 720);
 
 // ---- pure rules
 
@@ -140,6 +142,7 @@ const writeModDir = (dir, modId, { version = '1.0.0', manifest = {}, files = {} 
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'mod.json'), manifestText(modId, version, manifest));
     fs.writeFileSync(path.join(dir, 'client.mjs'), 'export default function activate(folium) {}\n');
+    fs.writeFileSync(path.join(dir, 'preview.png'), PREVIEW_PNG);
     Object.entries(files).forEach(([name, content]) => {
         fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
         fs.writeFileSync(path.join(dir, name), content);
@@ -159,6 +162,11 @@ test('mod directory checks', () => {
     const invalidErrors = checkModTree({ modDir: invalid, modId: 'invalid' }).errors.join('\n');
     assert.match(invalidErrors, /unknown or unsupported permission/);
     assert.match(invalidErrors, /入口文件 `missing.mjs` 不存在/);
+
+    const noPreview = writeModDir(path.join(root, 'no-preview'), 'no-preview', { manifest: { preview: undefined } });
+    assert.match(checkModTree({ modDir: noPreview, modId: 'no-preview' }).errors.join('\n'), /缺少 `preview`/);
+    const tinyPreview = writeModDir(path.join(root, 'tiny-preview'), 'tiny-preview', { files: { 'preview.png': makePng(320, 180) } });
+    assert.match(checkModTree({ modDir: tinyPreview, modId: 'tiny-preview' }).errors.join('\n'), /介绍图片太小/);
 
     const signed = writeModDir(path.join(root, 'signed'), 'signed', { files: { [SIGNATURE_FILE]: '{}' } });
     assert.match(checkModTree({ modDir: signed, modId: 'signed' }).errors.join('\n'), /folium\.sig\.json/);
@@ -182,7 +190,7 @@ test('staging leaves out dot entries and node_modules', () => {
     const list = (dir, prefix = '') => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (
         entry.isDirectory() ? list(path.join(dir, entry.name), `${prefix}${entry.name}/`) : [`${prefix}${entry.name}`]
     )).sort();
-    assert.deepEqual(list(staged), ['LICENSE', 'client.mjs', 'lib/util.mjs', 'mod.json']);
+    assert.deepEqual(list(staged), ['LICENSE', 'client.mjs', 'lib/util.mjs', 'mod.json', 'preview.png']);
     assert.throws(() => stageModFiles(checkout, 'nope', 'cool-mod', tempDir('folium-stage-')), /没有目录/);
 });
 
@@ -255,7 +263,7 @@ test('a new submission is fetched at the tagged commit, staged and checked', asy
     try {
         assert.deepEqual(evaluation.errors, []);
         assert.deepEqual(evaluation.source, { repository: SOURCE_URL, path: 'dist/cool-mod', ref: 'v1.0.0', commit });
-        assert.deepEqual(evaluation.files.map((line) => line.slice(65, -1)), ['client.mjs', 'mod.json']);
+        assert.deepEqual(evaluation.files.map((line) => line.slice(65, -1)), ['client.mjs', 'mod.json', 'preview.png']);
         assert.match(evaluation.digest, /^sha256:/);
         assert.equal(evaluation.manifest.version, '1.0.0');
     } finally {

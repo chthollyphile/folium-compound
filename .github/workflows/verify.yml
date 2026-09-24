@@ -20,4 +20,4 @@ jobs:
         with:
           node-version: 22
       - name: Signature format and CI rule tests
-        run: node --test test/signing.test.mjs test/ci.test.mjs test/site.test.mjs
+        run: node --test test/signing.test.mjs test/ci.test.mjs test/site.test.mjs test/image.test.mjs
