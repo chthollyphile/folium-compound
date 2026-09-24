@@ -1,8 +1,7 @@
 # .github/workflows/verify.yml
-# Tests for every pull request (tooling changes and submissions alike). Runs
-# with a read-only token and no secrets. Submissions are unsigned until a
-# maintainer signs them, so the repository-wide strict check lives in
-# resign.yml on main instead.
+# Tests for pull requests (tooling changes by maintainers; community mods are
+# submitted through issues, not pull requests). Read-only token, no secrets.
+# The repository-wide strict check lives in resign.yml on main.
 
 name: verify
 
@@ -20,7 +19,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # No signature check here: an update PR changes a signed mod, so its old
-      # signature cannot match until CI re-signs it after the merge.
       - name: Signature format and CI rule tests
-        run: node --test test/signing.test.mjs test/ci.test.mjs
+        run: node --test test/signing.test.mjs test/ci.test.mjs test/site.test.mjs

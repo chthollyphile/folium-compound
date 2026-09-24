@@ -19,6 +19,7 @@ keys/
   trusted-keys.json      签名公钥（与 Folia 的 electron/modSystem/trustedKeys.cjs 保持一致）
   revoked-mods.json      已撤回的模组（按签名摘要）
 index.json               由 tools/build-index.mjs 生成：所有模组的 id、版本、来源、签名摘要
+site/assets/             模组市场页面的样式、脚本和图标（页面由 tools/site/ 在构建时生成）
 tools/                   签名、校验、生成索引、生成密钥的脚本（只依赖 Node 20+，无第三方依赖）
 test/                    签名格式的测试向量、CI 规则、站点构建，以及对整个仓库的校验
 community.json           社区模组的 owner 与来源（源码仓库、目录、commit）
@@ -35,7 +36,8 @@ npm run verify -- --list mods/official/visualizer52hz   # 列出签名覆盖的�
 npm run sign -- --key ~/.config/folium-signing/folium-2026-1.key.json mods/community/<id>
 npm run sign -- --key <key file> --all                 # 全部重新签名
 npm run index                     # 重新生成 index.json
-npm test                          # 测试向量 + 仓库校验
+npm run site                      # 生成模组市场站点到 dist/
+npm test                          # 测试向量、CI 规则、站点构建 + 仓库校验
 ```
 
 ## 收录第三方模组
@@ -90,6 +92,21 @@ npm test                          # 测试向量 + 仓库校验
 （不运行 hook、不取子模块和 LFS），文件只被读取、哈希和复制；所有脚本都来自本仓库的 main。签名密钥只存在于
 GitHub 的 `signing` 环境里，只有 `sign.yml` 的签名任务（通过授权检查之后）和 `resign.yml` 能读到，且环境只允许
 main 分支使用。
+
+## 模组市场站点
+
+`vercel.json` 把本仓库部署成模组市场页面，供人下载 zip 打包的模组。每次推送 main（包括 CI 的签名与续签推送）都会重新部署。
+
+- `node tools/site/build.mjs`（`npm run site`）生成 `dist/`：
+  - `index.html`：构建时渲染的页面，含搜索、官方 / 社区筛选、中英切换，每个模组显示权限、签名信息与 zip 的 SHA-256；
+  - `downloads/<id>-<版本>.zip`：顶层一个 `<id>/` 文件夹（Folia 安装器要求的结构），模组文件与签名原样打包，
+    拖进 Folia 的模组面板即可安装，安装后显示为「官方认证」；
+  - `catalog.json`：机器可读的目录（下载地址、大小、SHA-256、权限、签名），允许跨域读取。
+- zip 是确定性的：同样的内容总是同样的字节。发布前每个 zip 都会被解压并重新校验签名。
+- 只发布完全通过校验的仓库：`should-build.mjs` 作为 Vercel 的 ignore 步骤，在仓库里有签名失效的模组时跳过部署，
+  线上保留上一个版本，等 CI 续签后的提交再部署；构建本身也会拒绝发布任何未通过校验的模组。
+- 第三方文本在构建时全部转义，源码链接只接受 https；CSP 禁止内联脚本与样式，不加载任何外部资源。
+- 本地预览：`npm run site`，然后用任意静态服务器打开 `dist/`。
 
 ## 签名规则
 

@@ -11,6 +11,7 @@
     "sign": "node tools/sign.mjs",
     "index": "node tools/build-index.mjs",
     "keygen": "node tools/keygen.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "site": "node tools/site/build.mjs"
   }
 }

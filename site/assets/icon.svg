@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Folium: a leaf. -->
+  <rect width="64" height="64" rx="16" fill="#2f7d4f"/>
+  <path d="M46 16C30 16 18 26 18 40c0 3 .7 5.6 1.9 7.9C23 38 30 31 40 27c-8 5.5-13.6 12.4-16.5 21.4C26.6 50 29.2 51 32 51c11 0 17-10 17-24 0-4-1-8-3-11Z" fill="#e8f5ec"/>
+</svg>
