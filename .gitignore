@@ -4,4 +4,6 @@ dist/
 *.key.json
 *.pem
 *.private.*
+# Vercel CLI link and its short-lived credentials (vercel link writes .env.local).
 .vercel/
+.env*
