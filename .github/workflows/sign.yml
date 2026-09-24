@@ -1,0 +1,71 @@
+# .github/workflows/sign.yml
+# A maintainer comments `/sign <commit>` on a reviewed submission PR: sign the
+# mod with the CI key and merge it into main in one push.
+#
+# Two jobs so the key is only reachable after authorization: `authorize` has
+# no secrets and checks the commenter's permission and that <commit> is still
+# the PR head; only then does `sign` enter the `signing` environment (which
+# holds FOLIUM_SIGNING_KEY_JSON and is restricted to main). Both run the
+# scripts from main; the PR's files are data, never executed.
+
+name: sign
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  authorize:
+    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/sign')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    outputs:
+      authorized: ${{ steps.check.outputs.authorized }}
+      pr: ${{ steps.check.outputs.pr }}
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/ci/authorize-sign.mjs
+
+  sign:
+    needs: authorize
+    if: needs.authorize.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    environment: signing
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    concurrency:
+      group: signing
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sign and merge
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FOLIUM_SIGNING_KEY_JSON: ${{ secrets.FOLIUM_SIGNING_KEY_JSON }}
+        run: >
+          node tools/ci/sign-pr.mjs
+          --pr "${{ needs.authorize.outputs.pr }}"
+          --sha "${{ needs.authorize.outputs.sha }}"

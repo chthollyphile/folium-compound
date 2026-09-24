@@ -1,0 +1,75 @@
+# .github/ISSUE_TEMPLATE/mod-submission.yml
+# The community submission form. Field labels are read by tools/ci/lib/submission.mjs
+# (FORM_FIELDS); change them in both places.
+name: 模组提交 / Mod submission
+description: 提交第三方模组，审查通过后由 Folium 签名收录 / Submit a third-party mod for review and signing
+title: "[模组提交] "
+labels: ["mod-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交流程：
+        1. 先 fork 本仓库，把模组放进 `mods/community/<模组 id>/`（不要包含 `folium.sig.json`），开一个 PR。
+        2. 填写本表单，在「提交 PR」里填上那个 PR 的链接。
+        3. CI 会检查格式并在这里和 PR 里回复。通过后请等待维护者审查；审查通过后维护者会签名并合入。
+        4. 之后的更新直接提交 PR（记得提升版本号），审查合并后会自动重新签名。
+
+        模组规范见 Folia 仓库的 `mods/README.md`。
+  - type: input
+    id: mod-id
+    attributes:
+      label: 模组 id / Mod id
+      description: 与 mod.json 的 id、以及 mods/community/ 下的目录名相同
+      placeholder: my-visualizer
+    validations:
+      required: true
+  - type: input
+    id: pull-request
+    attributes:
+      label: 提交 PR / Pull request
+      description: 本仓库里提交这个模组的 PR 链接或编号
+      placeholder: "#12"
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: 源码仓库 / Source repository
+      description: 模组源码的公开仓库（https 链接）
+      placeholder: https://github.com/you/my-visualizer
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 模组说明 / Description
+      description: 模组做什么、适用于哪些场景
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: 权限说明 / Permissions
+      description: 逐条说明 mod.json 里声明的每个 permission、embedOrigins 和 experimental 为什么需要；没有就写「无」
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: 许可证 / License
+      description: 模组的许可证；包含第三方库时请一并附上它们的许可证文件
+      placeholder: MIT
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 确认 / Confirmations
+      options:
+        - label: 我是这个模组的作者，或有权代表作者提交 / I am the author or may submit on their behalf
+          required: true
+        - label: 模组不收集或上传用户数据，也不下载并执行远程代码（除非这是它明确声明的功能） / The mod does not collect user data or run remote code unless that is its declared purpose
+          required: true
+        - label: 我了解收录后的每次更新都要经过审查才会重新签名 / I understand every update is reviewed before it is re-signed
+          required: true

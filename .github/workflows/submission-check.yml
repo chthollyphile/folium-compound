@@ -1,0 +1,90 @@
+# .github/workflows/submission-check.yml
+# Format checks for community submissions: the submission issue and its pull
+# request. Both report through the same script, on the PR and on the issue.
+#
+# SECURITY: pull_request_target runs with a write token, so this workflow must
+# never execute anything from the pull request. The PR head is checked out
+# into ./pr and only read as data by the scripts from main (./tools). No
+# npm install, no scripts from ./pr, no secrets (there are none in this job).
+
+name: submission-check
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+  issues:
+    types: [opened, edited, reopened]
+
+permissions: {}
+
+concurrency:
+  group: submission-check-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  pull-request:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check out main (the rules)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Check out the PR head (data only, never executed)
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/head
+          path: pr
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the submission
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >
+          node tools/ci/check-pr.mjs
+          --pr "${{ github.event.pull_request.number }}"
+          --pr-dir pr
+          --expected-sha "${{ github.event.pull_request.head.sha }}"
+
+  issue:
+    if: github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'mod-submission')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check out main (the rules)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Read the submission form
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/ci/check-issue.mjs --issue "${{ github.event.issue.number }}"
+      - name: Check out the PR head (data only, never executed)
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ steps.resolve.outputs.pr }}/head
+          path: pr
+          persist-credentials: false
+      - name: Check the submission
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >
+          node tools/ci/check-pr.mjs
+          --pr "${{ steps.resolve.outputs.pr }}"
+          --pr-dir pr
+          --expected-sha "${{ steps.resolve.outputs.sha }}"

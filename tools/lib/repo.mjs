@@ -16,8 +16,8 @@ export const MODS_ROOT = path.join(REPO_ROOT, 'mods');
 export const ORIGINS = ['official', 'community'];
 
 /** Every mod directory in the repository as `{ origin, dir, relative }`. */
-export const listModDirs = () => ORIGINS.flatMap((origin) => {
-    const originDir = path.join(MODS_ROOT, origin);
+export const listModDirs = (root = REPO_ROOT) => ORIGINS.flatMap((origin) => {
+    const originDir = path.join(root, 'mods', origin);
     if (!fs.existsSync(originDir)) return [];
     return fs.readdirSync(originDir, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
@@ -30,11 +30,11 @@ export const listModDirs = () => ORIGINS.flatMap((origin) => {
 });
 
 /** keys/trusted-keys.json: the public keys this repository's signatures must verify against. */
-export const readTrustedKeys = () => JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'keys', 'trusted-keys.json'), 'utf8')).keys;
+export const readTrustedKeys = (root = REPO_ROOT) => JSON.parse(fs.readFileSync(path.join(root, 'keys', 'trusted-keys.json'), 'utf8')).keys;
 
 /** keys/revoked-mods.json: signed digests pulled after release. */
-export const readRevokedDigests = () => {
-    const file = path.join(REPO_ROOT, 'keys', 'revoked-mods.json');
+export const readRevokedDigests = (root = REPO_ROOT) => {
+    const file = path.join(root, 'keys', 'revoked-mods.json');
     return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).digests.map((entry) => entry.digest) : [];
 };
 

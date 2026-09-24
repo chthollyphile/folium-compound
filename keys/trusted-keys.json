@@ -10,6 +10,17 @@
       },
       "revoked": false,
       "createdAt": "2026-09-24"
+    },
+    {
+      "keyId": "folium-ci-2026-1",
+      "label": "Folium CI",
+      "publicKey": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "GPmeaeLIYT85HunWM2xF1z62NeqmOh4BNpe4A2Xq5QI"
+      },
+      "revoked": false,
+      "createdAt": "2026-09-24"
     }
   ]
 }

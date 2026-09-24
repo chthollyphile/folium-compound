@@ -1,0 +1,35 @@
+# .github/workflows/resign.yml
+# After anything lands on main (typically a reviewed update PR being merged):
+# re-sign every mod whose signature no longer verifies, rebuild index.json,
+# and run the repository-wide check. This is also the strict check for main.
+# Its own pushes use the workflow token, which starts no new runs.
+
+name: resign
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  resign:
+    runs-on: ubuntu-latest
+    environment: signing
+    permissions:
+      contents: write
+    concurrency:
+      group: signing
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Re-sign, rebuild the index, verify
+        env:
+          FOLIUM_SIGNING_KEY_JSON: ${{ secrets.FOLIUM_SIGNING_KEY_JSON }}
+        run: node tools/ci/resign.mjs
