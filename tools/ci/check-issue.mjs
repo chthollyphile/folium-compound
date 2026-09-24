@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 // tools/ci/check-issue.mjs
-// First half of the submission issue check (workflow: submission-check.yml):
-// reads the issue form and resolves the pull request it names.
+// Format check for a submission or update issue (workflow: submission-check.yml).
 //
 //   node tools/ci/check-issue.mjs --issue <number>
 //
-// On a bad form or an unusable pull request it comments on the issue and exits
-// 1. Otherwise it writes `pr` and `sha` to $GITHUB_OUTPUT; the workflow then
-// checks out that commit and runs check-pr.mjs, which reports on both the
-// issue and the pull request.
+// Runs from a checkout of main. Fetches the named commit of the author's
+// repository as data, checks it, and posts (or updates) the result comment and
+// pass/fail labels on the issue. Exits 1 when the check fails.
 
-import fs from 'node:fs';
 import { parseArgs } from 'node:util';
+import { REPO_ROOT } from '../lib/repo.mjs';
 import { createGitHub, setCheckLabels } from './lib/github.mjs';
-import { COMMENT_MARKERS, LABELS, parseSubmissionIssue, renderCheckComment } from './lib/submission.mjs';
+import { evaluateIssue } from './lib/evaluate.mjs';
+import { COMMENT_MARKERS, LABELS, renderCheckComment } from './lib/submission.mjs';
 
 const { values } = parseArgs({ options: { issue: { type: 'string' } } });
 const issueNumber = Number(values.issue);
@@ -24,30 +23,20 @@ if (!issueNumber) {
 
 const github = createGitHub();
 const issue = await github.getIssue(issueNumber);
-const { fields, errors } = parseSubmissionIssue(issue.body, github.repository);
-
-let pr = null;
-if (fields.pullRequest) {
-    try {
-        pr = await github.getPullRequest(fields.pullRequest);
-    } catch (error) {
-        if (error.status !== 404) throw error;
-        errors.push(`本仓库没有 PR #${fields.pullRequest}`);
-    }
-}
-if (pr) {
-    if (pr.state !== 'open') errors.push(`PR #${pr.number} 不是打开状态`);
-    if (pr.user.login !== issue.user.login) errors.push(`PR #${pr.number} 的作者必须与本 issue 的作者相同`);
+if (issue.state !== 'open') {
+    console.log(`issue #${issueNumber} is closed; nothing to check`);
+    process.exit(0);
 }
 
-if (errors.length > 0) {
-    await github.upsertComment(issueNumber, COMMENT_MARKERS.issue, renderCheckComment({ marker: COMMENT_MARKERS.issue, errors }));
-    await setCheckLabels(github, issueNumber, false, LABELS);
-    console.error(`issue #${issueNumber} failed:\n- ${errors.join('\n- ')}`);
-    process.exit(1);
+const evaluation = await evaluateIssue(github, { issue, baseDir: REPO_ROOT });
+try {
+    const passed = evaluation.errors.length === 0;
+    await github.upsertComment(issueNumber, COMMENT_MARKERS.check, renderCheckComment({ errors: evaluation.errors, warnings: evaluation.warnings, evaluation }));
+    await setCheckLabels(github, issueNumber, passed, LABELS);
+    console.log(passed
+        ? `#${issueNumber} passed: ${evaluation.source.repository}@${evaluation.source.commit}`
+        : `#${issueNumber} failed:\n- ${evaluation.errors.join('\n- ')}`);
+    process.exitCode = passed ? 0 : 1;
+} finally {
+    evaluation.cleanup();
 }
-
-if (process.env.GITHUB_OUTPUT) {
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `pr=${pr.number}\nsha=${pr.head.sha}\n`);
-}
-console.log(`issue #${issueNumber} names PR #${pr.number} at ${pr.head.sha}`);

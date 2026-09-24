@@ -1,25 +1,22 @@
 // tools/ci/lib/submission.mjs
 // The rules for community submissions, as pure functions the workflows call:
-// what a submission pull request may touch, what a community mod directory must
-// look like, how the submission issue form reads, and what a maintainer's
-// `/sign <commit>` comment means. No network and no git here, so every rule is
-// unit-tested (test/ci.test.mjs).
+// how the two issue forms (new mod, update) read, what a community mod
+// directory must look like, and what a maintainer's `/sign <commit>` comment
+// means. No network and no git here, so every rule is unit-tested
+// (test/ci.test.mjs).
 //
 // Nothing in this file executes code from a submission. Mod files are read as
-// data (mod.json parsed, everything else only hashed), which is what lets the
-// checks run on pull_request_target without exposing anything to the PR.
+// data (mod.json parsed, everything else only hashed).
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { SIGNATURE_FILE, collectSignedFiles } from '../../lib/signing.mjs';
-
-export { SIGNATURE_FILE };
+import { isValidRef, normalizeModPath, normalizeRepositoryUrl } from './source.mjs';
 
 const require = createRequire(import.meta.url);
 const { validateManifest, parseDependency } = require('../../vendor/folia-manifest.cjs');
 
-export const COMMUNITY_PREFIX = 'mods/community/';
 export const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 // Community mods are source trees; tighter than the signed digest's own caps.
@@ -28,23 +25,35 @@ export const COMMUNITY_LIMITS = { maxFiles: 300, maxTotalBytes: 16 * 1024 * 1024
 // Roles that may run `/sign` (GitHub collaborator permission levels).
 export const SIGNER_PERMISSIONS = new Set(['admin', 'maintain', 'write']);
 
-// Labels the workflows manage.
+// Labels the workflows manage. The two form labels are applied by the issue templates.
 export const LABELS = {
     submission: 'mod-submission',
+    update: 'mod-update',
     awaitingReview: 'awaiting-review',
     needsChanges: 'needs-changes',
     signed: 'signed',
 };
 
-// Headings of the issue form (.github/ISSUE_TEMPLATE/mod-submission.yml); keep both in sync.
+// Headings of the issue forms (.github/ISSUE_TEMPLATE/mod-submission.yml and
+// mod-update.yml); keep both sides in sync.
 export const FORM_FIELDS = {
     modId: '模组 id / Mod id',
-    pullRequest: '提交 PR / Pull request',
-    source: '源码仓库 / Source repository',
+    repository: '源码仓库 / Source repository',
+    ref: '版本 / Version (tag or commit)',
+    path: '模组目录 / Mod directory',
     description: '模组说明 / Description',
     permissions: '权限说明 / Permissions',
     license: '许可证 / License',
+    changes: '更新说明 / What changed',
     confirmations: '确认 / Confirmations',
+};
+
+/** Which form an issue is: 'submission', 'update' or null, by its labels. */
+export const issueKind = (issue) => {
+    const names = (issue?.labels ?? []).map((label) => (typeof label === 'string' ? label : label.name));
+    if (names.includes(LABELS.update)) return 'update';
+    if (names.includes(LABELS.submission)) return 'submission';
+    return null;
 };
 
 /*
@@ -64,40 +73,30 @@ export const parseIssueFormSections = (body) => {
     return sections;
 };
 
-/** A pull request number from "#12", "12" or a pull URL of this repository; null otherwise. */
-export const parsePullRequestReference = (text, repository) => {
-    const value = String(text ?? '').trim();
-    let match = /^#?(\d+)$/.exec(value);
-    if (match) return Number(match[1]);
-    match = /^https:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)(?:[/?#].*)?$/.exec(value);
-    if (match && repository && match[1].toLowerCase() === repository.toLowerCase()) return Number(match[2]);
-    return null;
-};
+const checkedAll = (text) => /- \[[xX]\]/.test(text) && !/- \[ \]/.test(text);
 
 /*
- * Reads a submission issue. Returns `{ fields, errors }`: `fields.modId`,
- * `fields.pullRequest` (number) and `fields.source` are what the workflows use.
+ * Reads a submission or update issue. Returns `{ fields, errors }` with
+ * `fields.modId`, `fields.ref`, and for a new mod `fields.repository` and
+ * `fields.path` (normalized: '' is the repository root).
  */
-export const parseSubmissionIssue = (body, repository) => {
+export const parseSubmissionIssue = (body, kind = 'submission') => {
     const sections = parseIssueFormSections(body);
     const errors = [];
     const modId = (sections[FORM_FIELDS.modId] ?? '').trim();
     if (!MOD_ID_PATTERN.test(modId)) errors.push(`「${FORM_FIELDS.modId}」必须是模组的 id（小写字母、数字和 -），当前是 \`${modId || '空'}\``);
-    const pullRequest = parsePullRequestReference(sections[FORM_FIELDS.pullRequest], repository);
-    if (!pullRequest) errors.push(`「${FORM_FIELDS.pullRequest}」必须是本仓库的 PR 链接或编号（如 #12）`);
-    const source = (sections[FORM_FIELDS.source] ?? '').trim();
-    if (!/^https:\/\/\S+$/.test(source)) errors.push(`「${FORM_FIELDS.source}」必须是 https 链接`);
-    const confirmations = sections[FORM_FIELDS.confirmations] ?? '';
-    if (/- \[ \]/.test(confirmations) || !/- \[[xX]\]/.test(confirmations)) errors.push(`请勾选「${FORM_FIELDS.confirmations}」里的全部项目`);
-    return {
-        fields: {
-            modId,
-            pullRequest,
-            source,
-            license: (sections[FORM_FIELDS.license] ?? '').trim(),
-        },
-        errors,
-    };
+    const ref = (sections[FORM_FIELDS.ref] ?? '').trim();
+    if (!isValidRef(ref)) errors.push(`「${FORM_FIELDS.ref}」必须是 tag、分支名或完整的 40 位 commit，当前是 \`${ref || '空'}\``);
+    const fields = { modId, ref };
+    if (kind === 'submission') {
+        const repository = normalizeRepositoryUrl(sections[FORM_FIELDS.repository]);
+        if (!repository) errors.push(`「${FORM_FIELDS.repository}」必须是公开仓库的 https 地址（如 https://github.com/you/my-mod）`);
+        const modPath = normalizeModPath(sections[FORM_FIELDS.path]);
+        if (modPath === null) errors.push(`「${FORM_FIELDS.path}」必须是仓库内的相对路径，根目录留空`);
+        Object.assign(fields, { repository, path: modPath ?? '', license: (sections[FORM_FIELDS.license] ?? '').trim() });
+    }
+    if (!checkedAll(sections[FORM_FIELDS.confirmations] ?? '')) errors.push(`请勾选「${FORM_FIELDS.confirmations}」里的全部项目`);
+    return { fields, errors };
 };
 
 /*
@@ -111,35 +110,6 @@ export const parseSignCommand = (body) => {
     const match = /^\/sign\s+([0-9a-fA-F]{7,40})$/.exec(firstLine);
     return match ? match[1].toLowerCase() : '';
 };
-
-/*
- * Sorts a pull request's changed files: which community mod directories they
- * touch and which paths fall outside mods/community/<id>/. Renames count on
- * both their old and new path.
- */
-export const classifyChangedFiles = (files) => {
-    const modIds = new Set();
-    const outside = [];
-    for (const file of files) {
-        for (const filename of [file.filename, file.previous_filename].filter(Boolean)) {
-            const rest = filename.startsWith(COMMUNITY_PREFIX) ? filename.slice(COMMUNITY_PREFIX.length) : null;
-            const slash = rest ? rest.indexOf('/') : -1;
-            if (rest && slash > 0) modIds.add(rest.slice(0, slash));
-            else outside.push(filename);
-        }
-    }
-    return { modIds: [...modIds].sort(), outside: [...new Set(outside)].sort() };
-};
-
-/*
- * Signature files a pull request adds, changes or deletes. Submitters never
- * touch them: CI writes signatures after review. (An update PR's directory
- * still holds main's old signature; that is expected and not counted here.)
- */
-export const touchedSignatureFiles = (files) => files
-    .flatMap((file) => [file.filename, file.previous_filename].filter(Boolean))
-    .filter((filename) => filename.startsWith(COMMUNITY_PREFIX) && filename.endsWith(`/${SIGNATURE_FILE}`)
-        && filename.split('/').length === 4);
 
 const parseVersion = (version) => {
     const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version ?? ''));
@@ -167,7 +137,7 @@ export const checkModTree = ({ modDir, modId, existing = null, knownModIds = [] 
     const errors = [];
     const warnings = [];
     if (!fs.existsSync(modDir) || !fs.statSync(modDir).isDirectory()) {
-        return { errors: [`\`mods/community/${modId}/\` 不存在（删除模组需要维护者手动处理）`], warnings, manifest: null };
+        return { errors: ['模组目录不存在'], warnings, manifest: null };
     }
     if (!MOD_ID_PATTERN.test(modId)) errors.push(`目录名 \`${modId}\` 不是合法的模组 id`);
 
@@ -197,6 +167,9 @@ export const checkModTree = ({ modDir, modId, existing = null, knownModIds = [] 
         }
     }
 
+    if (fs.existsSync(path.join(modDir, SIGNATURE_FILE))) {
+        errors.push(`源码里不要包含 \`${SIGNATURE_FILE}\`：签名由维护者审查后通过 CI 生成`);
+    }
     try {
         const files = collectSignedFiles(modDir);
         const totalBytes = files.reduce((sum, file) => sum + fs.statSync(file.absolute).size, 0);
@@ -209,28 +182,39 @@ export const checkModTree = ({ modDir, modId, existing = null, knownModIds = [] 
 };
 
 export const COMMENT_MARKERS = {
-    pr: '<!-- folium-bot:pr-check -->',
-    issue: '<!-- folium-bot:issue-check -->',
+    check: '<!-- folium-bot:check -->',
     sign: '<!-- folium-bot:sign -->',
 };
 
 /*
- * The check result comment. On success it asks the author to wait for review
- * and tells maintainers how to sign; on failure it lists what to fix.
+ * The check result comment on a submission or update issue. On success it asks
+ * the author to wait for review and gives maintainers the review links, the
+ * exact files that would be signed, and the `/sign` command for this commit.
  */
-export const renderCheckComment = ({ marker, errors, warnings = [], headSha = null, modId = null, manifest = null, isUpdate = false }) => {
-    const lines = [marker];
-    const at = headSha ? `（提交 \`${headSha.slice(0, 12)}\`）` : '';
+export const renderCheckComment = ({ errors, warnings = [], evaluation = null }) => {
+    const lines = [COMMENT_MARKERS.check];
+    const source = evaluation?.source;
+    const at = source?.commit ? `（\`${source.repository}\` @ \`${source.commit.slice(0, 12)}\`）` : '';
     if (errors.length === 0) {
         lines.push(`✅ 格式检查通过${at}。请等待维护者审查。`);
         lines.push('');
-        if (isUpdate) {
-            lines.push(`这是对 \`${modId}\` 的更新：维护者审查并合并后，CI 会自动重新签名。`);
-        } else {
-            lines.push(`维护者审查通过后，在 PR 里评论 \`/sign ${headSha ? headSha.slice(0, 12) : '<commit>'}\` 即可签名并合入。审查之后如果 PR 又有新提交，需要按新提交重新审查。`);
-        }
+        const manifest = evaluation.manifest;
+        const permissions = Array.isArray(manifest.permissions) && manifest.permissions.length > 0 ? manifest.permissions.join(', ') : '无';
+        lines.push(`模组：\`${manifest.id}\` ${evaluation.isUpdate ? `${evaluation.previousVersion} → ${manifest.version}` : manifest.version} · 权限：${permissions}${manifest.main ? ' · 含 Node 入口（main）' : ''}`);
+        if (evaluation.links?.compare) lines.push(`对比上一个签名版本：${evaluation.links.compare}`);
+        if (evaluation.links?.tree) lines.push(`源码：${evaluation.links.tree}`);
+        lines.push('');
+        lines.push(`<details><summary>将要签名的 ${evaluation.files.length} 个文件（签名摘要 \`${evaluation.digest}\`）</summary>`);
+        lines.push('');
+        lines.push('```');
+        evaluation.files.slice(0, 200).forEach((line) => lines.push(line.trimEnd()));
+        if (evaluation.files.length > 200) lines.push(`…（另有 ${evaluation.files.length - 200} 个）`);
+        lines.push('```');
+        lines.push('</details>');
+        lines.push('');
+        lines.push(`维护者审查这个提交后，在本 issue 评论 \`/sign ${source.commit.slice(0, 12)}\` 即可签名并收录。作者修改 issue 指向新的提交后，需要按新提交重新审查。`);
     } else {
-        lines.push(`❌ 格式检查未通过${at}，请修改后再推送：`);
+        lines.push(`❌ 格式检查未通过${at}，请修改后编辑本 issue，会自动重新检查：`);
         lines.push('');
         errors.forEach((error) => lines.push(`- ${error}`));
     }
@@ -238,11 +222,6 @@ export const renderCheckComment = ({ marker, errors, warnings = [], headSha = nu
         lines.push('');
         lines.push('需要维护者留意：');
         warnings.forEach((warning) => lines.push(`- ${warning}`));
-    }
-    if (manifest && errors.length === 0) {
-        const permissions = Array.isArray(manifest.permissions) && manifest.permissions.length > 0 ? manifest.permissions.join(', ') : '无';
-        lines.push('');
-        lines.push(`模组：\`${manifest.id}\` ${manifest.version} · 权限：${permissions}${manifest.main ? ' · 含 Node 入口（main）' : ''}`);
     }
     return lines.join('\n');
 };

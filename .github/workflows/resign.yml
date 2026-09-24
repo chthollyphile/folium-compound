@@ -1,5 +1,5 @@
 # .github/workflows/resign.yml
-# After anything lands on main (typically a reviewed update PR being merged):
+# After anything lands on main (a maintainer's direct edit, a key rotation):
 # re-sign every mod whose signature no longer verifies, rebuild index.json,
 # and run the repository-wide check. This is also the strict check for main.
 # Its own pushes use the workflow token, which starts no new runs.

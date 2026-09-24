@@ -1,45 +1,54 @@
 # .github/ISSUE_TEMPLATE/mod-submission.yml
-# The community submission form. Field labels are read by tools/ci/lib/submission.mjs
-# (FORM_FIELDS); change them in both places.
+# Submitting a new community mod from the author's own repository. Field labels
+# are read by tools/ci/lib/submission.mjs (FORM_FIELDS); change both together.
 name: 模组提交 / Mod submission
-description: 提交第三方模组，审查通过后由 Folium 签名收录 / Submit a third-party mod for review and signing
+description: 从你自己的源码仓库提交一个新模组，审查通过后由 Folium 签名收录 / Submit a new mod from your own repository
 title: "[模组提交] "
 labels: ["mod-submission"]
 body:
   - type: markdown
     attributes:
       value: |
-        提交流程：
-        1. 先 fork 本仓库，把模组放进 `mods/community/<模组 id>/`（不要包含 `folium.sig.json`），开一个 PR。
-        2. 填写本表单，在「提交 PR」里填上那个 PR 的链接。
-        3. CI 会检查格式并在这里和 PR 里回复。通过后请等待维护者审查；审查通过后维护者会签名并合入。
-        4. 之后的更新直接提交 PR（记得提升版本号），审查合并后会自动重新签名。
+        不需要 fork 本仓库。流程：
+        1. 把模组放在你自己的公开仓库里（可以是仓库根目录，也可以是某个子目录），打一个 tag（推荐）或记下 commit。
+        2. 填写本表单。CI 会取回那个提交，检查格式，并在这里回复将要签名的文件清单。
+        3. 通过后请等待维护者审查；审查通过后维护者会签名，模组文件会被复制进本仓库并发布。
+        4. 以后发布新版本时，开一个「模组更新」issue 即可。
 
-        模组规范见 Folia 仓库的 `mods/README.md`。
+        以 `.` 开头的文件和目录（`.git`、`.github` 等）以及 `node_modules` 不会被收录；不要提交 `folium.sig.json`；
+        不能包含符号链接。模组规范见 Folia 仓库的 `mods/README.md`。
   - type: input
     id: mod-id
     attributes:
       label: 模组 id / Mod id
-      description: 与 mod.json 的 id、以及 mods/community/ 下的目录名相同
+      description: 与 mod.json 的 id 相同
       placeholder: my-visualizer
     validations:
       required: true
   - type: input
-    id: pull-request
-    attributes:
-      label: 提交 PR / Pull request
-      description: 本仓库里提交这个模组的 PR 链接或编号
-      placeholder: "#12"
-    validations:
-      required: true
-  - type: input
-    id: source
+    id: repository
     attributes:
       label: 源码仓库 / Source repository
-      description: 模组源码的公开仓库（https 链接）
+      description: 公开仓库的 https 地址（GitHub、GitLab、Codeberg 等）
       placeholder: https://github.com/you/my-visualizer
     validations:
       required: true
+  - type: input
+    id: ref
+    attributes:
+      label: 版本 / Version (tag or commit)
+      description: 要收录的 tag（推荐）、分支名或完整的 40 位 commit。审查和签名都绑定到它当时指向的 commit
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: input
+    id: path
+    attributes:
+      label: 模组目录 / Mod directory
+      description: 仓库里 mod.json 所在的目录；在仓库根目录就留空
+      placeholder: dist/my-visualizer
+    validations:
+      required: false
   - type: textarea
     id: description
     attributes:
@@ -58,7 +67,7 @@ body:
     id: license
     attributes:
       label: 许可证 / License
-      description: 模组的许可证；包含第三方库时请一并附上它们的许可证文件
+      description: 模组的许可证；包含第三方库时请把它们的许可证文件放在模组目录里
       placeholder: MIT
     validations:
       required: true
@@ -71,5 +80,5 @@ body:
           required: true
         - label: 模组不收集或上传用户数据，也不下载并执行远程代码（除非这是它明确声明的功能） / The mod does not collect user data or run remote code unless that is its declared purpose
           required: true
-        - label: 我了解收录后的每次更新都要经过审查才会重新签名 / I understand every update is reviewed before it is re-signed
+        - label: 我了解每个新版本都要经过审查才会签名 / I understand every new version is reviewed before it is signed
           required: true

@@ -45,10 +45,7 @@ export const createGitHub = ({ token = process.env.GITHUB_TOKEN, repository = pr
 
     return {
         repository,
-        getPullRequest: (number) => request('GET', `${repo}/pulls/${number}`),
-        listPullRequestFiles: (number) => paginate(`${repo}/pulls/${number}/files`),
         getIssue: (number) => request('GET', `${repo}/issues/${number}`),
-        listOpenIssuesWithLabel: (label) => paginate(`${repo}/issues?state=open&labels=${encodeURIComponent(label)}`),
         /** The collaborator permission of a user: 'admin' | 'maintain' | 'write' | 'triage' | 'read' | 'none'. */
         getPermission: async (username) => {
             try {

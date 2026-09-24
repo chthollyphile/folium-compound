@@ -1,23 +1,21 @@
 // tools/ci/lib/evaluate.mjs
-// Evaluates a community submission pull request against the rules in
-// submission.mjs. Shared by the PR check, the issue check and the signing job,
-// so all three judge a submission identically. The GitHub client is passed in
-// (tests use a fake); the PR's files are read from a checkout as data only.
+// Evaluates a submission or update issue: reads the form, resolves the source
+// commit, fetches it from the author's repository, stages the mod directory
+// exactly as it would be imported, and checks it. Shared by the issue check
+// and the signing job, so both judge the same commit identically.
+//
+// The GitHub client is passed in (tests use a fake). `fetchUrlFor` maps the
+// submitted repository URL to what git fetches (tests point it at a local
+// repository together with `allowLocal`).
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { listModDirs } from '../../lib/repo.mjs';
-import { readModIdentity } from '../../lib/signing.mjs';
+import { computeSignedDigest, readModIdentity } from '../../lib/signing.mjs';
 import { readCommunityRegistry } from '../../lib/index.mjs';
-import {
-    LABELS,
-    SIGNATURE_FILE,
-    SIGNER_PERMISSIONS,
-    checkModTree,
-    classifyChangedFiles,
-    parseSubmissionIssue,
-    touchedSignatureFiles,
-} from './submission.mjs';
+import { SIGNER_PERMISSIONS, checkModTree, issueKind, parseSubmissionIssue } from './submission.mjs';
+import { fetchCommit, resolveRef, reviewLinks, stageModFiles } from './source.mjs';
 
 /** Every mod id in the repository at `root`. */
 export const knownModIds = (root) => listModDirs(root).map((target) => {
@@ -29,83 +27,91 @@ export const knownModIds = (root) => listModDirs(root).map((target) => {
 });
 
 /*
- * The open submission issue that names this pull request, or null. Only
- * issues carrying the submission label (applied by the issue form) count.
+ * Returns `{ kind, errors, warnings, modId, manifest, isUpdate, previousVersion,
+ * source: { repository, path, ref, commit }, stagedDir, files, digest, links,
+ * cleanup }`. `stagedDir` is the mod as it would be imported (call `cleanup()`
+ * when done). `errors` block signing; `warnings` are for the maintainer.
  */
-export const findSubmissionIssue = async (github, prNumber) => {
-    const issues = await github.listOpenIssuesWithLabel(LABELS.submission);
-    for (const issue of issues) {
-        if (issue.pull_request) continue;
-        const { fields } = parseSubmissionIssue(issue.body, github.repository);
-        if (fields.pullRequest === prNumber) return { issue, fields };
-    }
-    return null;
-};
-
-/*
- * Returns `{ skip, errors, warnings, modId, manifest, isUpdate, pr, submission }`.
- * `skip` is true for pull requests by maintainers that are not community
- * submissions (tooling changes): those are reviewed like any internal PR.
- *   - baseDir: checkout of main (the rules and the current mods)
- *   - prDir:   checkout of the pull request head
- */
-export const evaluatePullRequest = async (github, { prNumber, baseDir, prDir }) => {
-    const pr = await github.getPullRequest(prNumber);
-    const author = pr.user.login;
-    const files = await github.listPullRequestFiles(prNumber);
-    const { modIds, outside } = classifyChangedFiles(files);
-    const authorPermission = await github.getPermission(author);
-    const isMaintainer = SIGNER_PERMISSIONS.has(authorPermission);
-
-    if (isMaintainer && (outside.length > 0 || modIds.length === 0)) {
-        return { skip: true, pr, errors: [], warnings: [] };
-    }
-
+export const evaluateIssue = async (github, { issue, baseDir, fetchUrlFor = (url) => url, allowLocal = false }) => {
     const errors = [];
     const warnings = [];
-    if (pr.base.ref !== 'main') errors.push(`PR 必须合并到 \`main\`，当前目标是 \`${pr.base.ref}\``);
-    if (outside.length > 0) {
-        errors.push(`社区提交只能修改 \`mods/community/<模组 id>/\` 下的文件，以下文件超出范围：${outside.slice(0, 20).map((file) => `\`${file}\``).join('、')}`);
-    }
-    if (modIds.length !== 1) {
-        errors.push(modIds.length === 0 ? 'PR 没有修改任何 `mods/community/<模组 id>/` 下的文件' : `一个 PR 只能提交一个模组，当前涉及：${modIds.join('、')}`);
-        return { skip: false, pr, errors, warnings, modId: modIds[0] ?? null, manifest: null, isUpdate: false, submission: null };
+    const kind = issueKind(issue);
+    const result = { kind, errors, warnings, modId: null, manifest: null, isUpdate: kind === 'update', previousVersion: null, source: null, stagedDir: null, files: [], digest: null, links: null, cleanup: () => {} };
+    if (!kind) {
+        errors.push('这个 issue 不是模组提交或模组更新');
+        return result;
     }
 
-    if (touchedSignatureFiles(files).length > 0) {
-        errors.push(`不要提交或修改 \`${SIGNATURE_FILE}\`：签名由维护者审查后通过 CI 生成`);
-    }
+    const { fields, errors: formErrors } = parseSubmissionIssue(issue.body, kind);
+    errors.push(...formErrors);
+    result.modId = fields.modId || null;
+    if (errors.length > 0) return result;
 
-    const modId = modIds[0];
-    const existingDir = path.join(baseDir, 'mods', 'community', modId);
-    const existing = fs.existsSync(path.join(existingDir, 'mod.json'))
-        ? JSON.parse(fs.readFileSync(path.join(existingDir, 'mod.json'), 'utf8'))
-        : null;
-    const isUpdate = existing !== null;
-    const tree = checkModTree({
-        modDir: path.join(prDir, 'mods', 'community', modId),
-        modId,
-        existing,
-        knownModIds: knownModIds(baseDir),
-    });
-    errors.push(...tree.errors);
-    warnings.push(...tree.warnings);
-
-    let submission = null;
-    if (isUpdate) {
-        const owners = readCommunityRegistry(baseDir).mods[modId]?.owners ?? [];
-        if (!owners.includes(author)) warnings.push(`PR 作者 @${author} 不是 \`${modId}\` 的登记维护者（${owners.map((owner) => `@${owner}`).join('、') || '无'}）`);
+    const author = issue.user.login;
+    const registry = readCommunityRegistry(baseDir);
+    const entry = registry.mods[fields.modId] ?? null;
+    const known = knownModIds(baseDir);
+    const existingDir = path.join(baseDir, 'mods', 'community', fields.modId);
+    let existing = null;
+    let repository;
+    let modPath;
+    if (kind === 'submission') {
+        if (known.includes(fields.modId)) errors.push(`模组 id \`${fields.modId}\` 已被占用；更新已收录的模组请用「模组更新」issue`);
+        repository = fields.repository;
+        modPath = fields.path;
     } else {
-        submission = await findSubmissionIssue(github, prNumber);
-        if (!submission) {
-            errors.push('新模组需要先按模板开一个「模组提交」issue，并在其中填写本 PR 的链接');
+        if (!entry || !fs.existsSync(path.join(existingDir, 'mod.json'))) {
+            errors.push(`\`${fields.modId}\` 不是已收录的社区模组；新模组请用「模组提交」issue`);
         } else {
-            if (submission.issue.user.login !== author) errors.push(`提交 issue #${submission.issue.number} 的作者必须与 PR 作者相同`);
-            if (submission.fields.modId !== modId) errors.push(`提交 issue #${submission.issue.number} 填写的模组 id（\`${submission.fields.modId}\`）与 PR 里的目录 \`${modId}\` 不一致`);
-            const formErrors = parseSubmissionIssue(submission.issue.body, github.repository).errors;
-            if (formErrors.length > 0) errors.push(`提交 issue #${submission.issue.number} 填写不完整`);
+            existing = JSON.parse(fs.readFileSync(path.join(existingDir, 'mod.json'), 'utf8'));
+            result.previousVersion = existing.version;
+            const owners = entry.owners ?? [];
+            if (!owners.includes(author) && !SIGNER_PERMISSIONS.has(await github.getPermission(author))) {
+                errors.push(`只有 \`${fields.modId}\` 的登记维护者（${owners.map((owner) => `@${owner}`).join('、') || '无'}）可以提交更新`);
+            }
+            repository = entry.source;
+            modPath = entry.path ?? '';
+            if (!repository) errors.push(`\`${fields.modId}\` 没有登记源码仓库，请联系维护者`);
         }
     }
+    if (errors.length > 0) return result;
 
-    return { skip: false, pr, errors, warnings, modId, manifest: tree.manifest, isUpdate, submission };
+    let commit;
+    try {
+        commit = resolveRef(fetchUrlFor(repository), fields.ref, { allowLocal });
+    } catch (error) {
+        errors.push(error.message.startsWith('仓库') ? error.message : `无法访问源码仓库：${String(error.stderr ?? error.message).trim().split('\n').pop()}`);
+        return result;
+    }
+    result.source = { repository, path: modPath, ref: fields.ref, commit };
+
+    let checkout;
+    try {
+        checkout = fetchCommit(fetchUrlFor(repository), commit, { ref: fields.ref, allowLocal });
+    } catch (error) {
+        errors.push(error.message);
+        return result;
+    }
+    const stagingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'folium-stage-'));
+    result.cleanup = () => fs.rmSync(stagingRoot, { recursive: true, force: true });
+    try {
+        result.stagedDir = stageModFiles(checkout, modPath, fields.modId, stagingRoot);
+    } catch (error) {
+        errors.push(error.message);
+        return result;
+    } finally {
+        fs.rmSync(checkout, { recursive: true, force: true });
+    }
+
+    const tree = checkModTree({ modDir: result.stagedDir, modId: fields.modId, existing, knownModIds: known });
+    errors.push(...tree.errors);
+    warnings.push(...tree.warnings);
+    result.manifest = tree.manifest;
+    if (errors.length === 0) {
+        const { digest, lines } = computeSignedDigest(result.stagedDir);
+        result.digest = digest;
+        result.files = lines;
+        result.links = reviewLinks(repository, commit, modPath, entry?.commit ?? null);
+    }
+    return result;
 };

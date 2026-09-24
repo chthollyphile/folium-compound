@@ -1,11 +1,13 @@
 // tools/ci/lib/signflow.mjs
 // The two jobs that hold the CI signing key, minus their GitHub calls:
-//   - mergeAndSign: a maintainer said `/sign <commit>` on a reviewed submission.
-//     Merge exactly that commit into main, sign the mod, update community.json
-//     and index.json, and commit, all locally; the caller pushes once, so main
-//     never shows an unsigned mod and a failure leaves main untouched.
-//   - resignRepository: after a reviewed update is merged (or anything else
-//     lands on main), re-sign every mod whose signature no longer verifies.
+//   - importAndSign: a maintainer said `/sign <commit>` on a reviewed
+//     submission or update issue. Replace mods/community/<id>/ with the files
+//     staged from that commit of the author's repository, sign them, update
+//     community.json and index.json, and commit, all locally; the caller pushes
+//     once, so main never shows an unsigned mod and a failure leaves main
+//     untouched.
+//   - resignRepository: after anything lands on main (a maintainer's edit, a
+//     key rotation), re-sign every mod whose signature no longer verifies.
 // Both finish with the repository-wide check (every mod verified, index
 // current) before anything is committed.
 
@@ -15,7 +17,6 @@ import path from 'node:path';
 import { SIGNATURE_FILE, readModIdentity, signMod, verifyMod } from '../../lib/signing.mjs';
 import { listModDirs, readRevokedDigests, readTrustedKeys } from '../../lib/repo.mjs';
 import { buildIndex, readCommunityRegistry, writeCommunityRegistry } from '../../lib/index.mjs';
-import { COMMUNITY_PREFIX } from './submission.mjs';
 
 export const BOT_IDENTITY = {
     name: 'github-actions[bot]',
@@ -73,48 +74,41 @@ export const finalizeRepository = (root, { runTests = true } = {}) => {
 };
 
 /*
- * Merges the reviewed commit `sha` of pull request `prNumber` into the checked
- * out main at `repoDir`, then signs `modId` and commits. The commit must already
- * be fetched. Returns `{ mergeCommit, signCommit, record }`; throws (leaving
- * the working tree reset to where it started) on conflicts, on a merge that
- * reaches outside the mod directory, or on a failed final check.
+ * Imports a staged mod (see source.mjs stageModFiles) into the checked-out
+ * main at `repoDir`, signs it and commits. `kind` is 'submission' or 'update';
+ * `source` is `{ repository, path, commit }`. Returns `{ commit, record }`;
+ * throws, leaving the working tree exactly as it was, when the final check
+ * fails.
  */
-export const mergeAndSign = ({ repoDir, prNumber, sha, headLabel, title, author, modId, submission, key, runTests = true, now = new Date() }) => {
+export const importAndSign = ({ repoDir, stagedDir, modId, kind, author, authorId = null, issueNumber, source, key, runTests = true, now = new Date() }) => {
     const start = git(repoDir, ['rev-parse', 'HEAD']);
+    const relativeDir = path.join('mods', 'community', modId);
+    const targetDir = path.join(repoDir, relativeDir);
     const reset = () => {
-        spawnSync('git', ['merge', '--abort'], { cwd: repoDir });
-        git(repoDir, ['reset', '--hard', start]);
+        git(repoDir, ['reset', '-q', '--hard', start]);
+        git(repoDir, ['clean', '-fdq', '--', relativeDir]);
     };
     try {
-        try {
-            git(repoDir, ['merge', '--no-ff', '-m', `Merge pull request #${prNumber} from ${headLabel}\n\n${title}`, sha]);
-        } catch (error) {
-            throw new Error(`合并冲突，请作者基于最新的 main 更新 PR（${String(error.stderr ?? error.message).trim().split('\n')[0]}）`);
-        }
-        const mergeCommit = git(repoDir, ['rev-parse', 'HEAD']);
-        const prefix = `${COMMUNITY_PREFIX}${modId}/`;
-        const touched = git(repoDir, ['diff', '--name-only', `${start}..${mergeCommit}`]).split('\n').filter(Boolean);
-        const outside = touched.filter((file) => !file.startsWith(prefix));
-        if (outside.length > 0) throw new Error(`合并结果修改了 ${prefix} 以外的文件：${outside.join(', ')}`);
+        fs.rmSync(targetDir, { recursive: true, force: true });
+        fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+        fs.cpSync(stagedDir, targetDir, { recursive: true, verbatimSymlinks: true });
 
-        const modDir = path.join(repoDir, 'mods', 'community', modId);
-        const { version } = readModIdentity(modDir);
+        const { version } = readModIdentity(targetDir);
+        const today = now.toISOString().slice(0, 10);
         const registry = readCommunityRegistry(repoDir);
-        if (!registry.mods[modId]) {
-            registry.mods[modId] = {
-                owners: [author],
-                submission: submission?.issue?.number ?? null,
-                source: submission?.fields?.source ?? null,
-                addedAt: now.toISOString().slice(0, 10),
-            };
-            writeCommunityRegistry(registry, repoDir);
-        }
-        const record = writeSignature(modDir, key);
+        const previous = registry.mods[modId];
+        registry.mods[modId] = kind === 'submission' || !previous
+            ? { owners: [author], submission: issueNumber, source: source.repository, path: source.path, commit: source.commit, version, addedAt: today, updatedAt: today }
+            : { ...previous, commit: source.commit, version, updatedAt: today, lastIssue: issueNumber };
+        writeCommunityRegistry(registry, repoDir);
+
+        const record = writeSignature(targetDir, key);
         finalizeRepository(repoDir, { runTests });
 
-        git(repoDir, ['add', '-A', path.join('mods', 'community', modId), 'community.json', 'index.json']);
-        git(repoDir, ['commit', '-m', `sign(community): ${modId}@${version}\n\nReviewed commit ${sha} from #${prNumber}, signed with ${key.keyId}.`]);
-        return { mergeCommit, signCommit: git(repoDir, ['rev-parse', 'HEAD']), record };
+        const coAuthor = authorId ? `\n\nCo-authored-by: ${author} <${authorId}+${author}@users.noreply.github.com>` : '';
+        git(repoDir, ['add', '-A', relativeDir, 'community.json', 'index.json']);
+        git(repoDir, ['commit', '-q', '-m', `sign(community): ${modId}@${version}\n\nImported from ${source.repository}@${source.commit}${source.path ? ` (${source.path})` : ''}, reviewed in #${issueNumber}, signed with ${key.keyId}.${coAuthor}`]);
+        return { commit: git(repoDir, ['rev-parse', 'HEAD']), record };
     } catch (error) {
         reset();
         throw error;
@@ -122,9 +116,8 @@ export const mergeAndSign = ({ repoDir, prNumber, sha, headLabel, title, author,
 };
 
 /*
- * Re-signs every mod on main whose signature does not verify: an update just
- * merged (digest or version changed), an unsigned mod added by a maintainer, or
- * a signature from a key that has since been rotated out. A mod whose content
+ * Re-signs every mod on main whose signature does not verify: a maintainer
+ * edited or added a mod directly, or a key has since been rotated out. A mod whose content
  * is on the revoked list is never re-signed. Returns the re-signed mods and
  * leaves committing to the caller.
  */

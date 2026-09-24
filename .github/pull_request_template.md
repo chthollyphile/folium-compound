@@ -1,13 +1,5 @@
 <!--
-提交新模组：先按「模组提交」模板开 issue，并在 issue 里填上本 PR 的链接。
-更新已收录的模组：直接提交本 PR，记得提升 mod.json 的版本号。
-
-规则（CI 会检查）：
-- 只修改 mods/community/<模组 id>/ 下的文件，一个 PR 只涉及一个模组；
-- 不要提交或修改 folium.sig.json，签名由维护者审查后通过 CI 生成；
-- 不能包含符号链接。
+社区模组不通过 PR 提交：请按「模组提交」issue 模板提交你自己的源码仓库，更新用「模组更新」模板。
+这里的 PR 只用于仓库本身的工具、流程与官方模组的改动。
+Community mods are submitted through the "Mod submission" issue form (from your own repository), not pull requests.
 -->
-
-模组：
-关联的提交 issue（新模组）：#
-本次改动：

@@ -1,0 +1,45 @@
+# .github/ISSUE_TEMPLATE/mod-update.yml
+# Updating a community mod that is already signed here. The source repository
+# and directory are the registered ones (community.json). Field labels are read
+# by tools/ci/lib/submission.mjs (FORM_FIELDS).
+name: 模组更新 / Mod update
+description: 为已收录的模组提交新版本 / Submit a new version of a mod already in the repository
+title: "[模组更新] "
+labels: ["mod-update"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        只有模组的登记维护者可以提交更新。CI 会从登记的源码仓库取回新版本，检查格式（版本号必须比当前高），
+        并给出与上一个签名版本的对比链接。维护者审查后签名，新版本随即发布。
+
+        需要更换源码仓库或目录时，请直接在 issue 里说明，由维护者处理。
+  - type: input
+    id: mod-id
+    attributes:
+      label: 模组 id / Mod id
+      placeholder: my-visualizer
+    validations:
+      required: true
+  - type: input
+    id: ref
+    attributes:
+      label: 版本 / Version (tag or commit)
+      description: 新版本的 tag（推荐）、分支名或完整的 40 位 commit
+      placeholder: v1.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: changes
+    attributes:
+      label: 更新说明 / What changed
+      description: 这个版本改了什么；权限有变化时请说明原因
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 确认 / Confirmations
+      options:
+        - label: 新版本同样不收集或上传用户数据，也不下载并执行远程代码（除非这是它明确声明的功能） / The new version does not collect user data or run remote code unless that is its declared purpose
+          required: true

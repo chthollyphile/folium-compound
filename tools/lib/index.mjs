@@ -1,10 +1,11 @@
 // tools/lib/index.mjs
 // Builds index.json and reads/writes community.json.
 //
-// community.json records who owns each community mod (the GitHub accounts
-// whose pull requests may update it), the submission issue and the source
-// repository. It lives outside the mod directories on purpose: anything inside
-// a mod directory is covered by the signature and shipped to users.
+// community.json records, for each community mod: its owners (the GitHub
+// accounts whose update issues are accepted), the submission issue, and where
+// the signed files came from (source repository, directory, commit). It lives
+// outside the mod directories on purpose: anything inside a mod directory is
+// covered by the signature and shipped to users.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,7 +14,7 @@ import { REPO_ROOT, listModDirs, readRevokedDigests, readTrustedKeys } from './r
 
 export const COMMUNITY_FILE = 'community.json';
 
-/** community.json as `{ mods: { [modId]: { owners, submission, source, addedAt } } }`. */
+/** community.json as `{ mods: { [modId]: { owners, submission, source, path, commit, version, addedAt, updatedAt } } }`. */
 export const readCommunityRegistry = (root = REPO_ROOT) => {
     const file = path.join(root, COMMUNITY_FILE);
     if (!fs.existsSync(file)) return { mods: {} };
@@ -58,7 +59,7 @@ export const buildIndex = (root = REPO_ROOT) => {
             digest: result.digest,
             keyId: result.keyId,
             signedAt: signature.signedAt,
-            ...(registered ? { owners: registered.owners ?? [], source: registered.source ?? null } : {}),
+            ...(registered ? { owners: registered.owners ?? [], source: registered.source ?? null, sourceCommit: registered.commit ?? null } : {}),
         });
     }
 
