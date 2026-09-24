@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "sample-aurora-visualizer",
+  "modVersion": "1.0.0",
+  "digest": "sha256:d71b93b0fd654f894b6c6e259b26d8b7ea2c88bf27eee003b483432d8756f34f",
+  "keyId": "folium-2026-1",
+  "signedAt": "2026-09-24T17:58:56.389Z",
+  "signature": "eympeP6PE6JeiAVvfbdGOTGY+wx5tvibUFci93FLh1HHswGT9wHBRUM9OHywbNDvNUdi5BeaPRMnxevcOULcAQ=="
+}

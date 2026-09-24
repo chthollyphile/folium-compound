@@ -1,0 +1,16 @@
+{
+  "name": "folium-compound",
+  "private": true,
+  "description": "Official and reviewed Folium mods for Folia, with their signatures.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "verify": "node tools/verify.mjs",
+    "sign": "node tools/sign.mjs",
+    "index": "node tools/build-index.mjs",
+    "keygen": "node tools/keygen.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}

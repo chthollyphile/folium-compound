@@ -1,0 +1,15 @@
+{
+  "keys": [
+    {
+      "keyId": "folium-2026-1",
+      "label": "Folium official",
+      "publicKey": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "dDmFP2b-M1A-k9FBfXIBnvR6oLigIcdnzrT7f3y3qG8"
+      },
+      "revoked": false,
+      "createdAt": "2026-09-24"
+    }
+  ]
+}

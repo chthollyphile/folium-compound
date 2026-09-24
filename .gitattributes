@@ -1,0 +1,3 @@
+# Signatures cover exact bytes. No line-ending or filter conversion, ever:
+# a checkout that rewrote CRLF would break every signature in the repository.
+* -text

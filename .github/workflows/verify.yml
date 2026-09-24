@@ -1,0 +1,34 @@
+# .github/workflows/verify.yml
+# Checks signatures on every push and pull request. Pull requests may add
+# unsigned community mods (they are signed after review), so only main runs
+# the strict check and the index check. No secrets here: CI never signs.
+
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Signature format tests
+        run: node --test test/signing.test.mjs
+      - name: Verify signatures (pull request)
+        if: github.event_name == 'pull_request'
+        run: node tools/verify.mjs
+      - name: Verify signatures (main, strict)
+        if: github.event_name == 'push'
+        run: |
+          node tools/verify.mjs --strict
+          node tools/build-index.mjs --check
+          node --test test/repository.test.mjs

@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# Private signing keys never belong in this repository.
+*.key.json
+*.pem
+*.private.*
