@@ -73,6 +73,23 @@
       "digest": "sha256:a39803db7b3028adfb03dc10b2af3cb4d4da47f989c37965048049f38cf00447",
       "keyId": "folium-2026-1",
       "signedAt": "2026-09-24T19:10:07.806Z"
+    },
+    {
+      "id": "lyrics-list",
+      "name": "歌词列表",
+      "version": "1.0.0",
+      "author": "chthollyphile",
+      "description": "在播放器进度条旁加一个按钮，打开可滚动的完整歌词列表：当前行高亮并自动跟随，点击任意一行跳到那句。",
+      "origin": "community",
+      "path": "mods/community/lyrics-list",
+      "digest": "sha256:cc7622a7e7eda49c7a38f55e35b388fb42e0013853628ce9ed461865661f7a08",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-09-25T02:39:54.756Z",
+      "owners": [
+        "chthollyphile"
+      ],
+      "source": "https://github.com/chthollyphile/folium-mod-lyrics-list",
+      "sourceCommit": "b33fa291b5e6a5ad65182dc4b35d036e6852de9d"
     }
   ]
 }

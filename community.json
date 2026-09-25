@@ -1,3 +1,16 @@
 {
-  "mods": {}
+  "mods": {
+    "lyrics-list": {
+      "owners": [
+        "chthollyphile"
+      ],
+      "submission": 1,
+      "source": "https://github.com/chthollyphile/folium-mod-lyrics-list",
+      "path": "mod",
+      "commit": "b33fa291b5e6a5ad65182dc4b35d036e6852de9d",
+      "version": "1.0.0",
+      "addedAt": "2026-09-25",
+      "updatedAt": "2026-09-25"
+    }
+  }
 }

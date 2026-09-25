@@ -1,0 +1,11 @@
+{
+  "folium": 1,
+  "id": "lyrics-list",
+  "name": "歌词列表",
+  "version": "1.0.0",
+  "author": "chthollyphile",
+  "description": "在播放器进度条旁加一个按钮，打开可滚动的完整歌词列表：当前行高亮并自动跟随，点击任意一行跳到那句。",
+  "client": "client.mjs",
+  "preview": "preview.jpg",
+  "permissions": ["ui.stage", "playback.control"]
+}

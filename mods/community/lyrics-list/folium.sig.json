@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "lyrics-list",
+  "modVersion": "1.0.0",
+  "digest": "sha256:cc7622a7e7eda49c7a38f55e35b388fb42e0013853628ce9ed461865661f7a08",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-09-25T02:39:54.756Z",
+  "signature": "buSB5877phA7spUwYE4yj15EkOL6f/34aehALfeATbNPzx/T8sbQwCPRNBZGrhvAqCGcdX16hxjoNQ7v2kCPCQ=="
+}
