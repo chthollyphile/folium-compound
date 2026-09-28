@@ -87,6 +87,23 @@
       "signedAt": "2026-09-24T19:10:07.806Z"
     },
     {
+      "id": "cinerama",
+      "name": "巨幕歌词动画",
+      "version": "1.0.0",
+      "author": "tumuyan",
+      "description": "巨幕歌词动画：包含大字报、跑马灯带、斜切丝带等歌词效果，像LED大屏一样呈现歌词。",
+      "origin": "community",
+      "path": "mods/community/cinerama",
+      "digest": "sha256:b0503a93d7051de8f740ccecb47a0568ea151039422dfe372b826706f7aa49ed",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-09-28T13:24:50.494Z",
+      "owners": [
+        "tumuyan"
+      ],
+      "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
+      "sourceCommit": "2498536c457f316abf1219decbb82b80faaef2b6"
+    },
+    {
       "id": "lyrics-list",
       "name": "歌词列表",
       "version": "1.0.0",

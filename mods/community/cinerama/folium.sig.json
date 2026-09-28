@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "cinerama",
+  "modVersion": "1.0.0",
+  "digest": "sha256:b0503a93d7051de8f740ccecb47a0568ea151039422dfe372b826706f7aa49ed",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-09-28T13:24:50.494Z",
+  "signature": "LUea06Pc+6RqXVWMFDE7Cth3WAn44aOID0r66oMcQX1j0DEmUy/sa84cxnDZHUwDUku2bbSP2938Vwjnm1LuBA=="
+}

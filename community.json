@@ -1,5 +1,17 @@
 {
   "mods": {
+    "cinerama": {
+      "owners": [
+        "tumuyan"
+      ],
+      "submission": 3,
+      "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
+      "path": "mods/cinerama",
+      "commit": "2498536c457f316abf1219decbb82b80faaef2b6",
+      "version": "1.0.0",
+      "addedAt": "2026-09-28",
+      "updatedAt": "2026-09-28"
+    },
     "lyrics-list": {
       "owners": [
         "chthollyphile"
