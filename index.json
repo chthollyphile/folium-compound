@@ -102,6 +102,23 @@
       ],
       "source": "https://github.com/chthollyphile/folium-mod-lyrics-list",
       "sourceCommit": "b33fa291b5e6a5ad65182dc4b35d036e6852de9d"
+    },
+    {
+      "id": "spectrum-visualizer",
+      "name": "频谱可视化",
+      "version": "0.3.3",
+      "author": "spectrum-viewer",
+      "description": "播放页左下角的频谱小组件：48 段频谱柱 + 输入功率 / 峰值频率读数，带自动避让（被下一首预告等元素挡住时自动上移或换边）、可切背景透明，不占歌词区。算法与配色对齐独立版 spectrum-viewer；音频走 Folium 1.2+ 的 ctx.audio，不额外采集系统音频。",
+      "origin": "community",
+      "path": "mods/community/spectrum-visualizer",
+      "digest": "sha256:63d6fe449051ddc38717634335625af914caa45bcbfc36feda5e8cc8986cec25",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-09-28T13:19:15.737Z",
+      "owners": [
+        "ACUNGER0321"
+      ],
+      "source": "https://github.com/ACUNGER0321/-spectrum-visualizer-folia-mods-",
+      "sourceCommit": "0b77643b4e8a479534e7e4b32cc97c4007af071c"
     }
   ]
 }

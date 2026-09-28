@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "spectrum-visualizer",
+  "modVersion": "0.3.3",
+  "digest": "sha256:63d6fe449051ddc38717634335625af914caa45bcbfc36feda5e8cc8986cec25",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-09-28T13:19:15.737Z",
+  "signature": "2DQhMXgrDfqImdaCG1hgcMobKlFWfDJPp0PLX5e9usY5KYcNFEehvzLrWqXyKPROpNeEpABS0XRX56ikOty9Cg=="
+}

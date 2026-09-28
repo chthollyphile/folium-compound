@@ -1,0 +1,11 @@
+{
+  "folium": 1,
+  "id": "spectrum-visualizer",
+  "name": "频谱可视化",
+  "version": "0.3.3",
+  "author": "spectrum-viewer",
+  "description": "播放页左下角的频谱小组件：48 段频谱柱 + 输入功率 / 峰值频率读数，带自动避让（被下一首预告等元素挡住时自动上移或换边）、可切背景透明，不占歌词区。算法与配色对齐独立版 spectrum-viewer；音频走 Folium 1.2+ 的 ctx.audio，不额外采集系统音频。",
+  "client": "client.mjs",
+  "preview": "preview.jpg",
+  "permissions": ["ui.stage"]
+}

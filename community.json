@@ -11,6 +11,18 @@
       "version": "1.0.0",
       "addedAt": "2026-09-25",
       "updatedAt": "2026-09-25"
+    },
+    "spectrum-visualizer": {
+      "owners": [
+        "ACUNGER0321"
+      ],
+      "submission": 2,
+      "source": "https://github.com/ACUNGER0321/-spectrum-visualizer-folia-mods-",
+      "path": "spectrum-visualizer",
+      "commit": "0b77643b4e8a479534e7e4b32cc97c4007af071c",
+      "version": "0.3.3",
+      "addedAt": "2026-09-28",
+      "updatedAt": "2026-09-28"
     }
   }
 }
