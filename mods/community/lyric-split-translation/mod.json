@@ -1,0 +1,10 @@
+{
+  "folium": 1,
+  "id": "lyric-split-translation",
+  "name": "拆分单行双语歌词",
+  "version": "1.2.0",
+  "author": "tumuyan",
+  "description": "把「原文/译文」这种用分隔符拼在一行里的双语歌词拆成原文与译文（或丢弃译文），仅作为兜底。先对完整歌词整体评估：系数 =（可分割 + 补偿 − 剔除行）/（总行数 − 剔除行），高于阈值则逐行拆分处理。",
+  "client": "client.mjs",
+  "preview": "preview.jpg"
+}

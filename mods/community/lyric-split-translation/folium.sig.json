@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "lyric-split-translation",
+  "modVersion": "1.2.0",
+  "digest": "sha256:25b78e3fe835b85fcc989f6e297cda360a25dee7da6b3e7397b8c0181911ad77",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-09-29T12:45:33.644Z",
+  "signature": "unub13W6Dmfe5fGBbvxv7gYvMh54YXnCApRkYmHwdlqmUGUgiSF+0LJeAMmM7tldQ8nqj2js42mpUAe0D+G5Dw=="
+}

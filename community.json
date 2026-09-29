@@ -12,6 +12,18 @@
       "addedAt": "2026-09-28",
       "updatedAt": "2026-09-28"
     },
+    "lyric-split-translation": {
+      "owners": [
+        "tumuyan"
+      ],
+      "submission": 4,
+      "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
+      "path": "mods/lyric-split-translation",
+      "commit": "28e34546e9e8acccd9c6967ed6b406abc1d22ab2",
+      "version": "1.2.0",
+      "addedAt": "2026-09-29",
+      "updatedAt": "2026-09-29"
+    },
     "lyrics-list": {
       "owners": [
         "chthollyphile"

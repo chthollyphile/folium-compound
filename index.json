@@ -104,6 +104,23 @@
       "sourceCommit": "2498536c457f316abf1219decbb82b80faaef2b6"
     },
     {
+      "id": "lyric-split-translation",
+      "name": "拆分单行双语歌词",
+      "version": "1.2.0",
+      "author": "tumuyan",
+      "description": "把「原文/译文」这种用分隔符拼在一行里的双语歌词拆成原文与译文（或丢弃译文），仅作为兜底。先对完整歌词整体评估：系数 =（可分割 + 补偿 − 剔除行）/（总行数 − 剔除行），高于阈值则逐行拆分处理。",
+      "origin": "community",
+      "path": "mods/community/lyric-split-translation",
+      "digest": "sha256:25b78e3fe835b85fcc989f6e297cda360a25dee7da6b3e7397b8c0181911ad77",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-09-29T12:45:33.644Z",
+      "owners": [
+        "tumuyan"
+      ],
+      "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
+      "sourceCommit": "28e34546e9e8acccd9c6967ed6b406abc1d22ab2"
+    },
+    {
       "id": "lyrics-list",
       "name": "歌词列表",
       "version": "1.0.0",
