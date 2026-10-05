@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "bilingual-ruby-lyrics",
+  "modVersion": "1.1.0",
+  "digest": "sha256:9f20cafefebbddbdd8c7bbcef8c258ac3bd47cec0c45e49e3309fcf59adaab0f",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-05T07:11:16.464Z",
+  "signature": "DGF0SJZIxtlq6qP0PCSkBsngG+VZAVfEado8MlUcT0K/npRGozhy93wJSMABmTejZIM06/EDViIX9Fa5t1ykAA=="
+}

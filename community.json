@@ -1,5 +1,17 @@
 {
   "mods": {
+    "bilingual-ruby-lyrics": {
+      "owners": [
+        "Rizumu85"
+      ],
+      "submission": 5,
+      "source": "https://github.com/Rizumu85/folia-bilingual-ruby-lyrics",
+      "path": "bilingual-ruby-lyrics",
+      "commit": "e2b9a7906341fe5b2e96c3d51deadceaaee643ad",
+      "version": "1.1.0",
+      "addedAt": "2026-10-05",
+      "updatedAt": "2026-10-05"
+    },
     "cinerama": {
       "owners": [
         "tumuyan"
