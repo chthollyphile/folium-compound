@@ -121,6 +121,23 @@
       "sourceCommit": "2498536c457f316abf1219decbb82b80faaef2b6"
     },
     {
+      "id": "enhanced-remote-widget",
+      "name": "增强版悬浮小组件",
+      "version": "1.15.3",
+      "author": "Antigravity",
+      "description": "桌面悬浮音乐小组件，提供五种自适应布局、Circuit 无边框封面海报、自由排版与信息自选、灰度抗锯齿逐词歌词与可切换翻译、可隐藏歌词控制栏、歌词颜色与描边自定义、可配置滚轮操作、沉浸与贴边模式、独立偏好设置窗口。",
+      "origin": "community",
+      "path": "mods/community/enhanced-remote-widget",
+      "digest": "sha256:c7d50e2d6b0e51f30be9a488d01c9d87c839c4b49ea65fefaa5dbb351aeb5605",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-06T07:50:33.737Z",
+      "owners": [
+        "hoangmaituan882-hue"
+      ],
+      "source": "https://github.com/hoangmaituan882-hue/enhanced-remote-widget",
+      "sourceCommit": "7f0c86526be25f744c60f081bebbaf26f243c823"
+    },
+    {
       "id": "lyric-split-translation",
       "name": "拆分单行双语歌词",
       "version": "1.2.0",

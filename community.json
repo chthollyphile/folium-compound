@@ -24,6 +24,18 @@
       "addedAt": "2026-09-28",
       "updatedAt": "2026-09-28"
     },
+    "enhanced-remote-widget": {
+      "owners": [
+        "hoangmaituan882-hue"
+      ],
+      "submission": 6,
+      "source": "https://github.com/hoangmaituan882-hue/enhanced-remote-widget",
+      "path": "enhanced-remote-widget",
+      "commit": "7f0c86526be25f744c60f081bebbaf26f243c823",
+      "version": "1.15.3",
+      "addedAt": "2026-10-06",
+      "updatedAt": "2026-10-06"
+    },
     "lyric-split-translation": {
       "owners": [
         "tumuyan"

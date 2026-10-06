@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "enhanced-remote-widget",
+  "modVersion": "1.15.3",
+  "digest": "sha256:c7d50e2d6b0e51f30be9a488d01c9d87c839c4b49ea65fefaa5dbb351aeb5605",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-06T07:50:33.737Z",
+  "signature": "B4Aj1c1F4rMj+w6km31n+xRpMzSeruaCBCi/c01wIsjHa5fh8ZK4PZBzyiHHUoqmNJ4ADwmxCXLaXzdcGKbsAA=="
+}
