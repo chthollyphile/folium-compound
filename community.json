@@ -7,10 +7,11 @@
       "submission": 5,
       "source": "https://github.com/Rizumu85/folia-bilingual-ruby-lyrics",
       "path": "bilingual-ruby-lyrics",
-      "commit": "e2b9a7906341fe5b2e96c3d51deadceaaee643ad",
-      "version": "1.1.0",
+      "commit": "a2a91ce22ab5d244992e5ec2997002c13dd41351",
+      "version": "1.2.0",
       "addedAt": "2026-10-05",
-      "updatedAt": "2026-10-05"
+      "updatedAt": "2026-10-11",
+      "lastIssue": 13
     },
     "cinerama": {
       "owners": [

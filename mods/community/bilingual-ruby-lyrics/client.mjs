@@ -169,75 +169,123 @@ return { shiftLines, pairBilingual };
 const __renderer = (() => {
 const { pairBilingual } = __lyrics;
 
+// One look for the three places these lyrics are drawn (the display mode, the poster card, the
+// caption), taken from Folia's own poster lyrics so that lyrics with readings sit beside the
+// host's without a seam: each sung unit is filled by a soft sweep, a glow rises and fades behind
+// it, the lines before and after are smaller, dimmed and slightly blurred, a chorus line takes the
+// accent colour, and keywords take the colours the theme gives them. The numbers are the host's
+// (sweep softness, glow radii and envelope, alpha, scale and blur per line), read from its 0.7.17
+// source; the drawing itself is plain CSS, not the host's GPU renderer.
 const CSS = `
-  .reading { height:100%; width:100%; display:flex; flex-direction:column; justify-content:center; gap:clamp(22px,5vh,54px); padding:clamp(28px,7vw,100px); box-sizing:border-box; overflow:hidden; color:var(--reading-primary); text-align:center; }
+  :host { container-type:inline-size; }
+  .reading { --size:calc(clamp(25px,4.4vw,62px) * var(--scale,1)); --base:color-mix(in srgb, var(--reading-primary) 34%, transparent); --word:color-mix(in srgb, var(--reading-primary) 98%, transparent);
+    height:100%; width:100%; display:flex; flex-direction:column; justify-content:center; gap:max(18px, calc(var(--size) * .49)); padding:clamp(28px,7vw,100px); box-sizing:border-box; overflow:hidden;
+    color:var(--reading-primary); text-align:center; font-weight:var(--weight,600); }
   .reading button { appearance:none; background:transparent; border:0; color:inherit; font:inherit; padding:0; cursor:pointer; width:100%; }
   .reading button:focus-visible { outline:2px solid var(--reading-accent); outline-offset:10px; border-radius:6px; }
-  .reading .line { line-height:1.9; overflow-wrap:anywhere; white-space:pre-wrap; }
-  .reading .near { color:var(--reading-secondary); font-size:clamp(17px,2.2vw,29px); opacity:.55; }
-  .reading .current { font-size:clamp(25px,4.4vw,62px); font-weight:600; }
-  .reading .secondary { font-size:.52em; font-weight:400; color:var(--reading-secondary); margin-top:8px; line-height:2; }
-  .reading .romaji { font-size:.42em; font-weight:400; color:var(--reading-secondary); line-height:1.6; letter-spacing:.02em; }
+  .reading .line { overflow-wrap:anywhere; white-space:pre-wrap; font-weight:inherit; }
+  .reading .current { font-size:var(--size); line-height:1.75; color:var(--base); --soft:clamp(6px,.45em,16px); --near:.2em; --far:.46em; }
+  .reading .current.chorus { --word:color-mix(in srgb, var(--reading-primary) 52%, var(--reading-accent)); --near:.32em; --far:.64em; }
+  .reading .current .plain { color:var(--word); }
+  .reading .current .timed { color:transparent; -webkit-text-fill-color:transparent; -webkit-background-clip:text; background-clip:text;
+    background-image:linear-gradient(90deg, var(--word) calc(var(--p,0%) + (var(--pn,0) - 1) * var(--soft)), var(--base) calc(var(--p,0%) + var(--pn,0) * var(--soft))); }
+  .reading .current .timed.glow { filter:drop-shadow(0 0 var(--near) color-mix(in srgb, var(--word) var(--g1,0%), transparent)) drop-shadow(0 0 var(--far) color-mix(in srgb, var(--word) var(--g2,0%), transparent)); }
+  .reading .near { font-size:calc(var(--size) * .72); line-height:1.3; }
+  .reading .near.passed { color:var(--word); opacity:.52; filter:blur(1.1px); }
+  .reading .near.passed .timed { color:var(--word); }
+  .reading .near.waiting { color:color-mix(in srgb, var(--reading-primary) 46%, transparent); opacity:.72; filter:blur(.7px); }
+  .reading .secondary { font-size:calc(.5em * var(--sub-scale,1)); font-weight:500; margin-top:.3em; line-height:1.4; color:color-mix(in srgb, var(--reading-primary) 68%, transparent); }
+  /* a translation, wherever it is drawn, is set in the font the host's subtitles use; as the small row it also takes their weight and colour */
+  .reading .translation { font-family:var(--sub-font,inherit); }
+  .reading .secondary.translation { font-weight:var(--sub-weight,500); color:color-mix(in srgb, var(--reading-sub,var(--reading-primary)) 68%, transparent); }
+  .reading .romaji { font-family:var(--sub-font,inherit); font-size:calc(.42em * var(--sub-scale,1)); font-weight:400; line-height:1.6; letter-spacing:.02em; color:color-mix(in srgb, var(--reading-sub,var(--reading-primary)) 68%, transparent); }
   .reading ruby { ruby-position:over; ruby-align:center; }
   .reading rt { font-size:.38em; font-weight:400; line-height:1.15; letter-spacing:.03em; }
-  .reading .timed { color:var(--reading-secondary); }
-  .reading .timed.sung { color:var(--reading-primary); }
-  .reading .timed.now { color:var(--reading-accent); }
-  .reading .empty { font-size:20px; color:var(--reading-secondary); }
-  :host { container-type:inline-size; }
-  .reading.poster { padding:8px 12px; gap:clamp(12px,4cqw,32px); text-align:left; }
-  .reading.poster .current { font-size:clamp(20px,6.5cqw,48px); line-height:1.85; }
-  .reading.poster .near { font-size:clamp(15px,4cqw,28px); line-height:1.65; }
-  .reading.poster .secondary { font-size:.55em; margin-top:10px; }
-  .reading.strip { height:auto; position:absolute; left:0; right:0; padding:0 clamp(16px,6vw,96px); gap:0; pointer-events:none; align-items:center; overflow:visible; text-shadow:0 1px 3px rgba(0,0,0,.55), 0 0 14px rgba(0,0,0,.35); }
+  .reading .empty { font-size:20px; font-weight:400; color:var(--reading-secondary); }
+  @media (prefers-reduced-motion: reduce) { .reading .near, .reading .current .timed.glow { filter:none; } }
+
+  .reading.poster { --size:clamp(24px,7cqw,56px); padding:8px 12px; text-align:left;
+    -webkit-mask-image:linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent), linear-gradient(to right, transparent, #000 4%, #000 96%, transparent); -webkit-mask-composite:source-in; mask-composite:intersect; }
+  .reading.poster .current { line-height:1.7; }
+  .reading.poster .near { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+  .reading.poster .near > div { display:inline; }
+
+  .reading.strip { --size:calc(clamp(18px,2.3vw,34px) * var(--scale,1)); --weight:500; --base:color-mix(in srgb, var(--reading-primary) 52%, transparent); height:auto; position:absolute; left:0; right:0; padding:0 clamp(16px,6vw,96px); gap:0; pointer-events:none; align-items:center; overflow:visible; }
+  /* the caption is there to be read ahead of the singing, over any picture: its unsung text is less faint than the host's 34% */
+  /* a dark edge keeps the caption readable over whatever the display mode draws; as a filter, because a text shadow would be painted over the swept fill */
+  .reading.strip .current { filter:drop-shadow(0 1px 2px rgba(0,0,0,.55)) drop-shadow(0 0 10px rgba(0,0,0,.35)); }
   /* the bottom offset is worked out from where Folia's own subtitles are; see paint() */
   .reading.strip.bottom { bottom:150px; transition:bottom .25s ease-out; }
   .reading.strip.top { top:clamp(16px,3.5vh,40px); }
-  .reading.strip .current { font-size:clamp(18px,2.3vw,34px); font-weight:500; line-height:1.75; }
 `;
 
-function appendOriginal(container, line, showRuby, timed) {
+// colours: the theme's keyword colour spans of this line's text (UTF-16 offsets)
+function appendOriginal(container, line, showRuby, timed, colours = []) {
   const words = line.words?.length ? line.words : [{ text: line.fullText, startTime: line.startTime, endTime: line.endTime }];
-  const mark = (element, unit) => {
+  // main: the lyric text itself, as opposed to the small reading above it (which gets no glow)
+  const mark = (element, unit, main = true) => {
     if (Number.isFinite(unit.startTime) && Number.isFinite(unit.endTime)) {
       element.classList.add('timed');
-      timed.push({ element, start: unit.startTime, end: unit.endTime });
+      timed.push({ element, start: unit.startTime, end: unit.endTime, main });
     }
   };
+  let offset = 0;
   for (const word of words) {
     const validSyllables = word.syllables?.length && word.syllables.map(s => s.text + (s.endsWithSpace ? ' ' : '')).join('') === word.text;
     const syllables = validSyllables ? word.syllables : [word];
     for (const unit of syllables) {
+      const from = offset, to = offset + unit.text.length;
+      offset = to + (validSyllables && unit.endsWithSpace ? 1 : 0);
       const text = document.createElement('span'); text.textContent = unit.text;
       mark(text, unit);
+      let outer = text;
       if (showRuby && unit.ruby?.length) {
-        const ruby = document.createElement('ruby'); ruby.append(text);
+        outer = document.createElement('ruby'); outer.append(text);
         const rt = document.createElement('rt');
         for (const reading of unit.ruby) {
           const kana = document.createElement('span'); kana.textContent = reading.text;
-          mark(kana, reading); rt.append(kana);
+          mark(kana, reading, false); rt.append(kana);
         }
-        ruby.append(rt); container.append(ruby);
-      } else container.append(text);
+        outer.append(rt);
+      }
+      // a keyword's colour replaces the sung colour of the units it covers, readings included
+      const keyword = colours.find(range => range.startOffset < to && range.endOffset > from);
+      if (keyword) outer.style.setProperty('--word', keyword.color);
+      container.append(outer);
       if (validSyllables && unit.endsWithSpace) container.append(document.createTextNode(' '));
     }
   }
 }
 
-// Folia reports its two-row subtitle setting (romanization above translation) to mods as
-// 'translation'. The stored setting says which it is; it is read at most once a second.
+// Which rows go with the lyrics is the host's to say, with its subtitle setting: the translation,
+// the romanization, both, or neither. This mod has no switch of its own for them.
+// Folia reports its two-row setting (romanization above translation) to mods as 'translation'.
+// The stored setting says which it is; it is read at most once a second.
 let twoRows = { at: -Infinity, value: false };
-const hostShowsRomanization = display => {
-  if (display.subtitleContentMode === 'romanization') return true;
-  if (display.subtitleContentMode !== 'translation') return false;
+const hostRows = display => {
+  if (display.showSubtitleTranslation === false) return { translation: false, romaji: false };
+  const mode = display.subtitleContentMode ?? 'translation';
+  if (mode === 'romanization') return { translation: false, romaji: true };
+  if (mode !== 'translation') return { translation: false, romaji: false };
   const now = Date.now();
   if (now - twoRows.at > 1000) {
     let value = false;
     try { value = globalThis.localStorage?.getItem('subtitle_content_mode') === 'both'; } catch { /* no storage here */ }
     twoRows = { at: now, value };
   }
-  return twoRows.value;
+  return { translation: true, romaji: twoRows.value };
 };
+
+// How strongly a unit glows at `time`, 0 to 1, with the host's timing for its poster lyrics: the
+// glow eases up until a little after the unit has been sung (1.18 times its length), then eases
+// away until the line is over, or for about a second if that is later.
+const smooth = value => { const t = Math.min(1, Math.max(0, value)); return t * t * (3 - 2 * t); };
+function glowAt(time, start, end, lineEnd) {
+  if (time <= start) return 0;
+  const rise = Math.max(.001, end - start) * 1.18, peak = start + rise;
+  if (time <= peak) return smooth((time - start) / rise);
+  return smooth(1 - (time - peak) / Math.max(.18, Math.max(lineEnd, end + 1.05) - peak));
+}
 
 // strip: only the line being sung, with its readings, as a caption over another display mode
 function mountReading(container, ctx, folium, params, { poster = false, strip = null } = {}) {
@@ -245,7 +293,7 @@ function mountReading(container, ctx, folium, params, { poster = false, strip = 
   const root = document.createElement('div'); root.className = strip ? 'reading strip ' + strip : poster ? 'reading poster' : 'reading';
   container.append(style, root);
   const lines = pairBilingual(ctx.lines);
-  let previousIndex = -2, optionsKey = '', timed = [];
+  let previousIndex = -2, optionsKey = '', timed = [], currentEnd = 0;
   const indexAt = time => {
     if (ctx.staticMode) return Math.min(lines.length - 1, Math.max(0, ctx.staticLineIndex ?? 0));
     let selected = -1;
@@ -256,45 +304,71 @@ function mountReading(container, ctx, folium, params, { poster = false, strip = 
     if (selected >= 0 && time > lines[selected].endTime + 1) return -1;
     return selected;
   };
+  // Keyword colours follow the same switch as Folia's poster lyrics (its Monet setting).
+  const keywordsOn = () => folium.internals?.stores?.visualizerSettings?.getState?.().monetTuning?.keywordColoringEnabled !== false;
   const paint = () => {
     const theme = ctx.getTheme(), display = ctx.getDisplay(), settings = params.get();
+    const shown = hostRows(display);
     root.style.setProperty('--reading-primary', theme.primaryColor);
     root.style.setProperty('--reading-secondary', theme.secondaryColor);
     root.style.setProperty('--reading-accent', theme.accentColor);
     root.style.fontFamily = folium.theme.resolveFontStack(theme);
+    if (!strip) root.style.setProperty('--weight', String(folium.theme.resolveFontWeight?.(theme, 600) ?? 600));
+    // Translations and the romanization row follow the host's subtitles: their theme (0.7.17 on;
+    // before that the lyric theme), their font and weight.
+    let subtitle = theme;
+    try { subtitle = ctx.getSubtitleTheme?.() ?? theme; } catch { /* keep the lyric theme */ }
+    root.style.setProperty('--reading-sub', subtitle.primaryColor);
+    root.style.setProperty('--sub-font', folium.theme.resolveTranslationFontStack?.(subtitle) ?? folium.theme.resolveFontStack(subtitle));
+    root.style.setProperty('--sub-weight', String(folium.theme.resolveFontWeight?.(subtitle, 500) ?? 500));
+    // Sizes follow the host's multipliers: the lyric size for the display mode, the subtitle size
+    // for its translation and for the caption, which sits with the subtitles. The host fits its
+    // poster lyrics to the card and has no multiplier there, so the poster has none either.
+    root.style.setProperty('--scale', String(poster ? 1 : (strip ? display.subtitleFontScale : display.lyricsFontScale) || 1));
+    root.style.setProperty('--sub-scale', String(poster || strip ? 1 : display.subtitleFontScale || 1));
     // The wall remains visible outside the player; showText belongs to the player stage.
     root.style.opacity = String(poster ? 1 : display.showText === false ? 0 : strip ? 1 : display.visualizerOpacity ?? 1);
     if (strip === 'bottom') {
       // Sit right above Folia's own subtitles. They start 112px up (32px while the player
       // controls are hidden) and are one row tall, two when romanization and translation are
-      // both shown, none when subtitles are off; a row is the subtitle font at 1.5 line height.
+      // both shown, none when subtitles are off or the bottom subtitle layer is hidden; a row is
+      // the subtitle font at 1.5 line height.
       // The caption's own line box has empty room under the text, so it may dip 12px into the row.
-      const mode = display.showSubtitleTranslation === false ? 'none' : display.subtitleContentMode;
-      const rows = mode === 'none' ? 0 : mode === 'translation' && hostShowsRomanization(display) ? 2 : 1;
+      const rows = display.hideTranslationSubtitle ? 0 : Number(shown.translation) + Number(shown.romaji);
       const font = Math.min(20, Math.max(18, .026 * (root.ownerDocument.defaultView?.innerWidth || 1280))) * (display.subtitleFontScale || 1);
       root.style.bottom = Math.round((display.isPlayerChromeHidden ? 32 : 112) + rows * (font * 1.5 + 4) + Math.max(0, rows - 1) * 8 - (rows ? 12 : 0)) + 'px';
     }
     const time = ctx.currentTime.get(), index = indexAt(time);
-    // the romanization row is Folia's to switch: it follows the host's subtitle setting
-    const romanized = !strip && hostShowsRomanization(display);
-    const key = JSON.stringify([settings.primary, settings.bilingual, settings.ruby, romanized]);
+    const keywords = keywordsOn() && theme.wordColors?.length ? theme.wordColors : null;
+    const key = JSON.stringify([settings.primary, settings.ruby, shown, keywords]);
     if (previousIndex !== index || optionsKey !== key) {
       previousIndex = index; optionsKey = key; timed = []; root.replaceChildren();
       const options = strip
         ? { primary: 'original', bilingual: false, ruby: true, romaji: false }
-        : { primary: settings.primary === 'translation' ? 'translation' : 'original', bilingual: settings.bilingual !== false, ruby: settings.ruby !== false, romaji: romanized };
-      const addLine = (line, current) => {
+        : { primary: settings.primary === 'translation' ? 'translation' : 'original', bilingual: shown.translation, ruby: settings.ruby !== false, romaji: shown.romaji };
+      const coloursOf = line => {
+        if (!keywords) return [];
+        try { return folium.lyrics?.buildWordColorRanges?.(line.fullText, keywords) || []; } catch { return []; }
+      };
+      // where: 'passed' for the line before the current one, 'waiting' for the one after
+      const addLine = (line, current, where = '') => {
         if (!line) return;
         const row = document.createElement(!poster && !strip && !ctx.isPreview && folium.env.context === 'main' ? 'button' : 'div');
-        row.className = current ? 'line current' : 'line near';
+        row.className = current ? 'line current' + (line.isChorus ? ' chorus' : '') : 'line near ' + where;
+        if (current) {
+          // the glow of the last units lasts until the host would take the line off the screen
+          let end = line.endTime;
+          try { end = Math.max(end, folium.lyrics?.getLineRenderEndTime?.(line) ?? end); } catch { /* keep the line's own end */ }
+          currentEnd = end;
+        }
         if (row.tagName === 'BUTTON') {
           row.type = 'button'; row.title = '跳到这句歌词';
           row.addEventListener('click', () => folium.playback.seekToLyricTime(line.startTime));
         }
         const main = document.createElement('div');
         const translated = options.primary === 'translation' && !!line.translation;
-        if (translated) main.textContent = line.translation;
-        else appendOriginal(main, line, options.ruby && current, current ? timed : []);
+        if (translated) { main.textContent = line.translation; main.className = 'plain translation'; }
+        else appendOriginal(main, line, options.ruby && current, current ? timed : [], coloursOf(line));
         row.append(main);
         // the romanization goes with the original, wherever that is drawn
         const romaji = current && options.romaji && line.romanization ? document.createElement('div') : null;
@@ -302,8 +376,8 @@ function mountReading(container, ctx, folium, params, { poster = false, strip = 
         if (romaji && !translated) row.append(romaji);
         if (current && options.bilingual && line.translation) {
           const secondary = document.createElement('div'); secondary.className = 'secondary';
-          if (translated) appendOriginal(secondary, line, options.ruby, timed);
-          else secondary.textContent = line.translation;
+          if (translated) appendOriginal(secondary, line, options.ruby, timed, coloursOf(line));
+          else { secondary.textContent = line.translation; secondary.classList.add('translation'); }
           row.append(secondary);
           if (romaji && translated) row.append(romaji);
         }
@@ -314,18 +388,34 @@ function mountReading(container, ctx, folium, params, { poster = false, strip = 
       else if (index < 0) {
         const next = lines.find(line => line.startTime > time);
         if (next) addLine(next, true);
-      } else { addLine(lines[index - 1], false); addLine(lines[index], true); addLine(lines[index + 1], false); }
+      } else { addLine(lines[index - 1], false, 'passed'); addLine(lines[index], true); addLine(lines[index + 1], false, 'waiting'); }
     }
     for (const unit of timed) {
-      unit.element.classList.toggle('sung', time >= unit.end);
-      unit.element.classList.toggle('now', time >= unit.start && time < unit.end);
+      const sung = time >= unit.end, now = time >= unit.start && time < unit.end;
+      // the sweep: how much of this unit is filled, as a share of its width
+      const filled = sung ? 1 : now ? (time - unit.start) / Math.max(.001, unit.end - unit.start) : 0;
+      if (unit.filled !== filled) {
+        unit.filled = filled;
+        unit.element.style.setProperty('--pn', filled.toFixed(3));
+        unit.element.style.setProperty('--p', (filled * 100).toFixed(1) + '%');
+      }
+      // the glow, in steps of 1/40 so that the filter is not rebuilt for changes nobody can see
+      const glow = unit.main && !ctx.staticMode ? Math.round(glowAt(time, unit.start, unit.end, currentEnd) * 40) / 40 : 0;
+      if (unit.glow !== glow) {
+        unit.glow = glow;
+        unit.element.classList.toggle('glow', glow > 0);
+        unit.element.style.setProperty('--g1', (glow * 60).toFixed(1) + '%');
+        unit.element.style.setProperty('--g2', (glow * 88).toFixed(1) + '%');
+      }
     }
   };
   paint();
   const unsubscribeClock = ctx.currentTime.on('change', paint);
   const unsubscribeContext = ctx.subscribe(paint);
   const unsubscribeParams = params.subscribe(paint);
-  return () => { unsubscribeClock(); unsubscribeContext(); unsubscribeParams(); root.remove(); style.remove(); };
+  // the keyword switch lives in a host store; repaint when it is flipped
+  const unsubscribeStore = folium.internals?.stores?.visualizerSettings?.subscribe?.(paint);
+  return () => { unsubscribeClock(); unsubscribeContext(); unsubscribeParams(); unsubscribeStore?.(); root.remove(); style.remove(); };
 }
 return { mountReading };
 })();
@@ -450,10 +540,6 @@ function mountPanel(container, params) {
         </div>
       </div>
       <div class="row">
-        <span id="lyrics-bilingual-label">双语显示</span>
-        <button class="switch" type="button" role="switch" aria-labelledby="lyrics-bilingual-label" aria-checked="true" data-switch="bilingual"></button>
-      </div>
-      <div class="row">
         <span id="lyrics-ruby-label">显示注音</span>
         <button class="switch" type="button" role="switch" aria-labelledby="lyrics-ruby-label" aria-checked="true" data-switch="ruby"></button>
       </div>
@@ -471,7 +557,7 @@ function mountPanel(container, params) {
       </div>
     </section>`;
 
-  // bilingual and ruby are on unless turned off; the poster override is off unless turned on
+  // ruby is on unless turned off; the poster override is off unless turned on
   const isOn = (values, key) => key === 'poster' ? values.poster === true : values[key] !== false;
   const refresh = () => {
     const values = params.get();
@@ -1210,10 +1296,30 @@ const carryTranslations = (lines,hostLines) => {
     return {...line,translation:translationOf(match),...(alternateTexts.length ? {alternateTexts} : {})};
   });
 };
+// What Folia worked out for its own copy of a line stays on ours: the chorus mark and its light
+// effect, the song part, the singer, background vocals, saved word boundaries. Only the text, the
+// timing and the readings come from the file. Render hints follow the timing, so they are left
+// for the host to rebuild.
+const FROM_THE_FILE = new Set(['words','startTime','endTime','fullText','translation','romanization','alternateTexts','renderHints']);
+const keepHostData = (lines,hostLines) => {
+  const host=hostLines || [];
+  if (!host.length) return lines;
+  const near = (item,line) => Math.abs(item.startTime-line.startTime)<=.02;
+  return lines.map(line => {
+    const match=host.find(item => near(item,line) && item.fullText===line.fullText) || host.find(item => near(item,line)) || host.find(item => item.fullText===line.fullText);
+    if (!match) return line;
+    const kept=Object.fromEntries(Object.entries(match).filter(([name]) => !FROM_THE_FILE.has(name)));
+    // saved word boundaries only fit the text they were saved for
+    if (Array.isArray(kept.wordSegments) && kept.wordSegments.join('')!==line.fullText) delete kept.wordSegments;
+    return {...kept,...line};
+  });
+};
 const hasRuby = lines => lines?.some(line => line.words?.some(word => word.ruby?.length || word.syllables?.some(unit => unit.ruby?.length)));
-// Same source precedence as Folia 0.7.12 selectLocalSongLyricsSource.
+// Same source precedence as Folia's selectLocalSongLyricsSource (0.7.12 to 0.7.17).
 const hostSource = (record,priority) => {
   if (record?.lyricsSource) return record.lyricsSource;
+  // 0.7.15+: a song the user marked as instrumental shows no lyrics
+  if (record?.markedPureMusic) return 'online';
   if (priority==='online' && record?.matchedLyrics) return 'online';
   if (record?.hasLocalLyrics && record.localLyricsContent) return 'local';
   if (record?.hasEmbeddedLyrics && record.embeddedLyricsContent) return 'embedded';
@@ -1274,7 +1380,7 @@ function createIntegration(folium, {readEmbedded = record => readLocalEmbedded(r
         return;
       }
       // Folia's own modes show this line when its subtitle setting asks for romanization.
-      const lines=withRomanization(cleanHints(carryTranslations(pairBilingual(rich.lines),base?.lines)));
+      const lines=withRomanization(keepHostData(cleanHints(carryTranslations(pairBilingual(rich.lines),base?.lines)),base?.lines));
       applied={...(base || {}),lines,isWordByWord:rich.isWordByWord ?? base?.isWordByWord ?? false};
       ownWrite=true;
       try {store.getState().setLyricsState(applied);store.getState().setCurrentLineIndex(-1);}
@@ -1334,13 +1440,13 @@ function activate(folium) {
         key: 'primary',
         type: 'select',
         label: label('主要显示', 'Primary language'),
+        description: label('另一种语言和罗马音显示与否，跟随 Folia 自己的字幕设置（翻译、罗马音、两者、隐藏）。', 'Whether the other language and the romanization are shown follows Folia\'s own subtitle setting (translation, romanization, both, hidden).'),
         defaultValue: 'original',
         options: [
           { value: 'original', label: label('原文', 'Original') },
           { value: 'translation', label: label('译文', 'Translation') },
         ],
       },
-      { key: 'bilingual', type: 'boolean', label: label('双语显示', 'Show both languages'), defaultValue: true },
       { key: 'ruby', type: 'boolean', label: label('显示注音', 'Show ruby annotations'), defaultValue: true },
       {
         key: 'strip',
@@ -1437,7 +1543,6 @@ function activate(folium) {
       return say(zh + '：' + (enabled ? '开' : '关'));
     },
   });
-  toggle('bilingual', 'toggle-bilingual', '双语显示', 'bilingual lyrics', ['bilingual', '双语', '译文'], true);
   toggle('ruby', 'toggle-ruby', '注音显示', 'ruby annotations', ['ruby', 'furigana', '假名', '注音'], true);
   // one command for the caption: bottom, top, off, and round again
   folium.registries.commands.register({
