@@ -98,7 +98,7 @@ main 分支使用。
 
 ## 模组市场站点
 
-`vercel.json` 把本仓库部署成模组市场页面，供人下载 zip 打包的模组。每次推送 main（包括 CI 的签名与续签推送）都会重新部署。
+本仓库通过 Cloudflare Workers 静态资源部署成模组市场页面（`wrangler.jsonc`，Workers Builds 的部署命令为 `npm run deploy`），供人下载 zip 打包的模组。每次推送 main（包括 CI 的签名与续签推送）都会重新部署。响应头（CSP 等）在 `site/_headers`。
 
 - `node tools/site/build.mjs`（`npm run site`）生成 `dist/`：
   - `index.html`：构建时渲染的页面，含搜索、官方 / 社区筛选、中英切换，每个模组显示介绍图片、权限、签名信息与 zip 的 SHA-256；
@@ -107,7 +107,7 @@ main 分支使用。
     拖进 Folia 的模组面板即可安装，安装后显示为「官方认证」；
   - `catalog.json`：机器可读的目录（下载地址、大小、SHA-256、权限、签名），允许跨域读取。
 - zip 是确定性的：同样的内容总是同样的字节。发布前每个 zip 都会被解压并重新校验签名。
-- 只发布完全通过校验的仓库：`should-build.mjs` 作为 Vercel 的 ignore 步骤，在仓库里有签名失效的模组时跳过部署，
+- 只发布完全通过校验的仓库：`npm run deploy` 先运行 `should-build.mjs`，在仓库里有签名失效的模组时跳过部署，
   线上保留上一个版本，等 CI 续签后的提交再部署；构建本身也会拒绝发布任何未通过校验的模组。
 - 第三方文本在构建时全部转义，源码链接只接受 https；CSP 禁止内联脚本与样式，不加载任何外部资源。
 - 本地预览：`npm run site`，然后用任意静态服务器打开 `dist/`。

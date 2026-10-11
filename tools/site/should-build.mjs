@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // tools/site/should-build.mjs
-// Vercel "Ignored Build Step" (vercel.json ignoreCommand). Vercel skips the
-// build when this exits 0 and builds when it exits 1.
+// Decides whether a commit is deployed: exits 0 to skip, 1 to build. Used as
+// Vercel's ignoreCommand and by `npm run deploy` (Cloudflare Workers Builds).
 //
 // A commit where some mod does not verify is skipped: typically a reviewed
 // update was just merged and resign.yml has not pushed the new signature yet.

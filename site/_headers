@@ -1,0 +1,19 @@
+# Response headers for Cloudflare Workers static assets (copied to dist/_headers).
+# Rules that match the same path are merged, so every path also gets the /* set.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# Content-Type comes from the .zip extension.
+/downloads/*
+  Content-Disposition: attachment
+  Cache-Control: public, max-age=300, must-revalidate
+
+/catalog.json
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=3600

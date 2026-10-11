@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // tools/site/build.mjs
-// Builds the mod market site into dist/ (Vercel's output directory):
+// Builds the mod market site into dist/ (the deployed static assets):
 //   dist/index.html                 the market page, rendered at build time
 //   dist/catalog.json               machine-readable catalog (download URLs, sizes, hashes)
 //   dist/downloads/<id>-<version>.zip
 //   dist/previews/<id>-<version>.<ext>   each mod's introduction image (mod.json `preview`)
 //   dist/assets/*                   copied from site/assets
+//   dist/_headers                   response headers (CSP etc.), copied from site/_headers
 //
 // Only a fully verified repository is published: any unsigned or invalid mod
-// stops the build (Vercel then keeps serving the previous deployment; the
-// ignore step, should-build.mjs, normally skips such commits before this runs).
+// stops the build (the previous deployment stays live; should-build.mjs
+// normally skips such commits before this runs).
 // Each zip is extracted again and its signature re-verified before it is
 // written, so every download on the site installs as a verified mod.
 
@@ -59,7 +60,7 @@ const verifyZip = (archive, modId, keys, revokedDigests) => {
  * Builds the site from the repository at `root` into `outDir`. Returns the
  * catalog. Throws when the repository does not fully verify.
  */
-export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), commit = process.env.VERCEL_GIT_COMMIT_SHA ?? null } = {}) => {
+export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), commit = process.env.WORKERS_CI_COMMIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null } = {}) => {
     const { mods: indexed, errors } = buildIndex(root);
     if (errors.length > 0) throw new Error(`repository does not verify, not publishing:\n${errors.join('\n')}`);
     const keys = readTrustedKeys(root);
@@ -109,6 +110,7 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
     fs.writeFileSync(path.join(outDir, 'catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`);
     fs.writeFileSync(path.join(outDir, 'index.html'), renderMarketPage(catalog));
     fs.cpSync(path.join(root, 'site', 'assets'), path.join(outDir, 'assets'), { recursive: true });
+    fs.copyFileSync(path.join(root, 'site', '_headers'), path.join(outDir, '_headers'));
     return catalog;
 };
 

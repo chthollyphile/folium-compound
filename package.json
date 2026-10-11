@@ -12,6 +12,7 @@
     "index": "node tools/build-index.mjs",
     "keygen": "node tools/keygen.mjs",
     "test": "node --test test/*.test.mjs",
-    "site": "node tools/site/build.mjs"
+    "site": "node tools/site/build.mjs",
+    "deploy": "node tools/site/should-build.mjs || (node tools/site/build.mjs && npx wrangler deploy)"
   }
 }

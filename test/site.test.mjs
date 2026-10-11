@@ -94,6 +94,7 @@ test('the build publishes verified zips, a catalog and an escaped page', () => {
     assert.ok(!html.includes('javascript:'), 'non-https source links are dropped');
     assert.ok(!/<script>(?!<)/.test(html.replace('<script src="/assets/app.js" defer></script>', '')), 'no inline script');
     assert.ok(fs.existsSync(path.join(outDir, 'assets', 'app.js')));
+    assert.match(fs.readFileSync(path.join(outDir, '_headers'), 'utf8'), /Content-Security-Policy: default-src 'self'/);
     assert.equal(JSON.parse(fs.readFileSync(path.join(outDir, 'catalog.json'), 'utf8')).commit, 'abc1234def');
 });
 
