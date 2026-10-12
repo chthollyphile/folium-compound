@@ -37,6 +37,18 @@
       "addedAt": "2026-10-06",
       "updatedAt": "2026-10-06"
     },
+    "lx-favorites-sync": {
+      "owners": [
+        "xiaomo521314"
+      ],
+      "submission": 14,
+      "source": "https://github.com/xiaomo521314/lx-favorites-sync",
+      "path": "lx-favorites-sync",
+      "commit": "20af0a9bf2a9ec028554999927ceff0f52aa84c3",
+      "version": "1.7.1",
+      "addedAt": "2026-10-12",
+      "updatedAt": "2026-10-12"
+    },
     "lyric-ai-director": {
       "owners": [
         "duoduo1232"

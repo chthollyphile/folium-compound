@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "lx-favorites-sync",
+  "modVersion": "1.7.1",
+  "digest": "sha256:b6070aad4bd815adc41b148eb12590b99fcc18016e6018a058bc0ef44e58c312",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-12T06:07:24.245Z",
+  "signature": "R5D1W2Addc7yHwxiNdT/4MI3TLpvMK4haemfSyzDhvwGOiekR8yf2UUMOUyaRqMhhBPLJc5BAyBr2Bdf6CMCAQ=="
+}

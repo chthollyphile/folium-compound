@@ -138,6 +138,23 @@
       "sourceCommit": "7f0c86526be25f744c60f081bebbaf26f243c823"
     },
     {
+      "id": "lx-favorites-sync",
+      "name": "LX Music 收藏同步",
+      "version": "1.7.1",
+      "author": "xiaomo521314 × 吃白饭的蓝色大肥鱼",
+      "description": "把 LX Music「我喜欢」中的本地歌曲同步到 Folia 本地“Liked Songs”歌单；只匹配已有本地文件，不下载音乐。",
+      "origin": "community",
+      "path": "mods/community/lx-favorites-sync",
+      "digest": "sha256:b6070aad4bd815adc41b148eb12590b99fcc18016e6018a058bc0ef44e58c312",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-12T06:07:24.245Z",
+      "owners": [
+        "xiaomo521314"
+      ],
+      "source": "https://github.com/xiaomo521314/lx-favorites-sync",
+      "sourceCommit": "20af0a9bf2a9ec028554999927ceff0f52aa84c3"
+    },
+    {
       "id": "lyric-ai-director",
       "name": "AI 歌词动画导演",
       "version": "1.4.1",
