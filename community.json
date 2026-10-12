@@ -37,6 +37,18 @@
       "addedAt": "2026-10-06",
       "updatedAt": "2026-10-06"
     },
+    "lyric-ai-director": {
+      "owners": [
+        "duoduo1232"
+      ],
+      "submission": 19,
+      "source": "https://github.com/duoduo1232/lyric-ai-director",
+      "path": "",
+      "commit": "8f7d659a684ba20dedf774f2eb7d6238da79e066",
+      "version": "1.4.1",
+      "addedAt": "2026-10-12",
+      "updatedAt": "2026-10-12"
+    },
     "lyric-split-translation": {
       "owners": [
         "tumuyan"

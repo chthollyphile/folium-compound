@@ -138,6 +138,23 @@
       "sourceCommit": "7f0c86526be25f744c60f081bebbaf26f243c823"
     },
     {
+      "id": "lyric-ai-director",
+      "name": "AI 歌词动画导演",
+      "version": "1.4.1",
+      "author": "duoduo1232",
+      "description": "用一个 OpenAI 兼容接口（地址、密钥、模型都填在模组设置里，密钥加密存放）为每首歌挑选歌词动画模式并微调其参数，模式取自播放器当前可用的模式列表。每首歌会记住自己的选择，再次播放直接复用；当前歌播完后还会趁下一首还没播放提前做好准备，切歌瞬间就套用，开头不再沿用上一首的动画。",
+      "origin": "community",
+      "path": "mods/community/lyric-ai-director",
+      "digest": "sha256:e651e424056ac9046a003e851954826f05f150f383b9262a42f1ed5bf20c91c0",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-12T05:04:05.626Z",
+      "owners": [
+        "duoduo1232"
+      ],
+      "source": "https://github.com/duoduo1232/lyric-ai-director",
+      "sourceCommit": "8f7d659a684ba20dedf774f2eb7d6238da79e066"
+    },
+    {
       "id": "lyric-split-translation",
       "name": "拆分单行双语歌词",
       "version": "1.2.0",
