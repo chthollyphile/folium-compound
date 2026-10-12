@@ -44,10 +44,11 @@
       "submission": 14,
       "source": "https://github.com/xiaomo521314/lx-favorites-sync",
       "path": "lx-favorites-sync",
-      "commit": "20af0a9bf2a9ec028554999927ceff0f52aa84c3",
-      "version": "1.7.1",
+      "commit": "2084a8cf8070ede3878229f0035ca60455306acb",
+      "version": "1.7.2",
       "addedAt": "2026-10-12",
-      "updatedAt": "2026-10-12"
+      "updatedAt": "2026-10-12",
+      "lastIssue": 23
     },
     "lyric-ai-director": {
       "owners": [
