@@ -19,7 +19,15 @@ concurrency:
 
 jobs:
   check:
-    if: contains(github.event.issue.labels.*.name, 'mod-submission') || contains(github.event.issue.labels.*.name, 'mod-update')
+    # `labeled` only re-checks when the submission label itself is added. A
+    # maintainer setting `needs-changes` (or any other label) must not re-run the
+    # check, which would reset the label to `awaiting-review`.
+    if: >-
+      (github.event.action != 'labeled'
+        || github.event.label.name == 'mod-submission'
+        || github.event.label.name == 'mod-update')
+      && (contains(github.event.issue.labels.*.name, 'mod-submission')
+        || contains(github.event.issue.labels.*.name, 'mod-update'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
