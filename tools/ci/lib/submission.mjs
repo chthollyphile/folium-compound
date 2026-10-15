@@ -57,6 +57,18 @@ export const issueKind = (issue) => {
     return null;
 };
 
+// Title prefixes the issue templates fill in; the author has to add the mod's name after it.
+export const TITLE_PREFIXES = { submission: '[模组提交]', update: '[模组更新]' };
+
+/*
+ * An error when the title is only the template prefix (or empty), else null.
+ * Full-width brackets count as the same prefix.
+ */
+export const checkIssueTitle = (title, kind) => {
+    const rest = String(title ?? '').trim().replace(/^[[【]\s*模组(?:提交|更新)\s*[\]】]/, '').trim();
+    return rest ? null : `issue 标题不能只有「${TITLE_PREFIXES[kind]}」，请在后面写上模组的名字，例如「${TITLE_PREFIXES[kind]} 我的可视化」`;
+};
+
 /*
  * Issue forms render as `### <label>\n\n<value>` sections. Returns a map from
  * label to trimmed value; GitHub's "_No response_" for an empty optional field

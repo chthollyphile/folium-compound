@@ -17,6 +17,7 @@ import { SIGNATURE_FILE, signMod, verifyMod } from '../tools/lib/signing.mjs';
 import { readCommunityRegistry } from '../tools/lib/index.mjs';
 import {
     FORM_FIELDS,
+    checkIssueTitle,
     checkModTree,
     compareVersions,
     issueKind,
@@ -91,6 +92,16 @@ test('issue forms read into fields', () => {
     assert.equal(issueKind({ labels: [{ name: 'mod-update' }] }), 'update');
     assert.equal(issueKind({ labels: ['mod-submission'] }), 'submission');
     assert.equal(issueKind({ labels: [] }), null);
+});
+
+test('issue titles must name the mod after the template prefix', () => {
+    assert.equal(checkIssueTitle('[模组提交] 我的可视化', 'submission'), null);
+    assert.equal(checkIssueTitle('【模组更新】cool-mod', 'update'), null);
+    assert.equal(checkIssueTitle('cool-mod', 'submission'), null);
+    for (const bare of ['[模组提交] ', '[模组提交]', '  【模组提交】  ', '', null]) {
+        assert.match(checkIssueTitle(bare, 'submission'), /不能只有「\[模组提交\]」/);
+    }
+    assert.match(checkIssueTitle('[模组更新]', 'update'), /\[模组更新\]/);
 });
 
 test('source repository rules', () => {
@@ -249,7 +260,7 @@ const baseRepo = () => {
 
 const fakeGitHub = (permissions = {}) => ({ getPermission: async (user) => permissions[user] ?? 'read' });
 
-const issueFor = (kind, body, author = 'dev') => ({ number: kind === 'update' ? 12 : 11, user: { login: author, id: 4242 }, labels: [{ name: kind === 'update' ? 'mod-update' : 'mod-submission' }], body, state: 'open' });
+const issueFor = (kind, body, author = 'dev', title = `${kind === 'update' ? '[模组更新]' : '[模组提交]'} cool-mod`) => ({ number: kind === 'update' ? 12 : 11, title, user: { login: author, id: 4242 }, labels: [{ name: kind === 'update' ? 'mod-update' : 'mod-submission' }], body, state: 'open' });
 
 const evaluate = (issue, baseDir, source, permissions) => evaluateIssue(fakeGitHub(permissions), {
     issue, baseDir, fetchUrlFor: (url) => (url === SOURCE_URL ? source.dir : url), allowLocal: true,
@@ -269,6 +280,13 @@ test('a new submission is fetched at the tagged commit, staged and checked', asy
     } finally {
         evaluation.cleanup();
     }
+
+    // A bare template title fails the check, but the other checks still run.
+    const untitled = await evaluate(issueFor('submission', submissionBody(), 'dev', '[模组提交] '), base, source);
+    assert.equal(untitled.errors.length, 1);
+    assert.match(untitled.errors[0], /标题/);
+    assert.equal(untitled.source.commit, commit);
+    untitled.cleanup();
 
     const pinned = await evaluate(issueFor('submission', submissionBody({ ref: commit })), base, source);
     assert.equal(pinned.source.commit, commit);

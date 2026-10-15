@@ -14,7 +14,7 @@ import path from 'node:path';
 import { listModDirs } from '../../lib/repo.mjs';
 import { computeSignedDigest, readModIdentity } from '../../lib/signing.mjs';
 import { readCommunityRegistry } from '../../lib/index.mjs';
-import { SIGNER_PERMISSIONS, checkModTree, issueKind, parseSubmissionIssue } from './submission.mjs';
+import { SIGNER_PERMISSIONS, checkIssueTitle, checkModTree, issueKind, parseSubmissionIssue } from './submission.mjs';
 import { fetchCommit, resolveRef, reviewLinks, stageModFiles } from './source.mjs';
 
 /** Every mod id in the repository at `root`. */
@@ -32,7 +32,15 @@ export const knownModIds = (root) => listModDirs(root).map((target) => {
  * cleanup }`. `stagedDir` is the mod as it would be imported (call `cleanup()`
  * when done). `errors` block signing; `warnings` are for the maintainer.
  */
-export const evaluateIssue = async (github, { issue, baseDir, fetchUrlFor = (url) => url, allowLocal = false }) => {
+export const evaluateIssue = async (github, options) => {
+    const result = await evaluateForm(github, options);
+    // Checked last so a bare title does not hide the other problems from the author.
+    const titleError = result.kind ? checkIssueTitle(options.issue.title, result.kind) : null;
+    if (titleError) result.errors.unshift(titleError);
+    return result;
+};
+
+const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url, allowLocal = false }) => {
     const errors = [];
     const warnings = [];
     const kind = issueKind(issue);
