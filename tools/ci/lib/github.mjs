@@ -66,6 +66,10 @@ export const createGitHub = ({ token = process.env.GITHUB_TOKEN, repository = pr
             if (existing) return request('PATCH', `${repo}/issues/comments/${existing.id}`, { body });
             return request('POST', `${repo}/issues/${number}/comments`, { body });
         },
+        /** Open issues (not pull requests) carrying `label`. */
+        listOpenIssues: async (label) => (await paginate(`${repo}/issues?state=open&labels=${encodeURIComponent(label)}`))
+            .filter((issue) => !issue.pull_request),
+        listComments: (number) => paginate(`${repo}/issues/${number}/comments`),
         comment: (number, body) => request('POST', `${repo}/issues/${number}/comments`, { body }),
         react: (commentId, content) => request('POST', `${repo}/issues/comments/${commentId}/reactions`, { content }),
         addLabels: (number, labels) => request('POST', `${repo}/issues/${number}/labels`, { labels }),
@@ -76,7 +80,16 @@ export const createGitHub = ({ token = process.env.GITHUB_TOKEN, repository = pr
                 if (error.status !== 404) throw error;
             }
         },
-        closeIssue: (number) => request('PATCH', `${repo}/issues/${number}`, { state: 'closed', state_reason: 'completed' }),
+        /** `reason`: 'completed', 'not_planned' or 'duplicate'. */
+        closeIssue: async (number, reason = 'completed') => {
+            try {
+                return await request('PATCH', `${repo}/issues/${number}`, { state: 'closed', state_reason: reason });
+            } catch (error) {
+                // A host without the `duplicate` reason refuses it; closing matters more than the reason.
+                if (error.status !== 422 || reason === 'not_planned') throw error;
+                return request('PATCH', `${repo}/issues/${number}`, { state: 'closed', state_reason: 'not_planned' });
+            }
+        },
     };
 };
 

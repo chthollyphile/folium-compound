@@ -19,8 +19,12 @@ import { SIGNATURE_FILE, signMod, verifyMod } from '../tools/lib/signing.mjs';
 import { verifyRepoMod } from '../tools/lib/repo.mjs';
 import { readCommunityRegistry } from '../tools/lib/index.mjs';
 import {
+    COMMENT_MARKERS,
     FORM_FIELDS,
     checkIssueTitle,
+    findEarlierSubmission,
+    findUploadedImages,
+    isStaleFailure,
     checkModTree,
     compareVersions,
     signChannelRefusal,
@@ -51,6 +55,8 @@ const BETA_KEY = { keyId: 'folium-test-beta', privateJwk: BETA_PAIR.privateKey.e
 const ALL_KEYS = [...KEYS, { keyId: BETA_KEY.keyId, label: 'Test beta', channel: 'beta', publicKey: BETA_PAIR.publicKey.export({ format: 'jwk' }), revoked: false }];
 const SOURCE_URL = 'https://example.test/dev/cool-mod';
 
+const SCREENSHOT = '<img width="1280" height="720" alt="Image" src="https://github.com/user-attachments/assets/0b5f6c1e-1111-4222-8333-944455556666" />';
+
 const tempDir = (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 
 const git = (cwd, ...args) => execFileSync('git', args, {
@@ -68,10 +74,11 @@ const submissionBody = (overrides = {}) => {
         description: 'Does cool things.',
         permissions: '无',
         license: 'MIT',
+        screenshot: SCREENSHOT,
         confirmations: '- [X] author\n- [X] no data\n- [X] reviews',
         ...overrides,
     };
-    return ['modId', 'repository', 'ref', 'path', 'channel', 'description', 'permissions', 'license', 'confirmations']
+    return ['modId', 'repository', 'ref', 'path', 'channel', 'description', 'permissions', 'license', 'screenshot', 'confirmations']
         .filter((key) => values[key] !== undefined)
         .map((key) => `### ${FORM_FIELDS[key]}\n\n${values[key]}`).join('\n\n');
 };
@@ -108,6 +115,66 @@ test('issue forms read into fields', () => {
     assert.equal(issueKind({ labels: [{ name: 'mod-update' }] }), 'update');
     assert.equal(issueKind({ labels: ['mod-submission'] }), 'submission');
     assert.equal(issueKind({ labels: [] }), null);
+});
+
+test('a new submission needs a screenshot uploaded into the issue; an update does not', () => {
+    assert.deepEqual(findUploadedImages(SCREENSHOT), ['https://github.com/user-attachments/assets/0b5f6c1e-1111-4222-8333-944455556666']);
+    assert.equal(findUploadedImages('![shot](https://github.com/user-attachments/assets/abc)\n![old](https://user-images.githubusercontent.com/1/2.png)').length, 2);
+    assert.equal(findUploadedImages('![x](https://private-user-images.githubusercontent.com/1/2.png?jwt=t)').length, 1);
+    assert.equal(findUploadedImages('![x](https://github.com/dev/cool-mod/assets/1/abc)').length, 1);
+    // Links elsewhere, attached files and bare URLs are not uploaded images.
+    for (const text of ['', '无', '![x](https://i.imgur.com/a.png)', '![x](https://raw.githubusercontent.com/dev/cool-mod/main/preview.png)',
+        '[shot.zip](https://github.com/user-attachments/files/1/shot.zip)', 'https://github.com/user-attachments/assets/abc']) {
+        assert.deepEqual(findUploadedImages(text), [], text);
+    }
+    for (const body of [submissionBody({ screenshot: '_No response_' }), submissionBody({ screenshot: undefined }), submissionBody({ screenshot: '![x](https://i.imgur.com/a.png)' })]) {
+        assert.match(parseSubmissionIssue(body, 'submission').errors.join('\n'), /运行截图.*屏幕截图/);
+    }
+    assert.deepEqual(parseSubmissionIssue(updateBody(), 'update').errors, []);
+});
+
+test('a second submission of the same mod is a duplicate; updates never are', () => {
+    const open = (number, kind, body, author = 'dev') => ({ ...issueFor(kind, body, author), number });
+    const first = open(5, 'submission', submissionBody());
+    const later = open(9, 'submission', submissionBody({ ref: 'v1.0.1' }));
+    const others = [first, later, open(3, 'submission', submissionBody({ modId: 'other-mod' })), open(4, 'update', updateBody())];
+    assert.deepEqual(findEarlierSubmission(later, others), { original: first, modId: 'cool-mod', sameAuthor: true });
+    assert.equal(findEarlierSubmission(first, others), null, 'the first submission is the original');
+    assert.equal(findEarlierSubmission(open(10, 'update', updateBody()), [...others, open(8, 'update', updateBody())]), null);
+    assert.equal(findEarlierSubmission(later, [{ ...first, state: 'closed' }]), null, 'a closed submission does not block a new one');
+    assert.equal(findEarlierSubmission(later, [{ ...first, pull_request: {} }]), null);
+    assert.equal(findEarlierSubmission(open(9, 'submission', submissionBody({ modId: 'Bad Id' })), others), null);
+    // Another author asking for the same id is not sent to an issue they cannot edit.
+    const stranger = open(11, 'submission', submissionBody(), 'mallory');
+    assert.equal(findEarlierSubmission(stranger, others).sameAuthor, false);
+    assert.equal(findEarlierSubmission(stranger, others).original.number, 5);
+});
+
+test('a failed check with no response for 14 days is stale', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.parse('2026-03-20T00:00:00Z');
+    const at = (days) => new Date(now - days * day).toISOString();
+    const issue = { ...issueFor('submission', submissionBody()), number: 7 };
+    const check = (failed, days) => ({
+        user: { login: 'github-actions[bot]', type: 'Bot' },
+        body: renderCheckComment(failed ? { errors: ['broken'], checkedAt: at(days) } : { errors: [], evaluation: { ...evaluationFor('a'.repeat(40)), channel: 'release' }, checkedAt: at(days) }),
+        created_at: at(30),
+        updated_at: at(30),
+    });
+    const said = (login, days) => ({ user: { login, type: 'User' }, body: 'hi', created_at: at(days), updated_at: at(days) });
+
+    assert.match(check(true, 0).body, new RegExp(COMMENT_MARKERS.checkFailed));
+    assert.match(check(true, 0).body, /14 天内没有回应/);
+    assert.equal(isStaleFailure({ issue, comments: [check(true, 15)], now }), true);
+    assert.equal(isStaleFailure({ issue, comments: [check(true, 13)], now }), false, 'the author edited the issue recently');
+    assert.equal(isStaleFailure({ issue, comments: [check(true, 15), said('dev', 3)], now }), false, 'the author commented recently');
+    assert.equal(isStaleFailure({ issue, comments: [check(true, 15), said('boss', 3)], now }), true, 'only the author\'s response counts');
+    assert.equal(isStaleFailure({ issue, comments: [check(false, 30)], now }), false, 'needs-changes after a passing check is review feedback');
+    assert.equal(isStaleFailure({ issue, comments: [], now }), false);
+    assert.equal(isStaleFailure({ issue: { ...issue, state: 'closed' }, comments: [check(true, 30)], now }), false);
+    // A check comment written before checked-at was recorded falls back to its own timestamp.
+    const legacy = { ...check(true, 0), body: `${COMMENT_MARKERS.check}\n${COMMENT_MARKERS.checkFailed}\n❌`, updated_at: at(20) };
+    assert.equal(isStaleFailure({ issue, comments: [legacy], now }), true);
 });
 
 test('issue titles must name the mod after the template prefix', () => {

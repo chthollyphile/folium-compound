@@ -1,0 +1,33 @@
+# .github/workflows/stale-submissions.yml
+# Closes submission and update issues whose format check failed and whose
+# author has not responded (edited the issue or commented) for 14 days
+# (STALE_DAYS in tools/ci/lib/submission.mjs). Issues a maintainer marked
+# `needs-changes` after a passing check are review feedback and stay open.
+
+name: stale-submissions
+
+on:
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Close stale failed submissions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/ci/close-stale.mjs

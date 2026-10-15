@@ -12,7 +12,9 @@ body:
         不需要 fork 本仓库。流程：
         1. 把模组放在你自己的公开仓库里（可以是仓库根目录，也可以是某个子目录），打一个 tag（推荐）或记下 commit。
            模组需要一张介绍图片：在 mod.json 里写 `"preview": "preview.jpg"`（PNG / JPG / WebP，推荐 1280×720，不超过 1 MB）。
-        2. 在标题的「[模组提交]」后面写上模组的名字，然后填写本表单。CI 会取回那个提交，检查格式，并在这里回复将要签名的文件清单。
+        2. 在标题的「[模组提交]」后面写上模组的名字，然后填写本表单，并附上一张模组在 Folia 里正常运行的截图。CI 会取回那个提交，检查格式，并在这里回复将要签名的文件清单。
+           格式检查未通过、14 天内没有回应（编辑 issue 或评论）的 issue 会被自动关闭。
+           同一个模组只开一个提交 issue：要换版本或补充内容，请编辑原来的 issue，重复开的会被自动关闭。
         3. 通过后请等待维护者审查；审查通过后维护者会签名，模组文件会被复制进本仓库并发布。
         4. 以后发布新版本时，开一个「模组更新」issue 即可。
 
@@ -84,6 +86,15 @@ body:
       label: 许可证 / License
       description: 模组的许可证；包含第三方库时请把它们的许可证文件放在模组目录里
       placeholder: MIT
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: 运行截图 / Screenshot
+      description: |
+        一张模组在对应版本的 Folia（mod.json 写了 `folia` 时在这个范围内）里正常运行的屏幕截图：直接把图片拖进这个框里上传（外部图片链接不算），截图里最好能看到 Folia 的版本。
+        截图只留在这个 issue 里，不会进入仓库，也不是 mod.json 的介绍图片。没有截图检查不通过。
     validations:
       required: true
   - type: checkboxes

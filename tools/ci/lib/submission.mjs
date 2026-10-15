@@ -2,7 +2,9 @@
 // The rules for community submissions, as pure functions the workflows call:
 // how the two issue forms (new mod, update) read, what a community mod
 // directory must look like, which channel (release or beta) a mod asks for,
-// and what a maintainer's `/sign <commit>` comment means. No network and no git here, so every rule is unit-tested
+// what a maintainer's `/sign <commit>` comment means, which submission is a
+// duplicate of an earlier one and when a failed issue is closed for want of a
+// response. No network and no git here, so every rule is unit-tested
 // (test/ci.test.mjs).
 //
 // Nothing in this file executes code from a submission. Mod files are read as
@@ -33,6 +35,7 @@ export const LABELS = {
     awaitingReview: 'awaiting-review',
     needsChanges: 'needs-changes',
     signed: 'signed',
+    duplicate: 'duplicate',
 };
 
 // Headings of the issue forms (.github/ISSUE_TEMPLATE/mod-submission.yml and
@@ -47,6 +50,7 @@ export const FORM_FIELDS = {
     license: '许可证 / License',
     changes: '更新说明 / What changed',
     channel: '发布渠道 / Channel',
+    screenshot: '运行截图 / Screenshot',
     confirmations: '确认 / Confirmations',
 };
 
@@ -110,6 +114,23 @@ export const parseIssueFormSections = (body) => {
     return sections;
 };
 
+/*
+ * Images uploaded into the issue itself (dragged into the form field): GitHub
+ * hosts them under user-attachments, or the older user-images hosts. A link to
+ * an image anywhere else (the author's repository, an image host) does not count.
+ */
+const UPLOADED_IMAGE_URL = /^https:\/\/(?:github\.com\/(?:user-attachments\/assets|[\w.-]+\/[\w.-]+\/assets)\/|(?:private-)?user-images\.githubusercontent\.com\/)/;
+
+/** The URLs of images uploaded to GitHub in a piece of issue markdown (`![..](url)` or `<img src>`). */
+export const findUploadedImages = (text) => {
+    const source = String(text ?? '');
+    const urls = [
+        ...[...source.matchAll(/!\[[^\]]*\]\(\s*<?([^\s)>]+)/g)].map((match) => match[1]),
+        ...[...source.matchAll(/<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["']/gi)].map((match) => match[1]),
+    ];
+    return urls.filter((url) => UPLOADED_IMAGE_URL.test(url));
+};
+
 const checkedAll = (text) => /- \[[xX]\]/.test(text) && !/- \[ \]/.test(text);
 
 /*
@@ -134,6 +155,10 @@ export const parseSubmissionIssue = (body, kind = 'submission') => {
         const modPath = normalizeModPath(sections[FORM_FIELDS.path]);
         if (modPath === null) errors.push(`「${FORM_FIELDS.path}」必须是仓库内的相对路径，根目录留空`);
         Object.assign(fields, { repository, path: modPath ?? '', license: (sections[FORM_FIELDS.license] ?? '').trim() });
+        // Only a new mod needs a screenshot; updates do not.
+        if (findUploadedImages(sections[FORM_FIELDS.screenshot]).length === 0) {
+            errors.push(`「${FORM_FIELDS.screenshot}」里需要一张模组在对应版本的 Folia 里正常运行的屏幕截图：直接把图片拖进这个框里上传（外部图片链接不算）`);
+        }
     }
     if (!checkedAll(sections[FORM_FIELDS.confirmations] ?? '')) errors.push(`请勾选「${FORM_FIELDS.confirmations}」里的全部项目`);
     return { fields, errors };
@@ -245,16 +270,102 @@ export const checkModTree = ({ modDir, modId, existing = null, knownModIds = [],
 
 export const COMMENT_MARKERS = {
     check: '<!-- folium-bot:check -->',
+    checkFailed: '<!-- folium-bot:check-failed -->',
     sign: '<!-- folium-bot:sign -->',
+    duplicate: '<!-- folium-bot:duplicate -->',
+    stale: '<!-- folium-bot:stale -->',
 };
+
+// A submission or update whose format check failed is closed after this many days without a response from its author.
+export const STALE_DAYS = 14;
+
+const CHECKED_AT = /<!-- folium-bot:checked-at=(\S+) -->/;
+
+/** The mod id a form names, or null when the field is missing or not a valid id. */
+export const formModId = (body) => {
+    const modId = (parseIssueFormSections(body)[FORM_FIELDS.modId] ?? '').trim();
+    return MOD_ID_PATTERN.test(modId) ? modId : null;
+};
+
+/*
+ * The earlier open submission issue for the same mod id, or null. `others` are
+ * the open issues labelled as submissions; only one opened before `issue`
+ * counts, so of two submissions the later one is the duplicate. Updates are
+ * never duplicates: a mod may have several update issues open.
+ * Returns `{ original, sameAuthor }`: the same author is sent back to the
+ * original (they can edit their own issue there); another author is asking for
+ * an id someone else has already asked for.
+ */
+export const findEarlierSubmission = (issue, others) => {
+    if (issueKind(issue) !== 'submission') return null;
+    const modId = formModId(issue.body);
+    if (!modId) return null;
+    const original = others
+        .filter((other) => !other.pull_request && other.state === 'open' && other.number < issue.number)
+        .filter((other) => issueKind(other) === 'submission' && formModId(other.body) === modId)
+        .sort((a, b) => a.number - b.number)[0];
+    return original ? { original, modId, sameAuthor: original.user?.login === issue.user?.login } : null;
+};
+
+/** The comment that closes a later submission for a mod its author already submitted. */
+export const renderDuplicateComment = ({ modId, original }) => [
+    COMMENT_MARKERS.duplicate,
+    `模组 \`${modId}\` 已经在 #${original.number} 里提交过了。同一个模组只保留一个提交 issue，这个 issue 关闭。`,
+    '',
+    `请回到 #${original.number} 更新：直接编辑那个 issue（例如换成新的版本、补上截图），CI 会自动重新检查。`,
+].join('\n');
+
+/** The error for a submission of a mod id another author's open submission already asks for. */
+export const takenBySubmissionError = ({ modId, original }) => `模组 id \`${modId}\` 已经在 #${original.number}（@${original.user?.login}）里申请收录；请换一个 id，或到 #${original.number} 与对方沟通`;
+
+/*
+ * When the bot's check comment last ran: the time it records in itself, else
+ * the comment's own timestamps. Every check (opening, editing or reopening the
+ * issue) rewrites it.
+ */
+export const checkTime = (comment) => {
+    const recorded = CHECKED_AT.exec(comment?.body ?? '')?.[1];
+    const time = Date.parse(recorded ?? comment?.updated_at ?? comment?.created_at ?? '');
+    return Number.isNaN(time) ? null : time;
+};
+
+/*
+ * Whether an open submission or update issue should be closed for want of a
+ * response: its latest format check failed, and neither a new check (the
+ * author edited or reopened the issue) nor a comment from its author came in
+ * the last `days` days. A maintainer's `needs-changes` after a passing check
+ * is review feedback, not a format failure, and never closes the issue here.
+ */
+export const isStaleFailure = ({ issue, comments, now = Date.now(), days = STALE_DAYS }) => {
+    if (issue.state !== 'open' || issue.pull_request || !issueKind(issue)) return false;
+    const check = comments.filter((comment) => comment.user?.type === 'Bot' && comment.body?.includes(COMMENT_MARKERS.check)).pop();
+    if (!check?.body.includes(COMMENT_MARKERS.checkFailed)) return false;
+    const author = issue.user?.login;
+    const times = [checkTime(check), ...comments
+        .filter((comment) => comment.user?.login === author)
+        .map((comment) => Date.parse(comment.created_at))]
+        .filter((time) => Number.isFinite(time));
+    if (times.length === 0) return false;
+    return now - Math.max(...times) >= days * 24 * 60 * 60 * 1000;
+};
+
+/** The comment that closes a failed submission or update nobody answered. */
+export const renderStaleComment = ({ days = STALE_DAYS } = {}) => [
+    COMMENT_MARKERS.stale,
+    `格式检查未通过，且 ${days} 天内没有回应，这个 issue 自动关闭。`,
+    '',
+    '修改好之后，请重新开一个 issue。',
+].join('\n');
 
 /*
  * The check result comment on a submission or update issue. On success it asks
  * the author to wait for review and gives maintainers the review links, the
  * exact files that would be signed, and the `/sign` command for this commit.
+ * `checkedAt` (an ISO time) is recorded in the comment for the stale-issue job.
  */
-export const renderCheckComment = ({ errors, warnings = [], evaluation = null }) => {
+export const renderCheckComment = ({ errors, warnings = [], evaluation = null, checkedAt = null }) => {
     const lines = [COMMENT_MARKERS.check];
+    if (checkedAt) lines.push(`<!-- folium-bot:checked-at=${checkedAt} -->`);
     const source = evaluation?.source;
     const at = source?.commit ? `（\`${source.repository}\` @ \`${source.commit.slice(0, 12)}\`）` : '';
     if (errors.length === 0) {
@@ -282,9 +393,12 @@ export const renderCheckComment = ({ errors, warnings = [], evaluation = null })
             ? `维护者审查这个提交后，在本 issue 评论 \`/sign ${short} beta\` 即可用先行测试密钥签名并收录。作者修改 issue 指向新的提交后，需要按新提交重新审查。`
             : `维护者审查这个提交后，在本 issue 评论 \`/sign ${short}\` 即可签名并收录为正式发布；只通过安全审查、功能审查未通过时，评论 \`/sign ${short} beta\` 改为收录到先行测试。作者修改 issue 指向新的提交后，需要按新提交重新审查。`);
     } else {
+        lines.push(COMMENT_MARKERS.checkFailed);
         lines.push(`❌ 格式检查未通过${at}，请修改后编辑本 issue，会自动重新检查：`);
         lines.push('');
         errors.forEach((error) => lines.push(`- ${error}`));
+        lines.push('');
+        lines.push(`${STALE_DAYS} 天内没有回应（编辑 issue 或在这里评论）的话，这个 issue 会被自动关闭。`);
     }
     if (warnings.length > 0) {
         lines.push('');
