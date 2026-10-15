@@ -69,7 +69,7 @@ const signedMark = (mod) => (isBeta(mod)
     : `<span class="signed" data-i18n-title="signed.title" title="由 Folium 签名，安装后显示为「官方认证」">${ICON_SIGNED}${t('signed', '已签名')}</span>`);
 
 // Shown at the top of the beta section and in each beta mod's detail dialog.
-const BETA_NOTE = '先行测试模组仅通过了安全审查，不保证功能实现的整洁，甚至功能可以完全无法工作。它们主要给社区开发者做创意实验，普通用户请勿轻易下载使用。需要支持先行测试签名的 Folia 版本，旧版本会把它们显示为「签名不匹配」。';
+const BETA_NOTE = '先行测试模组仅通过了安全审查，不保证功能实现的整洁，甚至功能可能完全无法工作。它们主要给社区开发者做创意实验，普通用户请勿轻易下载使用。需要 Folia 0.7.20 及以上版本，更早的版本会把它们显示为「签名不匹配」。';
 const betaNotice = () => `<p class="beta-note">${ICON_FLASK}${t('beta.note', BETA_NOTE)}</p>`;
 
 const downloadButton = (mod) => `<a class="download${isBeta(mod) ? ' download-beta' : ''}" href="${escapeHtml(mod.download.url)}" download="${escapeHtml(mod.download.fileName)}">

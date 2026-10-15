@@ -56,7 +56,7 @@ export const FORM_FIELDS = {
  */
 export const CHANNEL_TEXT = {
     release: { name: '正式发布', review: '安全审查 + 功能审查（功能可用、实现整洁）' },
-    beta: { name: '先行测试', review: '仅安全审查：不保证功能实现的整洁，甚至功能可以完全无法工作，主要供社区开发者做创意实验' },
+    beta: { name: '先行测试', review: '仅安全审查：不保证功能实现的整洁，甚至功能可能完全无法工作，主要供社区开发者做创意实验' },
 };
 
 /*

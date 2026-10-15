@@ -20,7 +20,7 @@ const EN = {
     'badge.community': 'Community',
     'badge.beta': 'Beta',
     'beta.title': 'Beta channel',
-    'beta.note': 'Beta mods passed the security review only. Their implementation may be rough and their features may not work at all. They are meant for community developers to experiment with; most users should not download them. They need a Folia version that knows the beta signing key; older versions show them as “signature mismatch”.',
+    'beta.note': 'Beta mods passed the security review only. Their implementation may be rough and their features may not work at all. They are meant for community developers to experiment with; most users should not download them. They need Folia 0.7.20 or later; earlier versions show them as “signature mismatch”.',
     'beta.signed': 'Beta',
     'beta.signed.title': 'Signed with the Folium beta key: security-reviewed only, may not work',
     'beta.empty': 'No beta mods yet',
