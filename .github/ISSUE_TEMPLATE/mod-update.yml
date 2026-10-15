@@ -29,6 +29,19 @@ body:
       placeholder: v1.1.0
     validations:
       required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: 发布渠道 / Channel
+      description: |
+        一般保持不变。先行测试的模组申请转为正式发布时选「正式发布」，会按正式发布的标准完整审查；只换渠道时版本号可以不变。
+      options:
+        - 保持不变 / Keep current
+        - 正式发布 / Release
+        - 先行测试 / Beta
+      default: 0
+    validations:
+      required: true
   - type: textarea
     id: changes
     attributes:

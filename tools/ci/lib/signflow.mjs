@@ -1,21 +1,23 @@
 // tools/ci/lib/signflow.mjs
 // The two jobs that hold the CI signing key, minus their GitHub calls:
 //   - importAndSign: a maintainer said `/sign <commit>` on a reviewed
-//     submission or update issue. Replace mods/community/<id>/ with the files
+//     submission or update issue. Replace mods/community/<id>/ (or
+//     mods/beta/<id>/ for the beta channel) with the files
 //     staged from that commit of the author's repository, sign them, update
 //     community.json and index.json, and commit, all locally; the caller pushes
 //     once, so main never shows an unsigned mod and a failure leaves main
 //     untouched.
 //   - resignRepository: after anything lands on main (a maintainer's edit, a
-//     key rotation), re-sign every mod whose signature no longer verifies.
+//     key rotation, a mod moved between community/ and beta/), re-sign every
+//     mod whose signature no longer verifies, with the key of its channel.
 // Both finish with the repository-wide check (every mod verified, index
 // current) before anything is committed.
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { SIGNATURE_FILE, readModIdentity, signMod, verifyMod } from '../../lib/signing.mjs';
-import { listModDirs, readRevokedDigests, readTrustedKeys } from '../../lib/repo.mjs';
+import { SIGNATURE_FILE, readModIdentity, signMod } from '../../lib/signing.mjs';
+import { channelOf, communityDir, isSigned, keyChannel, listModDirs, readRevokedDigests, readTrustedKeys, verifyRepoMod } from '../../lib/repo.mjs';
 import { buildIndex, readCommunityRegistry, writeCommunityRegistry } from '../../lib/index.mjs';
 
 export const BOT_IDENTITY = {
@@ -37,18 +39,25 @@ const git = (repoDir, args, options = {}) => execFileSync('git', args, {
     ...options,
 }).trim();
 
+// The signing environment secret holding each channel's CI key.
+export const SIGNING_KEY_ENV = { release: 'FOLIUM_SIGNING_KEY_JSON', beta: 'FOLIUM_BETA_SIGNING_KEY_JSON' };
+
 /*
- * The CI signing key from FOLIUM_SIGNING_KEY_JSON (the key file written by
- * tools/keygen.mjs). It must be an active key in the repository's trusted list,
- * or nothing gets signed.
+ * A channel's CI signing key from its secret (the key file written by
+ * tools/keygen.mjs; `json` defaults to the environment). It must be an active
+ * key in the repository's trusted list, for that channel, or nothing gets
+ * signed.
  */
-export const loadSigningKey = (root, json = process.env.FOLIUM_SIGNING_KEY_JSON) => {
-    if (!json) throw new Error('FOLIUM_SIGNING_KEY_JSON is not set (the signing environment secret)');
-    const parsed = JSON.parse(json);
-    if (typeof parsed.keyId !== 'string' || !parsed.privateKey?.d) throw new Error('FOLIUM_SIGNING_KEY_JSON is not a key file from tools/keygen.mjs');
+export const loadSigningKey = (root, json = undefined, channel = 'release') => {
+    const name = SIGNING_KEY_ENV[channel];
+    const text = json ?? process.env[name];
+    if (!text) throw new Error(`${name} is not set (the signing environment secret)`);
+    const parsed = JSON.parse(text);
+    if (typeof parsed.keyId !== 'string' || !parsed.privateKey?.d) throw new Error(`${name} is not a key file from tools/keygen.mjs`);
     const trusted = readTrustedKeys(root).find((key) => key.keyId === parsed.keyId);
     if (!trusted || trusted.revoked) throw new Error(`signing key ${parsed.keyId} is not an active key in keys/trusted-keys.json`);
-    return { keyId: parsed.keyId, privateJwk: parsed.privateKey };
+    if (keyChannel(trusted) !== channel) throw new Error(`${name} holds ${parsed.keyId}, a ${keyChannel(trusted)}-channel key, not a ${channel}-channel key`);
+    return { keyId: parsed.keyId, privateJwk: parsed.privateKey, channel };
 };
 
 const writeSignature = (modDir, key) => {
@@ -75,20 +84,24 @@ export const finalizeRepository = (root, { runTests = true } = {}) => {
 
 /*
  * Imports a staged mod (see source.mjs stageModFiles) into the checked-out
- * main at `repoDir`, signs it and commits. `kind` is 'submission' or 'update';
- * `source` is `{ repository, path, commit }`. Returns `{ commit, record }`;
- * throws, leaving the working tree exactly as it was, when the final check
- * fails.
+ * main at `repoDir`, signs it with `key` (the key of `channel`) and commits.
+ * `kind` is 'submission' or 'update'; `source` is `{ repository, path, commit }`.
+ * The mod lands in mods/community/<id> (release) or mods/beta/<id> (beta); a
+ * copy in the other channel's directory is removed, which is how an update
+ * promotes or demotes a mod. Returns `{ commit, record }`; throws, leaving the
+ * working tree exactly as it was, when the final check fails.
  */
-export const importAndSign = ({ repoDir, stagedDir, modId, kind, author, authorId = null, issueNumber, source, key, runTests = true, now = new Date() }) => {
+export const importAndSign = ({ repoDir, stagedDir, modId, kind, channel = 'release', author, authorId = null, issueNumber, source, key, runTests = true, now = new Date() }) => {
     const start = git(repoDir, ['rev-parse', 'HEAD']);
-    const relativeDir = path.join('mods', 'community', modId);
+    const relativeDir = communityDir(modId, channel);
+    const otherDir = communityDir(modId, channel === 'beta' ? 'release' : 'beta');
     const targetDir = path.join(repoDir, relativeDir);
     const reset = () => {
         git(repoDir, ['reset', '-q', '--hard', start]);
-        git(repoDir, ['clean', '-fdq', '--', relativeDir]);
+        git(repoDir, ['clean', '-fdq', '--', relativeDir, otherDir]);
     };
     try {
+        fs.rmSync(path.join(repoDir, otherDir), { recursive: true, force: true });
         fs.rmSync(targetDir, { recursive: true, force: true });
         fs.mkdirSync(path.dirname(targetDir), { recursive: true });
         fs.cpSync(stagedDir, targetDir, { recursive: true, verbatimSymlinks: true });
@@ -106,8 +119,10 @@ export const importAndSign = ({ repoDir, stagedDir, modId, kind, author, authorI
         finalizeRepository(repoDir, { runTests });
 
         const coAuthor = authorId ? `\n\nCo-authored-by: ${author} <${authorId}+${author}@users.noreply.github.com>` : '';
-        git(repoDir, ['add', '-A', relativeDir, 'community.json', 'index.json']);
-        git(repoDir, ['commit', '-q', '-m', `sign(community): ${modId}@${version}\n\nImported from ${source.repository}@${source.commit}${source.path ? ` (${source.path})` : ''}, reviewed in #${issueNumber}, signed with ${key.keyId}.${coAuthor}`]);
+        // The other channel's directory is staged only when main had it (a promotion or demotion removed it).
+        const removed = git(repoDir, ['ls-files', '--', otherDir]) ? [otherDir] : [];
+        git(repoDir, ['add', '-A', relativeDir, ...removed, 'community.json', 'index.json']);
+        git(repoDir, ['commit', '-q', '-m', `sign(${channel === 'beta' ? 'beta' : 'community'}): ${modId}@${version}\n\nImported from ${source.repository}@${source.commit}${source.path ? ` (${source.path})` : ''}, reviewed in #${issueNumber}, signed with ${key.keyId}.${coAuthor}`]);
         return { commit: git(repoDir, ['rev-parse', 'HEAD']), record };
     } catch (error) {
         reset();
@@ -117,18 +132,24 @@ export const importAndSign = ({ repoDir, stagedDir, modId, kind, author, authorI
 
 /*
  * Re-signs every mod on main whose signature does not verify: a maintainer
- * edited or added a mod directly, or a key has since been rotated out. A mod whose content
- * is on the revoked list is never re-signed. Returns the re-signed mods and
- * leaves committing to the caller.
+ * edited or added a mod directly, moved it between community/ and beta/, or a
+ * key has since been rotated out. Each mod is signed with the key of its
+ * directory's channel (`signingKeys` is `{ release, beta }`; a missing key
+ * fails only when a mod of that channel needs it). A mod whose content is on
+ * the revoked list is never re-signed. Returns the re-signed mods and leaves
+ * committing to the caller.
  */
-export const resignRepository = ({ root, key, runTests = true }) => {
+export const resignRepository = ({ root, signingKeys, runTests = true }) => {
     const keys = readTrustedKeys(root);
     const revokedDigests = readRevokedDigests(root);
     const resigned = [];
     for (const target of listModDirs(root)) {
-        const result = verifyMod(target.dir, keys, { revokedDigests });
-        if (result.status === 'verified') continue;
+        const result = verifyRepoMod(target, keys, { revokedDigests });
+        if (isSigned(result)) continue;
         if (result.reason === 'revoked-mod') throw new Error(`${target.relative} is on the revoked list; remove it instead of re-signing`);
+        const channel = channelOf(target.origin);
+        const key = signingKeys[channel];
+        if (!key) throw new Error(`${target.relative} needs re-signing, but there is no ${channel}-channel key (${SIGNING_KEY_ENV[channel]})`);
         const record = writeSignature(target.dir, key);
         resigned.push({ path: target.relative, modId: record.modId, version: record.modVersion, previous: result.reason ?? result.status });
     }

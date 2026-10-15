@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { listModDirs } from '../../lib/repo.mjs';
+import { communityDir, listModDirs } from '../../lib/repo.mjs';
 import { computeSignedDigest, readModIdentity } from '../../lib/signing.mjs';
 import { readCommunityRegistry } from '../../lib/index.mjs';
 import { SIGNER_PERMISSIONS, checkIssueTitle, checkModTree, issueKind, parseSubmissionIssue } from './submission.mjs';
@@ -26,10 +26,16 @@ export const knownModIds = (root) => listModDirs(root).map((target) => {
     }
 });
 
+/* The channel a community mod is published in on main, or null when it is in neither directory. */
+export const currentChannel = (baseDir, modId) => ['release', 'beta']
+    .find((channel) => fs.existsSync(path.join(baseDir, communityDir(modId, channel), 'mod.json'))) ?? null;
+
 /*
  * Returns `{ kind, errors, warnings, modId, manifest, isUpdate, previousVersion,
- * source: { repository, path, ref, commit }, stagedDir, files, digest, links,
- * cleanup }`. `stagedDir` is the mod as it would be imported (call `cleanup()`
+ * channel, previousChannel, source: { repository, path, ref, commit },
+ * stagedDir, files, digest, links, cleanup }`. `channel` is what the issue
+ * asks for: the form's choice, else (an older issue without the field) the
+ * mod's current channel for an update and release for a new mod. `stagedDir` is the mod as it would be imported (call `cleanup()`
  * when done). `errors` block signing; `warnings` are for the maintainer.
  */
 export const evaluateIssue = async (github, options) => {
@@ -44,7 +50,7 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
     const errors = [];
     const warnings = [];
     const kind = issueKind(issue);
-    const result = { kind, errors, warnings, modId: null, manifest: null, isUpdate: kind === 'update', previousVersion: null, source: null, stagedDir: null, files: [], digest: null, links: null, cleanup: () => {} };
+    const result = { kind, errors, warnings, modId: null, manifest: null, isUpdate: kind === 'update', previousVersion: null, channel: 'release', previousChannel: null, source: null, stagedDir: null, files: [], digest: null, links: null, cleanup: () => {} };
     if (!kind) {
         errors.push('这个 issue 不是模组提交或模组更新');
         return result;
@@ -59,7 +65,9 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
     const registry = readCommunityRegistry(baseDir);
     const entry = registry.mods[fields.modId] ?? null;
     const known = knownModIds(baseDir);
-    const existingDir = path.join(baseDir, 'mods', 'community', fields.modId);
+    result.previousChannel = kind === 'update' ? currentChannel(baseDir, fields.modId) : null;
+    result.channel = fields.channel ?? result.previousChannel ?? 'release';
+    const existingDir = result.previousChannel ? path.join(baseDir, communityDir(fields.modId, result.previousChannel)) : null;
     let existing = null;
     let repository;
     let modPath;
@@ -68,7 +76,7 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
         repository = fields.repository;
         modPath = fields.path;
     } else {
-        if (!entry || !fs.existsSync(path.join(existingDir, 'mod.json'))) {
+        if (!entry || !existingDir) {
             errors.push(`\`${fields.modId}\` 不是已收录的社区模组；新模组请用「模组提交」issue`);
         } else {
             existing = JSON.parse(fs.readFileSync(path.join(existingDir, 'mod.json'), 'utf8'));
@@ -111,7 +119,8 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
         fs.rmSync(checkout, { recursive: true, force: true });
     }
 
-    const tree = checkModTree({ modDir: result.stagedDir, modId: fields.modId, existing, knownModIds: known });
+    const changesChannel = Boolean(result.previousChannel) && result.previousChannel !== result.channel;
+    const tree = checkModTree({ modDir: result.stagedDir, modId: fields.modId, existing, knownModIds: known, changesChannel });
     errors.push(...tree.errors);
     warnings.push(...tree.warnings);
     result.manifest = tree.manifest;

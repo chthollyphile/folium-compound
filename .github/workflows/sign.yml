@@ -1,12 +1,14 @@
 # .github/workflows/sign.yml
-# A maintainer comments `/sign <commit>` on a reviewed submission or update
-# issue: import that commit's mod files from the author's repository, sign them
-# with the CI key and push main once.
+# A maintainer comments `/sign <commit>` (or `/sign <commit> beta`) on a
+# reviewed submission or update issue: import that commit's mod files from the
+# author's repository into the channel the issue asks for (beta when the
+# maintainer said so), sign them with that channel's CI key and push main once.
 #
 # Two jobs so the key is only reachable after authorization: `authorize` has
 # no secrets and checks the commenter's permission and that the issue still
 # resolves to <commit>; only then does `sign` enter the `signing` environment
-# (which holds FOLIUM_SIGNING_KEY_JSON and is restricted to main). The author's
+# (which holds FOLIUM_SIGNING_KEY_JSON and FOLIUM_BETA_SIGNING_KEY_JSON and is
+# restricted to main). The author's
 # files are data throughout, never executed.
 
 name: sign
@@ -28,6 +30,7 @@ jobs:
       authorized: ${{ steps.check.outputs.authorized }}
       issue: ${{ steps.check.outputs.issue }}
       commit: ${{ steps.check.outputs.commit }}
+      beta: ${{ steps.check.outputs.beta }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,7 +66,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           FOLIUM_SIGNING_KEY_JSON: ${{ secrets.FOLIUM_SIGNING_KEY_JSON }}
+          FOLIUM_BETA_SIGNING_KEY_JSON: ${{ secrets.FOLIUM_BETA_SIGNING_KEY_JSON }}
         run: >
           node tools/ci/sign-issue.mjs
           --issue "${{ needs.authorize.outputs.issue }}"
           --commit "${{ needs.authorize.outputs.commit }}"
+          --beta "${{ needs.authorize.outputs.beta }}"

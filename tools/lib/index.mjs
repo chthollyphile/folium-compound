@@ -1,7 +1,7 @@
 // tools/lib/index.mjs
 // Builds index.json and reads/writes community.json.
 //
-// community.json records, for each community mod: its owners (the GitHub
+// community.json records, for each community mod (release or beta channel): its owners (the GitHub
 // accounts whose update issues are accepted), the submission issue, and where
 // the signed files came from (source repository, directory, commit). It lives
 // outside the mod directories on purpose: anything inside a mod directory is
@@ -9,8 +9,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { SIGNATURE_FILE, readModIdentity, verifyMod } from './signing.mjs';
-import { REPO_ROOT, listModDirs, readRevokedDigests, readTrustedKeys } from './repo.mjs';
+import { SIGNATURE_FILE, readModIdentity } from './signing.mjs';
+import { REPO_ROOT, channelOf, isSigned, listModDirs, readRevokedDigests, readTrustedKeys, verifyRepoMod } from './repo.mjs';
 
 export const COMMUNITY_FILE = 'community.json';
 
@@ -40,14 +40,14 @@ export const buildIndex = (root = REPO_ROOT) => {
     const errors = [];
 
     for (const target of listModDirs(root)) {
-        const result = verifyMod(target.dir, keys, { revokedDigests });
-        if (result.status !== 'verified') {
+        const result = verifyRepoMod(target, keys, { revokedDigests });
+        if (!isSigned(result)) {
             errors.push(`${target.relative}: ${result.status}${result.reason ? ` (${result.reason})` : ''}`);
             continue;
         }
         const { id, version, name, manifest } = readModIdentity(target.dir);
         const signature = JSON.parse(fs.readFileSync(path.join(target.dir, SIGNATURE_FILE), 'utf8'));
-        const registered = target.origin === 'community' ? community.mods[id] ?? null : null;
+        const registered = target.origin !== 'official' ? community.mods[id] ?? null : null;
         mods.push({
             id,
             name,
@@ -55,6 +55,7 @@ export const buildIndex = (root = REPO_ROOT) => {
             author: manifest.author ?? null,
             description: manifest.description ?? null,
             origin: target.origin,
+            channel: channelOf(target.origin),
             path: target.relative,
             digest: result.digest,
             keyId: result.keyId,

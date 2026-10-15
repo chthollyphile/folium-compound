@@ -23,7 +23,12 @@ const git = (...args) => execFileSync('git', args, {
     },
 }).trim();
 
-const { resigned } = resignRepository({ root: REPO_ROOT, key: loadSigningKey(REPO_ROOT) });
+// The beta key is optional until a beta mod needs it; resignRepository says which secret is missing.
+const signingKeys = {
+    release: loadSigningKey(REPO_ROOT),
+    beta: process.env.FOLIUM_BETA_SIGNING_KEY_JSON ? loadSigningKey(REPO_ROOT, undefined, 'beta') : null,
+};
+const { resigned } = resignRepository({ root: REPO_ROOT, signingKeys });
 
 if (git('status', '--porcelain') === '') {
     console.log('every mod verifies and index.json is current; nothing to do');

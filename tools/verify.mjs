@@ -7,13 +7,14 @@
 //   node tools/verify.mjs --strict        unsigned mods fail too (use on main)
 //   node tools/verify.mjs --list <dir>    print the files a signature covers
 //
-// Exit code 1 when any signature is invalid, or with --strict when any mod is
-// unsigned. Pull requests that add a third-party mod arrive unsigned; a
+// Exit code 1 when any signature is invalid (including a valid signature from
+// the wrong channel: mods/beta needs the beta key, the others a release key),
+// or with --strict when any mod is unsigned. Pull requests that add a third-party mod arrive unsigned; a
 // maintainer signs after review, and main must pass --strict.
 
 import { parseArgs } from 'node:util';
-import { computeSignedDigest, readModIdentity, verifyMod } from './lib/signing.mjs';
-import { readRevokedDigests, readTrustedKeys, resolveModArgs } from './lib/repo.mjs';
+import { computeSignedDigest, readModIdentity } from './lib/signing.mjs';
+import { readRevokedDigests, readTrustedKeys, resolveModArgs, verifyRepoMod } from './lib/repo.mjs';
 
 const { values, positionals } = parseArgs({
     allowPositionals: true,
@@ -43,14 +44,14 @@ for (const target of targets) {
     try {
         const { id, version } = readModIdentity(target.dir);
         identity = `${id}@${version}`;
-        if (!target.origin) console.warn(`warning: ${target.relative} is not under mods/official or mods/community`);
-        result = verifyMod(target.dir, keys, { revokedDigests });
+        if (!target.origin) console.warn(`warning: ${target.relative} is not under mods/official, mods/community or mods/beta`);
+        result = verifyRepoMod(target, keys, { revokedDigests });
     } catch (error) {
         result = { status: 'invalid', reason: error.message };
     }
     const failedHere = result.status === 'invalid' || (values.strict && result.status === 'unsigned');
     failed ||= failedHere;
-    const detail = result.status === 'verified' ? `key ${result.keyId}` : result.reason ?? '';
+    const detail = result.status === 'verified' || result.status === 'beta' ? `key ${result.keyId}` : `${result.reason ?? ''}${result.signedAs ? ` (signed as ${result.signedAs} by ${result.keyId})` : ''}`;
     console.log(`${failedHere ? 'FAIL' : 'ok  '} ${result.status.padEnd(8)} ${target.relative} ${identity} ${detail}`.trimEnd());
 }
 process.exit(failed ? 1 : 0);

@@ -136,7 +136,8 @@ export const signMod = (modDir, { keyId, privateJwk, signedAt = new Date().toISO
 /*
  * Verifies a mod directory the way the host does. `keys` is the trusted key
  * list (keys/trusted-keys.json). Returns `{ status, reason?, keyId?, digest? }`
- * with status 'verified' | 'unsigned' | 'invalid'.
+ * with status 'verified' | 'beta' | 'unsigned' | 'invalid': a valid signature
+ * by a `channel: "beta"` key is 'beta', exactly as Folia reports it.
  */
 export const verifyMod = (modDir, keys, { revokedDigests = [] } = {}) => {
     const signaturePath = path.join(modDir, SIGNATURE_FILE);
@@ -160,5 +161,5 @@ export const verifyMod = (modDir, keys, { revokedDigests = [] } = {}) => {
     const { digest } = computeSignedDigest(modDir);
     if (digest !== record.digest) return { status: 'invalid', reason: 'digest-mismatch', keyId: record.keyId, digest };
     if (revokedDigests.includes(digest)) return { status: 'invalid', reason: 'revoked-mod', keyId: record.keyId, digest };
-    return { status: 'verified', keyId: record.keyId, digest };
+    return { status: key.channel === 'beta' ? 'beta' : 'verified', keyId: record.keyId, digest };
 };
