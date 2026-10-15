@@ -123,6 +123,24 @@ test('signatures from unknown or revoked keys, or of revoked mods, do not verify
     assert.equal(verifyMod(dir, [{ keyId: TEST_KEY.keyId, publicKey: forgedKey, revoked: false }]).reason, 'bad-signature');
 });
 
+test('a beta-channel key verifies as beta, as Folia reports it', () => {
+    const dir = writeVectorTree();
+    signInPlace(dir);
+    const betaKeys = [{ ...KEYS[0], channel: 'beta' }];
+    assert.equal(verifyMod(dir, betaKeys).status, 'beta');
+    assert.equal(verifyMod(dir, betaKeys, { revokedDigests: [VECTOR_DIGEST] }).reason, 'revoked-mod');
+    assert.equal(verifyMod(dir, [{ ...betaKeys[0], revoked: true }]).reason, 'revoked-key');
+    assert.equal(verifyMod(dir, [{ ...KEYS[0], channel: 'release' }]).status, 'verified');
+});
+
+test('a key with a channel Folia does not know is untrusted, never verified', () => {
+    const dir = writeVectorTree();
+    signInPlace(dir);
+    for (const channel of ['Beta', 'preview', 'constructor', '__proto__', 'toString', '', null]) {
+        assert.equal(verifyMod(dir, [{ ...KEYS[0], channel }]).reason, 'unknown-key', String(channel));
+    }
+});
+
 test('unsigned and malformed signature files are told apart', () => {
     const dir = writeVectorTree();
     fs.rmSync(path.join(dir, SIGNATURE_FILE));

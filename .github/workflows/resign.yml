@@ -1,6 +1,7 @@
 # .github/workflows/resign.yml
-# After anything lands on main (a maintainer's direct edit, a key rotation):
-# re-sign every mod whose signature no longer verifies, rebuild index.json,
+# After anything lands on main (a maintainer's direct edit, a key rotation, a
+# mod moved between mods/community and mods/beta): re-sign every mod whose
+# signature no longer verifies with its channel's key, rebuild index.json,
 # and run the repository-wide check. This is also the strict check for main.
 # Its own pushes use the workflow token, which starts no new runs.
 
@@ -32,4 +33,5 @@ jobs:
       - name: Re-sign, rebuild the index, verify
         env:
           FOLIUM_SIGNING_KEY_JSON: ${{ secrets.FOLIUM_SIGNING_KEY_JSON }}
+          FOLIUM_BETA_SIGNING_KEY_JSON: ${{ secrets.FOLIUM_BETA_SIGNING_KEY_JSON }}
         run: node tools/ci/resign.mjs

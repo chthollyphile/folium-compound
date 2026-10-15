@@ -7,7 +7,7 @@
 const EN = {
     submit: 'Submit a mod',
     title: 'Mod market',
-    tagline: 'Official and reviewed community mods for Folia. Every mod is signed by Folium and shows as Verified once installed.',
+    tagline: 'Official and reviewed community mods for Folia. Every released mod is signed by Folium and shows as Verified once installed.',
     'install.1': 'Turn on the mod system in Folia under Settings → System → Mods',
     'install.2': 'Download a mod’s zip and drop it onto the mods panel',
     'install.3': 'When enabling, check the signature and permissions in the confirmation window',
@@ -15,8 +15,15 @@ const EN = {
     'filter.all': 'All',
     'filter.official': 'Official',
     'filter.community': 'Community',
+    'filter.beta': 'Beta',
     'badge.official': 'Official',
     'badge.community': 'Community',
+    'badge.beta': 'Beta',
+    'beta.title': 'Beta channel',
+    'beta.note': 'Beta mods passed the security review only. Their implementation may be rough and their features may not work at all. They are meant for community developers to experiment with; most users should not download them. They need Folia 0.7.20 or later; earlier versions show them as “signature mismatch”.',
+    'beta.signed': 'Beta',
+    'beta.signed.title': 'Signed with the Folium beta key: security-reviewed only, may not work',
+    'beta.empty': 'No beta mods yet',
     'permissions.none': 'No permissions',
     node: 'Node entry',
     'node.title': 'Contains code that runs in the main process with full Node.js access',
@@ -128,23 +135,33 @@ const setupLanguage = () => {
     });
 };
 
+/*
+ * Search and the origin tabs. "All" means the released mods (official and
+ * community); beta mods live in their own section, shown only on the beta tab.
+ */
 const setupFilters = () => {
     const input = document.querySelector('[data-search-input]');
     const buttons = [...document.querySelectorAll('[data-filter]')];
     const cards = [...document.querySelectorAll('.card')];
     const empty = document.querySelector('[data-empty]');
+    const grid = document.querySelector('[data-grid]');
+    const betaZone = document.querySelector('[data-beta-zone]');
+    const betaTotal = cards.filter((card) => card.dataset.origin === 'beta').length;
     let origin = 'all';
 
     const update = () => {
         const terms = (input?.value ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
         let shown = 0;
         cards.forEach((card) => {
-            const matches = (origin === 'all' || card.dataset.origin === origin)
-                && terms.every((term) => card.dataset.search.includes(term));
+            const inTab = origin === 'all' ? card.dataset.origin !== 'beta' : card.dataset.origin === origin;
+            const matches = inTab && terms.every((term) => card.dataset.search.includes(term));
             card.hidden = !matches;
             if (matches) shown += 1;
         });
-        if (empty) empty.hidden = shown > 0;
+        if (grid) grid.hidden = origin === 'beta';
+        if (betaZone) betaZone.hidden = origin !== 'beta';
+        // An empty beta channel already says so inside its section.
+        if (empty) empty.hidden = shown > 0 || (origin === 'beta' && betaTotal === 0);
     };
 
     input?.addEventListener('input', update);
@@ -153,6 +170,7 @@ const setupFilters = () => {
         buttons.forEach((other) => other.classList.toggle('is-active', other === button));
         update();
     }));
+    update();
 };
 
 const setupCopy = () => {

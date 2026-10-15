@@ -41,6 +41,7 @@ const chip = (className, label, title, attributes = '') => (
 
 const ICON_SIGNED = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.9-4.9 1.4 1.4-6.3 6.3Z"/></svg>';
 const ICON_DOWNLOAD = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4h2v9.2l3.3-3.3 1.4 1.4L12 17l-5.7-5.7 1.4-1.4 3.3 3.3V4ZM5 19h14v2H5z"/></svg>';
+const ICON_FLASK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6v2h-1v5.3l5.6 9.4A2.2 2.2 0 0 1 17.7 22H6.3a2.2 2.2 0 0 1-1.9-3.3L10 9.3V4H9V2Zm3 9.1L8.6 17h6.8L12 11.1Z"/></svg>';
 const ICON_CLOSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"/></svg>';
 
 // The fragment that opens a mod's detail dialog; also its shareable link.
@@ -52,11 +53,26 @@ const initialOf = (mod) => Array.from(mod.name.trim() || mod.id)[0].toUpperCase(
 // javascript: URL would survive HTML escaping.
 const httpsUrl = (value) => (/^https:\/\//.test(value ?? '') ? value : null);
 
-const originBadge = (mod) => `<span class="badge badge-${escapeHtml(mod.origin)}">${mod.origin === 'official' ? t('badge.official', '官方') : t('badge.community', '社区')}</span>`;
+const isBeta = (mod) => mod.channel === 'beta';
 
-const signedMark = `<span class="signed" data-i18n-title="signed.title" title="由 Folium 签名，安装后显示为「官方认证」">${ICON_SIGNED}${t('signed', '已签名')}</span>`;
+const BADGE_TEXT = {
+    official: t('badge.official', '官方'),
+    community: t('badge.community', '社区'),
+    beta: t('badge.beta', '先行测试'),
+};
 
-const downloadButton = (mod) => `<a class="download" href="${escapeHtml(mod.download.url)}" download="${escapeHtml(mod.download.fileName)}">
+const originBadge = (mod) => `<span class="badge badge-${escapeHtml(mod.origin)}">${BADGE_TEXT[mod.origin] ?? escapeHtml(mod.origin)}</span>`;
+
+// The signature line: release mods install as officially verified, beta mods as preview builds.
+const signedMark = (mod) => (isBeta(mod)
+    ? `<span class="signed signed-beta" data-i18n-title="beta.signed.title" title="由 Folium 先行测试密钥签名：仅通过安全审查，不保证功能可用">${ICON_FLASK}${t('beta.signed', '先行测试')}</span>`
+    : `<span class="signed" data-i18n-title="signed.title" title="由 Folium 签名，安装后显示为「官方认证」">${ICON_SIGNED}${t('signed', '已签名')}</span>`);
+
+// Shown at the top of the beta section and in each beta mod's detail dialog.
+const BETA_NOTE = '先行测试模组仅通过了安全审查，不保证功能实现的整洁，甚至功能可能完全无法工作。它们主要给社区开发者做创意实验，普通用户请勿轻易下载使用。需要 Folia 0.7.20 及以上版本，更早的版本会把它们显示为「签名不匹配」。';
+const betaNotice = () => `<p class="beta-note">${ICON_FLASK}${t('beta.note', BETA_NOTE)}</p>`;
+
+const downloadButton = (mod) => `<a class="download${isBeta(mod) ? ' download-beta' : ''}" href="${escapeHtml(mod.download.url)}" download="${escapeHtml(mod.download.fileName)}">
             ${ICON_DOWNLOAD}
             ${t('download', '下载')} <span class="size">${formatSize(mod.download.size)}</span>
           </a>`;
@@ -86,7 +102,7 @@ const renderCard = (mod) => {
         ${mod.description ? `<p class="description">${escapeHtml(mod.description)}</p>` : ''}
         <ul class="chips">${chips.length > 0 ? chips.join('') : `<li class="chip chip-none">${t('permissions.none', '无需权限')}</li>`}</ul>
         <footer class="card-foot">
-          ${signedMark}
+          ${signedMark(mod)}
           <a class="more" href="${href}">${t('more', '详情')}</a>
           ${downloadButton(mod)}
         </footer>
@@ -144,6 +160,7 @@ const renderDetail = (mod) => {
           </div>
           ${originBadge(mod)}
         </header>
+        ${isBeta(mod) ? betaNotice() : ''}
         ${mod.description ? `<p class="detail-description">${escapeHtml(mod.description)}</p>` : ''}
         <div class="detail-sections">${section('detail.permissions', '权限', `<ul class="perm-list">${permissions.length > 0 ? permissions.join('') : `<li>${t('permissions.none', '无需权限')}</li>`}</ul>`)}${section('detail.compat', '兼容与依赖', compat && `<dl>${compat}</dl>`)}${section('detail.provenance', '来源', origin && `<dl>${origin}</dl>`)}${section('details', '签名与校验', `<dl>
               <dt>${t('key', '签名密钥')}</dt><dd>${escapeHtml(mod.keyLabel)} <code>${escapeHtml(mod.keyId)}</code></dd>
@@ -154,7 +171,7 @@ const renderDetail = (mod) => {
             </dl>`)}
         </div>
         <footer class="card-foot">
-          ${signedMark}
+          ${signedMark(mod)}
           ${downloadButton(mod)}
         </footer>
       </div>
@@ -164,10 +181,14 @@ const renderDetail = (mod) => {
 export const renderMarketPage = (catalog) => {
     const submitUrl = `https://github.com/${SITE_REPOSITORY}/issues/new?template=mod-submission.yml`;
     const repoUrl = `https://github.com/${SITE_REPOSITORY}`;
+    // Beta mods stay out of "all": they get their own tab and section.
+    const released = catalog.mods.filter((mod) => !isBeta(mod));
+    const beta = catalog.mods.filter(isBeta);
     const counts = {
-        all: catalog.mods.length,
-        official: catalog.mods.filter((mod) => mod.origin === 'official').length,
-        community: catalog.mods.filter((mod) => mod.origin === 'community').length,
+        all: released.length,
+        official: released.filter((mod) => mod.origin === 'official').length,
+        community: released.filter((mod) => mod.origin === 'community').length,
+        beta: beta.length,
     };
     return `<!doctype html>
 <html lang="zh-CN">
@@ -193,7 +214,7 @@ export const renderMarketPage = (catalog) => {
         </nav>
       </div>
       <h1>${t('title', '模组市场')}</h1>
-      <p class="tagline">${t('tagline', 'Folia 的官方模组与经过审查的社区模组。每个模组都由 Folium 签名，安装后显示为「官方认证」。')}</p>
+      <p class="tagline">${t('tagline', 'Folia 的官方模组与经过审查的社区模组。正式发布的模组都由 Folium 签名，安装后显示为「官方认证」。')}</p>
       <ol class="steps">
         <li>${t('install.1', '在 Folia 的「设置 → 系统 → 模组」里开启模组系统')}</li>
         <li>${t('install.2', '下载模组的 zip，拖进模组面板')}</li>
@@ -211,10 +232,18 @@ export const renderMarketPage = (catalog) => {
           <button type="button" class="filter is-active" data-filter="all">${t('filter.all', '全部')} <span class="n">${counts.all}</span></button>
           <button type="button" class="filter" data-filter="official">${t('filter.official', '官方')} <span class="n">${counts.official}</span></button>
           <button type="button" class="filter" data-filter="community">${t('filter.community', '社区')} <span class="n">${counts.community}</span></button>
+          <button type="button" class="filter filter-beta" data-filter="beta">${t('filter.beta', '先行测试')} <span class="n">${counts.beta}</span></button>
         </div>
       </div>
 
-      <section class="grid" data-grid>${catalog.mods.map(renderCard).join('')}
+      <section class="grid" data-grid>${released.map(renderCard).join('')}
+      </section>
+
+      <section class="beta-zone" data-beta-zone aria-labelledby="beta-title">
+        <h2 id="beta-title">${t('beta.title', '先行测试')}</h2>
+        ${betaNotice()}
+        ${beta.length > 0 ? `<div class="grid">${beta.map(renderCard).join('')}
+        </div>` : `<p class="empty">${t('beta.empty', '目前还没有先行测试模组')}</p>`}
       </section>
       <p class="empty" data-empty hidden>${t('empty', '没有匹配的模组')}</p>
     </main>

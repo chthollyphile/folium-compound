@@ -5,6 +5,10 @@
 //   node tools/sign.mjs --key ~/.config/folium-signing/folium-2026-1.key.json mods/official/<id> ...
 //   node tools/sign.mjs --key <file> --all
 //
+// mods/beta/ takes the beta key (folium-beta-*), mods/official and
+// mods/community a release key; --all signs only the directories of the
+// key's channel.
+//
 // The key can also come from the environment for CI: FOLIUM_SIGNING_KEY is a
 // path to the key file, FOLIUM_SIGNING_KEY_JSON is the file's content. Every
 // new signature is verified against keys/trusted-keys.json before it is kept,
@@ -17,8 +21,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { SIGNATURE_FILE, computeSignedDigest, signMod, verifyMod } from './lib/signing.mjs';
-import { listModDirs, readTrustedKeys, resolveModArgs } from './lib/repo.mjs';
+import { SIGNATURE_FILE, computeSignedDigest, signMod } from './lib/signing.mjs';
+import { channelOf, isSigned, keyChannel, listModDirs, readTrustedKeys, resolveModArgs, verifyRepoMod } from './lib/repo.mjs';
 
 const { values, positionals } = parseArgs({
     allowPositionals: true,
@@ -53,14 +57,24 @@ if (!values.all && positionals.length === 0) {
 
 const { keyId, privateKey } = loadKey();
 const trustedKeys = readTrustedKeys();
-if (!trustedKeys.some((key) => key.keyId === keyId && !key.revoked)) {
+const trustedKey = trustedKeys.find((key) => key.keyId === keyId && !key.revoked);
+if (!trustedKey) {
     console.error(`key "${keyId}" is not an active key in keys/trusted-keys.json`);
+    process.exit(1);
+}
+if (!keyChannel(trustedKey)) {
+    console.error(`key "${keyId}" has channel ${JSON.stringify(trustedKey.channel)}, which Folia does not know ("beta" or absent)`);
     process.exit(1);
 }
 
 let failed = false;
 for (const target of targets) {
     try {
+        // mods/beta takes the beta key, the other directories a release key.
+        if (values.all && channelOf(target.origin) !== keyChannel(trustedKey)) continue;
+        if (target.origin && channelOf(target.origin) !== keyChannel(trustedKey)) {
+            throw new Error(`${keyId} signs the ${keyChannel(trustedKey) ?? 'unknown'} channel, but ${target.relative} is in the ${channelOf(target.origin)} channel`);
+        }
         const { lines } = computeSignedDigest(target.dir);
         const record = signMod(target.dir, { keyId, privateJwk: privateKey });
         if (values['dry-run']) {
@@ -70,8 +84,8 @@ for (const target of targets) {
         const signaturePath = path.join(target.dir, SIGNATURE_FILE);
         const previous = fs.existsSync(signaturePath) ? fs.readFileSync(signaturePath, 'utf8') : null;
         fs.writeFileSync(signaturePath, `${JSON.stringify(record, null, 2)}\n`);
-        const check = verifyMod(target.dir, trustedKeys);
-        if (check.status !== 'verified') {
+        const check = verifyRepoMod(target, trustedKeys);
+        if (!isSigned(check)) {
             // Never leave a signature behind that the host would reject.
             if (previous === null) fs.rmSync(signaturePath);
             else fs.writeFileSync(signaturePath, previous);

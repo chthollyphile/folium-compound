@@ -6,6 +6,7 @@
 // Uses the test-only "folium-test-vector" key (see signing.test.mjs).
 
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -103,6 +104,49 @@ test('the build publishes verified zips, a catalog and an escaped page', () => {
     assert.ok(fs.existsSync(path.join(outDir, 'assets', 'app.js')));
     assert.match(fs.readFileSync(path.join(outDir, '_headers'), 'utf8'), /Content-Security-Policy: default-src 'self'/);
     assert.equal(JSON.parse(fs.readFileSync(path.join(outDir, 'catalog.json'), 'utf8')).commit, 'abc1234def');
+});
+
+/* Adds mods/beta/<id> to a siteRepo, signed with `privateJwk` under `keyId`, and trusts a beta key. */
+const BETA_PAIR = crypto.generateKeyPairSync('ed25519');
+const BETA_KEY = { keyId: 'folium-test-beta', privateJwk: BETA_PAIR.privateKey.export({ format: 'jwk' }) };
+const addBetaMod = (root, { key = BETA_KEY } = {}) => {
+    const keysFile = path.join(root, 'keys', 'trusted-keys.json');
+    const trusted = JSON.parse(fs.readFileSync(keysFile, 'utf8'));
+    trusted.keys.push({ keyId: BETA_KEY.keyId, label: 'Test beta', channel: 'beta', publicKey: BETA_PAIR.publicKey.export({ format: 'jwk' }), revoked: false });
+    fs.writeFileSync(keysFile, JSON.stringify(trusted));
+    const modDir = path.join(root, 'mods', 'beta', 'wild-idea');
+    fs.mkdirSync(modDir, { recursive: true });
+    fs.writeFileSync(path.join(modDir, 'mod.json'), JSON.stringify({ folium: 1, id: 'wild-idea', name: 'Wild idea', version: '0.1.0', client: 'client.mjs', preview: 'preview.png' }));
+    fs.writeFileSync(path.join(modDir, 'client.mjs'), 'export default function activate(folium) {}\n');
+    fs.writeFileSync(path.join(modDir, 'preview.png'), makePng(1280, 720));
+    fs.writeFileSync(path.join(modDir, SIGNATURE_FILE), JSON.stringify(signMod(modDir, key)));
+};
+
+test('beta mods are published in their own section, never as verified', () => {
+    const root = siteRepo();
+    addBetaMod(root);
+    const outDir = path.join(root, 'dist');
+    const catalog = buildSite({ root, outDir });
+    assert.deepEqual(catalog.mods.map((mod) => [mod.id, mod.origin, mod.channel]), [['evil-mod', 'community', 'release'], ['wild-idea', 'beta', 'beta']]);
+    assert.equal(catalog.version, 2);
+
+    const html = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    const grid = html.slice(html.indexOf('data-grid>'), html.indexOf('data-beta-zone'));
+    const zone = html.slice(html.indexOf('data-beta-zone'), html.indexOf('data-empty hidden'));
+    assert.ok(grid.includes('#mod-evil-mod') && !grid.includes('#mod-wild-idea'), 'the main grid holds released mods only');
+    assert.ok(zone.includes('#mod-wild-idea') && zone.includes('class="beta-note"'));
+    assert.match(html, /data-filter="all">.*?<span class="n">1<\/span>/);
+    assert.match(html, /data-filter="beta">.*?<span class="n">1<\/span>/);
+    const dialog = html.slice(html.indexOf('id="mod-wild-idea"'));
+    assert.ok(dialog.includes('class="beta-note"'));
+    assert.ok(dialog.includes('download-beta'));
+    assert.ok(!dialog.slice(0, dialog.indexOf('</dialog>')).includes('data-i18n-title="signed.title"'), 'a beta mod is never labelled as verified');
+});
+
+test('a beta directory signed with a release key is not published', () => {
+    const root = siteRepo();
+    addBetaMod(root, { key: { keyId: 'folium-test-vector', privateJwk: TEST_PRIVATE } });
+    assert.throws(() => buildSite({ root, outDir: path.join(root, 'dist') }), /mods\/beta\/wild-idea: invalid \(wrong-channel\)/);
 });
 
 test('an unverified repository is not published', () => {

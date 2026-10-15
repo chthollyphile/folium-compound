@@ -23,7 +23,13 @@ const git = (...args) => execFileSync('git', args, {
     },
 }).trim();
 
-const { resigned } = resignRepository({ root: REPO_ROOT, key: loadSigningKey(REPO_ROOT) });
+// Each key is loaded only when a mod of its channel needs re-signing, so a missing or stale
+// secret for one channel never stops the other channel's re-signing.
+const signingKeys = {
+    release: () => loadSigningKey(REPO_ROOT),
+    beta: () => loadSigningKey(REPO_ROOT, undefined, 'beta'),
+};
+const { resigned } = resignRepository({ root: REPO_ROOT, signingKeys });
 
 if (git('status', '--porcelain') === '') {
     console.log('every mod verifies and index.json is current; nothing to do');

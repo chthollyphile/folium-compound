@@ -50,6 +50,20 @@ body:
       placeholder: dist/my-visualizer
     validations:
       required: false
+  - type: dropdown
+    id: channel
+    attributes:
+      label: 发布渠道 / Channel
+      description: |
+        正式发布：经过安全审查和功能审查，面向所有用户。
+        先行测试：仅通过安全审查，不保证功能实现的整洁，甚至功能可以完全无法工作；主要给社区开发者做创意实验，普通用户请勿轻易下载使用。
+        维护者可以把正式发布的申请改为先行测试收录。
+      options:
+        - 正式发布 / Release
+        - 先行测试 / Beta
+      default: 0
+    validations:
+      required: true
   - type: textarea
     id: description
     attributes:

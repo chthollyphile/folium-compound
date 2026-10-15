@@ -1,8 +1,8 @@
 // tools/ci/lib/submission.mjs
 // The rules for community submissions, as pure functions the workflows call:
 // how the two issue forms (new mod, update) read, what a community mod
-// directory must look like, and what a maintainer's `/sign <commit>` comment
-// means. No network and no git here, so every rule is unit-tested
+// directory must look like, which channel (release or beta) a mod asks for,
+// and what a maintainer's `/sign <commit>` comment means. No network and no git here, so every rule is unit-tested
 // (test/ci.test.mjs).
 //
 // Nothing in this file executes code from a submission. Mod files are read as
@@ -46,7 +46,31 @@ export const FORM_FIELDS = {
     permissions: '权限说明 / Permissions',
     license: '许可证 / License',
     changes: '更新说明 / What changed',
+    channel: '发布渠道 / Channel',
     confirmations: '确认 / Confirmations',
+};
+
+/*
+ * What each channel promises, shown in the check comment. Beta mods passed the
+ * security review only; release mods were also reviewed for whether they work.
+ */
+export const CHANNEL_TEXT = {
+    release: { name: '正式发布', review: '安全审查 + 功能审查（功能可用、实现整洁）' },
+    beta: { name: '先行测试', review: '仅安全审查：不保证功能实现的整洁，甚至功能可能完全无法工作，主要供社区开发者做创意实验' },
+};
+
+/*
+ * The channel a form's dropdown asks for: 'release', 'beta', or null when the
+ * field is absent, empty (issues opened before the field existed) or says to
+ * keep the current channel (the update form).
+ * Returns undefined for a value that is neither.
+ */
+export const parseChannel = (value) => {
+    const text = String(value ?? '').trim();
+    if (!text || /保持不变|\bkeep\b/i.test(text)) return null;
+    if (/先行测试|\bbeta\b/i.test(text)) return 'beta';
+    if (/正式发布|\brelease\b/i.test(text)) return 'release';
+    return undefined;
 };
 
 /** Which form an issue is: 'submission', 'update' or null, by its labels. */
@@ -90,8 +114,9 @@ const checkedAll = (text) => /- \[[xX]\]/.test(text) && !/- \[ \]/.test(text);
 
 /*
  * Reads a submission or update issue. Returns `{ fields, errors }` with
- * `fields.modId`, `fields.ref`, and for a new mod `fields.repository` and
- * `fields.path` (normalized: '' is the repository root).
+ * `fields.modId`, `fields.ref`, `fields.channel` (see parseChannel; null when
+ * not given), and for a new mod `fields.repository` and `fields.path`
+ * (normalized: '' is the repository root).
  */
 export const parseSubmissionIssue = (body, kind = 'submission') => {
     const sections = parseIssueFormSections(body);
@@ -100,7 +125,9 @@ export const parseSubmissionIssue = (body, kind = 'submission') => {
     if (!MOD_ID_PATTERN.test(modId)) errors.push(`「${FORM_FIELDS.modId}」必须是模组的 id（小写字母、数字和 -），当前是 \`${modId || '空'}\``);
     const ref = (sections[FORM_FIELDS.ref] ?? '').trim();
     if (!isValidRef(ref)) errors.push(`「${FORM_FIELDS.ref}」必须是 tag、分支名或完整的 40 位 commit，当前是 \`${ref || '空'}\``);
-    const fields = { modId, ref };
+    const channel = parseChannel(sections[FORM_FIELDS.channel]);
+    if (channel === undefined) errors.push(`「${FORM_FIELDS.channel}」只能是「正式发布」或「先行测试」`);
+    const fields = { modId, ref, channel: channel ?? null };
     if (kind === 'submission') {
         const repository = normalizeRepositoryUrl(sections[FORM_FIELDS.repository]);
         if (!repository) errors.push(`「${FORM_FIELDS.repository}」必须是公开仓库的 https 地址（如 https://github.com/you/my-mod）`);
@@ -113,16 +140,32 @@ export const parseSubmissionIssue = (body, kind = 'submission') => {
 };
 
 /*
- * `/sign <commit>`: the commit (7-40 hex chars) is the one the maintainer
- * reviewed; signing refuses if the pull request has moved past it. Returns the
- * lowercase commit prefix, or null when the comment is not a sign command.
+ * `/sign <commit>` or `/sign <commit> beta`: the commit (7-40 hex chars) is
+ * the one the maintainer reviewed; signing refuses if the issue has moved past
+ * it. The command, not the issue, decides the channel the mod is signed into:
+ * plain `/sign` is release (the maintainer did the full review), `beta` the
+ * beta channel (security review only). An issue that asks for beta can only be
+ * signed with `beta`, so editing the issue can never turn a beta review into a
+ * release signature; a release request may be signed into beta (demoted).
+ * `release` may also be written out. Returns `{ commit, channel }` with the
+ * lowercase commit prefix ('' when missing or malformed), or null when the
+ * comment is not a sign command.
  */
 export const parseSignCommand = (body) => {
     const firstLine = String(body ?? '').replace(/\r\n/g, '\n').split('\n')[0].trim();
     if (!/^\/sign(\s|$)/.test(firstLine)) return null;
-    const match = /^\/sign\s+([0-9a-fA-F]{7,40})$/.exec(firstLine);
-    return match ? match[1].toLowerCase() : '';
+    const match = /^\/sign\s+([0-9a-fA-F]{7,40})(?:\s+(beta|release))?$/i.exec(firstLine);
+    return match ? { commit: match[1].toLowerCase(), channel: (match[2] ?? 'release').toLowerCase() } : { commit: '', channel: 'release' };
 };
+
+/*
+ * Why a sign command into `signed` may not sign an issue that asks for
+ * `requested`, or null when it may: only a release request can be signed as
+ * release.
+ */
+export const signChannelRefusal = (signed, requested) => (signed === 'release' && requested !== 'release'
+    ? `这个 issue 申请的是「${CHANNEL_TEXT[requested].name}」，只通过安全审查的模组请用 \`/sign <commit> beta\` 签名；要收录为正式发布，需要作者先把发布渠道改为「正式发布」并重新审查`
+    : null);
 
 const parseVersion = (version) => {
     const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version ?? ''));
@@ -143,10 +186,11 @@ export const compareVersions = (left, right) => {
 /*
  * Checks one community mod directory as submitted. `existing` is the mod's
  * manifest on main (null for a new mod), `knownModIds` every mod id already in
- * the repository. Returns `{ errors, warnings, manifest }`; errors block review,
+ * the repository. `changesChannel` lets an update keep its version when it
+ * only moves the mod to the other channel. Returns `{ errors, warnings, manifest }`; errors block review,
  * warnings are for the maintainer.
  */
-export const checkModTree = ({ modDir, modId, existing = null, knownModIds = [] }) => {
+export const checkModTree = ({ modDir, modId, existing = null, knownModIds = [], changesChannel = false }) => {
     const errors = [];
     const warnings = [];
     if (!fs.existsSync(modDir) || !fs.statSync(modDir).isDirectory()) {
@@ -175,7 +219,11 @@ export const checkModTree = ({ modDir, modId, existing = null, knownModIds = [] 
         });
         if (existing) {
             const order = compareVersions(manifest.version, existing.version);
-            if (!(order > 0)) errors.push(`更新必须提升版本号：main 上是 ${existing.version}，提交的是 ${manifest.version}`);
+            if (changesChannel ? !(order >= 0) : !(order > 0)) {
+                errors.push(changesChannel
+                    ? `换渠道时版本号不能降低：main 上是 ${existing.version}，提交的是 ${manifest.version}`
+                    : `更新必须提升版本号：main 上是 ${existing.version}，提交的是 ${manifest.version}`);
+            }
         } else if (knownModIds.includes(modId)) {
             errors.push(`模组 id \`${modId}\` 已被仓库里的其他模组占用`);
         }
@@ -215,6 +263,9 @@ export const renderCheckComment = ({ errors, warnings = [], evaluation = null })
         const manifest = evaluation.manifest;
         const permissions = Array.isArray(manifest.permissions) && manifest.permissions.length > 0 ? manifest.permissions.join(', ') : '无';
         lines.push(`模组：\`${manifest.id}\` ${evaluation.isUpdate ? `${evaluation.previousVersion} → ${manifest.version}` : manifest.version} · 权限：${permissions}${manifest.main ? ' · 含 Node 入口（main）' : ''}`);
+        const channel = CHANNEL_TEXT[evaluation.channel];
+        const move = evaluation.previousChannel && evaluation.previousChannel !== evaluation.channel ? `（从「${CHANNEL_TEXT[evaluation.previousChannel].name}」转入）` : '';
+        lines.push(`发布渠道：**${channel.name}**${move} · 审查标准：${channel.review}`);
         if (evaluation.links?.compare) lines.push(`对比上一个签名版本：${evaluation.links.compare}`);
         if (evaluation.links?.tree) lines.push(`源码：${evaluation.links.tree}`);
         lines.push('');
@@ -226,7 +277,10 @@ export const renderCheckComment = ({ errors, warnings = [], evaluation = null })
         lines.push('```');
         lines.push('</details>');
         lines.push('');
-        lines.push(`维护者审查这个提交后，在本 issue 评论 \`/sign ${source.commit.slice(0, 12)}\` 即可签名并收录。作者修改 issue 指向新的提交后，需要按新提交重新审查。`);
+        const short = source.commit.slice(0, 12);
+        lines.push(evaluation.channel === 'beta'
+            ? `维护者审查这个提交后，在本 issue 评论 \`/sign ${short} beta\` 即可用先行测试密钥签名并收录。作者修改 issue 指向新的提交后，需要按新提交重新审查。`
+            : `维护者审查这个提交后，在本 issue 评论 \`/sign ${short}\` 即可签名并收录为正式发布；只通过安全审查、功能审查未通过时，评论 \`/sign ${short} beta\` 改为收录到先行测试。作者修改 issue 指向新的提交后，需要按新提交重新审查。`);
     } else {
         lines.push(`❌ 格式检查未通过${at}，请修改后编辑本 issue，会自动重新检查：`);
         lines.push('');

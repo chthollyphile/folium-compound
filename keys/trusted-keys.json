@@ -21,6 +21,18 @@
       },
       "revoked": false,
       "createdAt": "2026-09-24"
+    },
+    {
+      "keyId": "folium-beta-2026-1",
+      "label": "Folium beta",
+      "channel": "beta",
+      "publicKey": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "c3GMZYbzgEutSSRqB5EPPVtvCvrC-Q8xdcjwmZPEc34"
+      },
+      "revoked": false,
+      "createdAt": "2026-10-15"
     }
   ]
 }

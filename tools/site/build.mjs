@@ -40,7 +40,7 @@ export const zipMod = (modDir, modId) => {
     return createZip(files);
 };
 
-/* Extracts a mod zip to a temporary directory and verifies it there. */
+/* Extracts a mod zip to a temporary directory and verifies it there (the result's status is 'verified' or 'beta' when good). */
 const verifyZip = (archive, modId, keys, revokedDigests) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'folium-zip-check-'));
     try {
@@ -76,7 +76,7 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
         const { manifest } = readModIdentity(modDir);
         const archive = zipMod(modDir, entry.id);
         const check = verifyZip(archive, entry.id, keys, revokedDigests);
-        if (check.status !== 'verified' || check.digest !== entry.digest) {
+        if (check.status !== (entry.channel === 'beta' ? 'beta' : 'verified') || check.digest !== entry.digest) {
             throw new Error(`${entry.path}: the zip does not verify after extraction (${check.reason ?? check.status})`);
         }
         const fileName = `${entry.id}-${entry.version}.zip`;
@@ -102,11 +102,13 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
         };
     });
 
-    // Official first, then by name; stable for identical input.
-    mods.sort((left, right) => (left.origin === right.origin ? 0 : left.origin === 'official' ? -1 : 1)
+    // Official, then community, then beta, each by name; stable for identical input.
+    const originOrder = (origin) => ['official', 'community', 'beta'].indexOf(origin);
+    mods.sort((left, right) => originOrder(left.origin) - originOrder(right.origin)
         || left.name.localeCompare(right.name, 'en') || left.id.localeCompare(right.id, 'en'));
 
-    const catalog = { format: 'folium-market-catalog', version: 1, repository: SITE_REPOSITORY, commit, mods };
+    // Version 2: entries carry `channel`, and beta-channel mods (security-reviewed only) are listed too.
+    const catalog = { format: 'folium-market-catalog', version: 2, repository: SITE_REPOSITORY, commit, mods };
     fs.writeFileSync(path.join(outDir, 'catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`);
     fs.writeFileSync(path.join(outDir, 'index.html'), renderMarketPage(catalog));
     fs.cpSync(path.join(root, 'site', 'assets'), path.join(outDir, 'assets'), { recursive: true });
