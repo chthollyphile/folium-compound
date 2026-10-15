@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verifyMod } from './signing.mjs';
+import { keyChannelOf, verifyMod } from './signing.mjs';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const MODS_ROOT = path.join(REPO_ROOT, 'mods');
@@ -25,8 +25,8 @@ export const ORIGINS = ['official', 'community', 'beta'];
 /** The channel a directory publishes to: 'beta' for mods/beta, else 'release'. */
 export const channelOf = (origin) => (origin === 'beta' ? 'beta' : 'release');
 
-/** The channel a trusted key signs for. */
-export const keyChannel = (key) => (key?.channel === 'beta' ? 'beta' : 'release');
+/** The channel a trusted key signs for, or null for a channel Folia does not know (such a key signs nothing). */
+export const keyChannel = (key) => keyChannelOf(key);
 
 /** Where a community mod of `channel` lives, relative to the repository root. */
 export const communityDir = (modId, channel) => `mods/${channel === 'beta' ? 'beta' : 'community'}/${modId}`;

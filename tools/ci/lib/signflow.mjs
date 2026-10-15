@@ -56,7 +56,7 @@ export const loadSigningKey = (root, json = undefined, channel = 'release') => {
     if (typeof parsed.keyId !== 'string' || !parsed.privateKey?.d) throw new Error(`${name} is not a key file from tools/keygen.mjs`);
     const trusted = readTrustedKeys(root).find((key) => key.keyId === parsed.keyId);
     if (!trusted || trusted.revoked) throw new Error(`signing key ${parsed.keyId} is not an active key in keys/trusted-keys.json`);
-    if (keyChannel(trusted) !== channel) throw new Error(`${name} holds ${parsed.keyId}, a ${keyChannel(trusted)}-channel key, not a ${channel}-channel key`);
+    if (keyChannel(trusted) !== channel) throw new Error(`${name} holds ${parsed.keyId}, a ${keyChannel(trusted) ?? 'unknown'}-channel key, not a ${channel}-channel key`);
     return { keyId: parsed.keyId, privateJwk: parsed.privateKey, channel };
 };
 
@@ -134,8 +134,9 @@ export const importAndSign = ({ repoDir, stagedDir, modId, kind, channel = 'rele
  * Re-signs every mod on main whose signature does not verify: a maintainer
  * edited or added a mod directly, moved it between community/ and beta/, or a
  * key has since been rotated out. Each mod is signed with the key of its
- * directory's channel (`signingKeys` is `{ release, beta }`; a missing key
- * fails only when a mod of that channel needs it). A mod whose content is on
+ * directory's channel. `signingKeys` is `{ release, beta }`, each a key or a
+ * function that loads it; a key is only loaded, and a missing one only fails,
+ * when a mod of that channel needs re-signing. A mod whose content is on
  * the revoked list is never re-signed. Returns the re-signed mods and leaves
  * committing to the caller.
  */
@@ -148,8 +149,14 @@ export const resignRepository = ({ root, signingKeys, runTests = true }) => {
         if (isSigned(result)) continue;
         if (result.reason === 'revoked-mod') throw new Error(`${target.relative} is on the revoked list; remove it instead of re-signing`);
         const channel = channelOf(target.origin);
-        const key = signingKeys[channel];
+        let key = signingKeys[channel];
+        try {
+            if (typeof key === 'function') key = key();
+        } catch (error) {
+            throw new Error(`${target.relative} needs re-signing, but the ${channel}-channel key cannot be loaded: ${error.message}`);
+        }
         if (!key) throw new Error(`${target.relative} needs re-signing, but there is no ${channel}-channel key (${SIGNING_KEY_ENV[channel]})`);
+        signingKeys[channel] = key;
         const record = writeSignature(target.dir, key);
         resigned.push({ path: target.relative, modId: record.modId, version: record.modVersion, previous: result.reason ?? result.status });
     }

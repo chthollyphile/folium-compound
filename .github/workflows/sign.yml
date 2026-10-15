@@ -1,8 +1,10 @@
 # .github/workflows/sign.yml
-# A maintainer comments `/sign <commit>` (or `/sign <commit> beta`) on a
-# reviewed submission or update issue: import that commit's mod files from the
-# author's repository into the channel the issue asks for (beta when the
-# maintainer said so), sign them with that channel's CI key and push main once.
+# A maintainer comments `/sign <commit>` (release) or `/sign <commit> beta`
+# on a reviewed submission or update issue: import that commit's mod files from
+# the author's repository into the channel the command names, sign them with
+# that channel's CI key and push main once. A release command on an issue that
+# asks for beta is refused, here and again in the signing job, so editing the
+# issue cannot turn a beta review into a release signature.
 #
 # Two jobs so the key is only reachable after authorization: `authorize` has
 # no secrets and checks the commenter's permission and that the issue still
@@ -30,7 +32,7 @@ jobs:
       authorized: ${{ steps.check.outputs.authorized }}
       issue: ${{ steps.check.outputs.issue }}
       commit: ${{ steps.check.outputs.commit }}
-      beta: ${{ steps.check.outputs.beta }}
+      channel: ${{ steps.check.outputs.channel }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,10 +67,11 @@ jobs:
       - name: Import, sign and push
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          FOLIUM_SIGNING_KEY_JSON: ${{ secrets.FOLIUM_SIGNING_KEY_JSON }}
-          FOLIUM_BETA_SIGNING_KEY_JSON: ${{ secrets.FOLIUM_BETA_SIGNING_KEY_JSON }}
+          # Only the key of the channel the maintainer's command named reaches this step.
+          FOLIUM_SIGNING_KEY_JSON: ${{ needs.authorize.outputs.channel == 'release' && secrets.FOLIUM_SIGNING_KEY_JSON || '' }}
+          FOLIUM_BETA_SIGNING_KEY_JSON: ${{ needs.authorize.outputs.channel == 'beta' && secrets.FOLIUM_BETA_SIGNING_KEY_JSON || '' }}
         run: >
           node tools/ci/sign-issue.mjs
           --issue "${{ needs.authorize.outputs.issue }}"
           --commit "${{ needs.authorize.outputs.commit }}"
-          --beta "${{ needs.authorize.outputs.beta }}"
+          --channel "${{ needs.authorize.outputs.channel }}"

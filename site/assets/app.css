@@ -19,6 +19,9 @@
   --community-soft: #e5ecfb;
   --warn: #9a5b00;
   --warn-soft: #fbf0dc;
+  /* Beta channel: violet, as in Folia's mods panel (amber there means a broken signature). */
+  --beta: #6d28d9;
+  --beta-soft: #efe9fd;
   --shadow: 0 1px 2px rgb(20 30 20 / 6%), 0 8px 24px -12px rgb(20 30 20 / 18%);
   --radius: 16px;
   --font: "Inter", system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
@@ -43,6 +46,8 @@
     --community-soft: #1c2742;
     --warn: #f0b35a;
     --warn-soft: #36280f;
+    --beta: #c4b5fd;
+    --beta-soft: #261f3d;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px -16px rgb(0 0 0 / 60%);
   }
 }
@@ -232,7 +237,7 @@ h1 {
 
 .filter.is-active { background: var(--surface-2); color: var(--text); font-weight: 600; }
 
-.filter-beta.is-active { background: var(--warn-soft); color: var(--warn); }
+.filter-beta.is-active { background: var(--beta-soft); color: var(--beta); }
 
 /* ---- cards */
 
@@ -328,7 +333,7 @@ h1 {
 
 .badge-community { background: var(--community-soft); color: var(--community); }
 
-.badge-beta { background: var(--warn-soft); color: var(--warn); }
+.badge-beta { background: var(--beta-soft); color: var(--beta); }
 
 .description {
   margin: 0;
@@ -388,7 +393,7 @@ h1 {
 
 .signed svg { width: 15px; height: 15px; }
 
-.signed-beta { color: var(--warn); }
+.signed-beta { color: var(--beta); }
 
 .more { color: var(--muted); font-size: 13px; }
 
@@ -412,9 +417,9 @@ h1 {
 
 .download:hover { background: var(--accent-strong); }
 
-.download-beta { background: none; border: 1px solid var(--warn); color: var(--warn); }
+.download-beta { background: none; border: 1px solid var(--beta); color: var(--beta); }
 
-.download-beta:hover { background: var(--warn-soft); }
+.download-beta:hover { background: var(--beta-soft); }
 
 .download .size { font-weight: 500; opacity: 0.8; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 
@@ -545,10 +550,10 @@ html:not(.js) .beta-zone { margin-top: 48px; padding-top: 24px; border-top: 1px 
   gap: 10px;
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--beta) 35%, transparent);
   border-radius: 12px;
-  background: var(--warn-soft);
-  color: var(--warn);
+  background: var(--beta-soft);
+  color: var(--beta);
   font-size: 14px;
 }
 

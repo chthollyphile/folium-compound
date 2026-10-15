@@ -140,19 +140,32 @@ export const parseSubmissionIssue = (body, kind = 'submission') => {
 };
 
 /*
- * `/sign <commit>`, or `/sign <commit> beta`: the commit (7-40 hex chars) is
+ * `/sign <commit>` or `/sign <commit> beta`: the commit (7-40 hex chars) is
  * the one the maintainer reviewed; signing refuses if the issue has moved past
- * it. `beta` signs into the beta channel whatever the author asked for (a
- * maintainer may demote, never promote). Returns `{ commit, beta }` with the
+ * it. The command, not the issue, decides the channel the mod is signed into:
+ * plain `/sign` is release (the maintainer did the full review), `beta` the
+ * beta channel (security review only). An issue that asks for beta can only be
+ * signed with `beta`, so editing the issue can never turn a beta review into a
+ * release signature; a release request may be signed into beta (demoted).
+ * `release` may also be written out. Returns `{ commit, channel }` with the
  * lowercase commit prefix ('' when missing or malformed), or null when the
  * comment is not a sign command.
  */
 export const parseSignCommand = (body) => {
     const firstLine = String(body ?? '').replace(/\r\n/g, '\n').split('\n')[0].trim();
     if (!/^\/sign(\s|$)/.test(firstLine)) return null;
-    const match = /^\/sign\s+([0-9a-fA-F]{7,40})(?:\s+(beta))?$/i.exec(firstLine);
-    return match ? { commit: match[1].toLowerCase(), beta: Boolean(match[2]) } : { commit: '', beta: false };
+    const match = /^\/sign\s+([0-9a-fA-F]{7,40})(?:\s+(beta|release))?$/i.exec(firstLine);
+    return match ? { commit: match[1].toLowerCase(), channel: (match[2] ?? 'release').toLowerCase() } : { commit: '', channel: 'release' };
 };
+
+/*
+ * Why a sign command into `signed` may not sign an issue that asks for
+ * `requested`, or null when it may: only a release request can be signed as
+ * release.
+ */
+export const signChannelRefusal = (signed, requested) => (signed === 'release' && requested !== 'release'
+    ? `这个 issue 申请的是「${CHANNEL_TEXT[requested].name}」，只通过安全审查的模组请用 \`/sign <commit> beta\` 签名；要收录为正式发布，需要作者先把发布渠道改为「正式发布」并重新审查`
+    : null);
 
 const parseVersion = (version) => {
     const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version ?? ''));
@@ -266,7 +279,7 @@ export const renderCheckComment = ({ errors, warnings = [], evaluation = null })
         lines.push('');
         const short = source.commit.slice(0, 12);
         lines.push(evaluation.channel === 'beta'
-            ? `维护者审查这个提交后，在本 issue 评论 \`/sign ${short}\` 即可用先行测试密钥签名并收录。作者修改 issue 指向新的提交后，需要按新提交重新审查。`
+            ? `维护者审查这个提交后，在本 issue 评论 \`/sign ${short} beta\` 即可用先行测试密钥签名并收录。作者修改 issue 指向新的提交后，需要按新提交重新审查。`
             : `维护者审查这个提交后，在本 issue 评论 \`/sign ${short}\` 即可签名并收录为正式发布；只通过安全审查、功能审查未通过时，评论 \`/sign ${short} beta\` 改为收录到先行测试。作者修改 issue 指向新的提交后，需要按新提交重新审查。`);
     } else {
         lines.push(`❌ 格式检查未通过${at}，请修改后编辑本 issue，会自动重新检查：`);

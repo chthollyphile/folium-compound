@@ -23,10 +23,11 @@ const git = (...args) => execFileSync('git', args, {
     },
 }).trim();
 
-// The beta key is optional until a beta mod needs it; resignRepository says which secret is missing.
+// Each key is loaded only when a mod of its channel needs re-signing, so a missing or stale
+// secret for one channel never stops the other channel's re-signing.
 const signingKeys = {
-    release: loadSigningKey(REPO_ROOT),
-    beta: process.env.FOLIUM_BETA_SIGNING_KEY_JSON ? loadSigningKey(REPO_ROOT, undefined, 'beta') : null,
+    release: () => loadSigningKey(REPO_ROOT),
+    beta: () => loadSigningKey(REPO_ROOT, undefined, 'beta'),
 };
 const { resigned } = resignRepository({ root: REPO_ROOT, signingKeys });
 

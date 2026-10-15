@@ -14,7 +14,7 @@ import path from 'node:path';
 import { communityDir, listModDirs } from '../../lib/repo.mjs';
 import { computeSignedDigest, readModIdentity } from '../../lib/signing.mjs';
 import { readCommunityRegistry } from '../../lib/index.mjs';
-import { SIGNER_PERMISSIONS, checkIssueTitle, checkModTree, issueKind, parseSubmissionIssue } from './submission.mjs';
+import { SIGNER_PERMISSIONS, checkIssueTitle, checkModTree, compareVersions, issueKind, parseSubmissionIssue } from './submission.mjs';
 import { fetchCommit, resolveRef, reviewLinks, stageModFiles } from './source.mjs';
 
 /** Every mod id in the repository at `root`. */
@@ -124,6 +124,12 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
     errors.push(...tree.errors);
     warnings.push(...tree.warnings);
     result.manifest = tree.manifest;
+    // Moving channels at the same version re-signs the same mod: users who have that version
+    // must not end up with different bytes under it.
+    if (changesChannel && tree.manifest && compareVersions(tree.manifest.version, existing.version) === 0
+        && computeSignedDigest(result.stagedDir).digest !== computeSignedDigest(existingDir).digest) {
+        errors.push(`换渠道时版本号不变，内容必须与已收录的 ${existing.version} 完全相同；内容有改动请提升版本号`);
+    }
     if (errors.length === 0) {
         const { digest, lines } = computeSignedDigest(result.stagedDir);
         result.digest = digest;

@@ -23,6 +23,7 @@ import {
     checkIssueTitle,
     checkModTree,
     compareVersions,
+    signChannelRefusal,
     issueKind,
     parseSignCommand,
     parseSubmissionIssue,
@@ -149,12 +150,19 @@ test('source repository rules', () => {
 });
 
 test('/sign commands', () => {
-    assert.deepEqual(parseSignCommand('/sign 1a2b3c4d'), { commit: '1a2b3c4d', beta: false });
-    assert.deepEqual(parseSignCommand('/sign ABCDEF0123456789\nlooks good'), { commit: 'abcdef0123456789', beta: false });
-    assert.deepEqual(parseSignCommand('/sign 1a2b3c4d beta'), { commit: '1a2b3c4d', beta: true });
-    assert.deepEqual(parseSignCommand('/sign'), { commit: '', beta: false });
-    assert.deepEqual(parseSignCommand('/sign abc'), { commit: '', beta: false });
-    assert.deepEqual(parseSignCommand('/sign 1a2b3c4d release'), { commit: '', beta: false });
+    assert.deepEqual(parseSignCommand('/sign 1a2b3c4d'), { commit: '1a2b3c4d', channel: 'release' });
+    assert.deepEqual(parseSignCommand('/sign ABCDEF0123456789\nlooks good'), { commit: 'abcdef0123456789', channel: 'release' });
+    assert.deepEqual(parseSignCommand('/sign 1a2b3c4d beta'), { commit: '1a2b3c4d', channel: 'beta' });
+    assert.deepEqual(parseSignCommand('/sign 1a2b3c4d release'), { commit: '1a2b3c4d', channel: 'release' });
+    assert.deepEqual(parseSignCommand('/sign'), { commit: '', channel: 'release' });
+    assert.deepEqual(parseSignCommand('/sign abc'), { commit: '', channel: 'release' });
+    assert.deepEqual(parseSignCommand('/sign 1a2b3c4d beta please'), { commit: '', channel: 'release' });
+
+    // The command decides the channel: a release signature needs a release request; demoting is allowed.
+    assert.equal(signChannelRefusal('release', 'release'), null);
+    assert.equal(signChannelRefusal('beta', 'release'), null);
+    assert.equal(signChannelRefusal('beta', 'beta'), null);
+    assert.match(signChannelRefusal('release', 'beta'), /申请的是「先行测试」.*\/sign <commit> beta/);
     assert.equal(parseSignCommand('/signature please'), null);
     assert.equal(parseSignCommand('LGTM /sign 1a2b3c4d'), null);
 });
@@ -259,7 +267,8 @@ test('the check comment shows the review links, the files and the /sign command'
 
     const beta = renderCheckComment({ errors: [], evaluation: { ...evaluationFor(commit), channel: 'beta', previousChannel: 'release' } });
     assert.match(beta, /发布渠道：\*\*先行测试\*\*（从「正式发布」转入） · 审查标准：仅安全审查/);
-    assert.doesNotMatch(beta, / beta`/);
+    assert.match(beta, /评论 `\/sign aaaaaaaaaaaa beta` 即可用先行测试密钥签名/);
+    assert.doesNotMatch(beta, /`\/sign aaaaaaaaaaaa`/, 'a beta request is never offered a plain (release) /sign');
 });
 
 // ---- evaluation against a local "author repository"
@@ -407,7 +416,7 @@ test('resignRepository re-signs what no longer verifies and never re-signs a rev
     const root = baseRepo();
     const modDir = writeModDir(path.join(root, 'mods', 'official', 'tool'), 'tool');
     fs.writeFileSync(path.join(modDir, SIGNATURE_FILE), JSON.stringify(signMod(modDir, { keyId: TEST_KEY_ID, privateJwk: TEST_PRIVATE })));
-    const signingKeys = { release: KEY, beta: BETA_KEY };
+    const signingKeys = { release: KEY, beta: () => { throw new Error('the beta key is never needed here'); } };
     assert.deepEqual(resignRepository({ root, signingKeys, runTests: false }).resigned, []);
 
     fs.appendFileSync(path.join(modDir, 'client.mjs'), '// edited on main\n');
@@ -433,6 +442,9 @@ test('moving a mod between community/ and beta/ re-signs it with that channel\'s
     fs.renameSync(releaseDir, betaDir);
     assert.deepEqual(verifyRepoMod({ origin: 'beta', dir: betaDir }, ALL_KEYS), { status: 'invalid', reason: 'wrong-channel', signedAs: 'verified', keyId: TEST_KEY_ID, digest: verifyMod(betaDir, ALL_KEYS).digest });
     assert.throws(() => resignRepository({ root, signingKeys: { release: KEY, beta: null }, runTests: false }), /no beta-channel key \(FOLIUM_BETA_SIGNING_KEY_JSON\)/);
+    // A key that cannot be loaded only matters when its channel needs it.
+    const broken = () => { throw new Error('FOLIUM_BETA_SIGNING_KEY_JSON is not set'); };
+    assert.throws(() => resignRepository({ root, signingKeys: { release: KEY, beta: broken }, runTests: false }), /beta-channel key cannot be loaded: FOLIUM_BETA_SIGNING_KEY_JSON is not set/);
     const demoted = resignRepository({ root, signingKeys, runTests: false });
     assert.deepEqual(demoted.resigned.map((entry) => [entry.path, entry.previous]), [['mods/beta/tool', 'wrong-channel']]);
     assert.equal(verifyMod(betaDir, ALL_KEYS).status, 'beta');
@@ -471,6 +483,13 @@ test('beta submissions land in mods/beta with the beta key; an update can promot
     assert.equal(same.channel, 'beta');
     assert.match(same.errors.join('\n'), /提升版本号/);
     same.cleanup();
+
+    // Promotion at the same version must not change the content.
+    const changedSource = sourceRepo();
+    changedSource.release('1.0.0', { 'extra.mjs': 'export {};\n' });
+    const changed = await evaluate(issueFor('update', updateBody({ ref: 'v1.0.0', channel: '正式发布 / Release' })), base, changedSource);
+    assert.match(changed.errors.join('\n'), /内容必须与已收录的 1\.0\.0 完全相同/);
+    changed.cleanup();
 
     // Promotion to release at the same version: moved, re-signed, the beta copy gone.
     const promotion = await evaluate(issueFor('update', updateBody({ ref: 'v1.0.0', channel: '正式发布 / Release' })), base, source);

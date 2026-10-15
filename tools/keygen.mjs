@@ -21,7 +21,7 @@ const { values } = parseArgs({
     options: {
         'key-id': { type: 'string' },
         out: { type: 'string', default: path.join(os.homedir(), '.config', 'folium-signing') },
-        label: { type: 'string', default: 'Folium official' },
+        label: { type: 'string' },
         channel: { type: 'string', default: 'release' },
     },
 });
@@ -33,7 +33,7 @@ if (!['release', 'beta'].includes(values.channel)) {
 
 const keyId = values['key-id'];
 if (!keyId || !/^[a-z0-9][a-z0-9.-]{0,63}$/.test(keyId)) {
-    console.error('usage: node tools/keygen.mjs --key-id <id> [--out <dir>] [--label <text>]');
+    console.error('usage: node tools/keygen.mjs --key-id <id> [--out <dir>] [--label <text>] [--channel release|beta]');
     console.error('key id: lowercase letters, digits, "." and "-", e.g. folium-2026-1');
     process.exit(1);
 }
@@ -55,7 +55,7 @@ fs.writeFileSync(privatePath, `${JSON.stringify({ keyId, privateKey: privateJwk 
 
 const entry = {
     keyId,
-    label: values.label,
+    label: values.label ?? (values.channel === 'beta' ? 'Folium beta' : 'Folium official'),
     ...(values.channel === 'beta' ? { channel: 'beta' } : {}),
     publicKey: { kty: publicJwk.kty, crv: publicJwk.crv, x: publicJwk.x },
     revoked: false,

@@ -134,6 +134,20 @@ export const signMod = (modDir, { keyId, privateJwk, signedAt = new Date().toISO
 };
 
 /*
+ * The status a valid signature reports, by the signing key's `channel` (absent
+ * means release). Any other channel is not one the host knows, so, exactly as
+ * in Folia, its signatures are invalid (`unknown-key`) instead of falling back
+ * to verified.
+ */
+export const CHANNEL_STATUS = Object.freeze({ release: 'verified', beta: 'beta' });
+
+/** A key's channel ('release' or 'beta'), or null when Folia would not trust it. */
+export const keyChannelOf = (key) => {
+    const channel = key?.channel === undefined ? 'release' : key.channel;
+    return Object.hasOwn(CHANNEL_STATUS, channel) ? channel : null;
+};
+
+/*
  * Verifies a mod directory the way the host does. `keys` is the trusted key
  * list (keys/trusted-keys.json). Returns `{ status, reason?, keyId?, digest? }`
  * with status 'verified' | 'beta' | 'unsigned' | 'invalid': a valid signature
@@ -151,6 +165,8 @@ export const verifyMod = (modDir, keys, { revokedDigests = [] } = {}) => {
     if (!record) return { status: 'invalid', reason: 'malformed' };
     const key = keys.find((candidate) => candidate.keyId === record.keyId);
     if (!key) return { status: 'invalid', reason: 'unknown-key', keyId: record.keyId };
+    const channel = keyChannelOf(key);
+    if (!channel) return { status: 'invalid', reason: 'unknown-key', keyId: record.keyId };
     if (key.revoked) return { status: 'invalid', reason: 'revoked-key', keyId: record.keyId };
     const { id, version } = readModIdentity(modDir);
     if (record.modId !== id || record.modVersion !== version) return { status: 'invalid', reason: 'mod-mismatch', keyId: record.keyId };
@@ -161,5 +177,5 @@ export const verifyMod = (modDir, keys, { revokedDigests = [] } = {}) => {
     const { digest } = computeSignedDigest(modDir);
     if (digest !== record.digest) return { status: 'invalid', reason: 'digest-mismatch', keyId: record.keyId, digest };
     if (revokedDigests.includes(digest)) return { status: 'invalid', reason: 'revoked-mod', keyId: record.keyId, digest };
-    return { status: key.channel === 'beta' ? 'beta' : 'verified', keyId: record.keyId, digest };
+    return { status: CHANNEL_STATUS[channel], keyId: record.keyId, digest };
 };

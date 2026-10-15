@@ -128,6 +128,7 @@ test('beta mods are published in their own section, never as verified', () => {
     const outDir = path.join(root, 'dist');
     const catalog = buildSite({ root, outDir });
     assert.deepEqual(catalog.mods.map((mod) => [mod.id, mod.origin, mod.channel]), [['evil-mod', 'community', 'release'], ['wild-idea', 'beta', 'beta']]);
+    assert.equal(catalog.version, 2);
 
     const html = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
     const grid = html.slice(html.indexOf('data-grid>'), html.indexOf('data-beta-zone'));

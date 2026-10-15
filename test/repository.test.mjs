@@ -8,7 +8,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { readModIdentity } from '../tools/lib/signing.mjs';
 import { checkPreview } from '../tools/lib/image.mjs';
-import { REPO_ROOT, channelOf, listModDirs, readRevokedDigests, readTrustedKeys, verifyRepoMod } from '../tools/lib/repo.mjs';
+import { REPO_ROOT, channelOf, keyChannel, listModDirs, readRevokedDigests, readTrustedKeys, verifyRepoMod } from '../tools/lib/repo.mjs';
 
 test('the trusted key list is well formed', () => {
     const keys = readTrustedKeys();
@@ -18,7 +18,7 @@ test('the trusted key list is well formed', () => {
         assert.equal(key.publicKey.kty, 'OKP');
         assert.equal(key.publicKey.crv, 'Ed25519');
         assert.equal(key.publicKey.d, undefined, `${key.keyId} must not contain a private key`);
-        assert.ok(key.channel === undefined || key.channel === 'beta', `${key.keyId}: channel is "beta" or absent (release)`);
+        assert.ok(['release', 'beta'].includes(keyChannel(key)), `${key.keyId}: channel must be "release", "beta" or absent`);
     }
 });
 

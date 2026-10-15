@@ -107,7 +107,8 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
     mods.sort((left, right) => originOrder(left.origin) - originOrder(right.origin)
         || left.name.localeCompare(right.name, 'en') || left.id.localeCompare(right.id, 'en'));
 
-    const catalog = { format: 'folium-market-catalog', version: 1, repository: SITE_REPOSITORY, commit, mods };
+    // Version 2: entries carry `channel`, and beta-channel mods (security-reviewed only) are listed too.
+    const catalog = { format: 'folium-market-catalog', version: 2, repository: SITE_REPOSITORY, commit, mods };
     fs.writeFileSync(path.join(outDir, 'catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`);
     fs.writeFileSync(path.join(outDir, 'index.html'), renderMarketPage(catalog));
     fs.cpSync(path.join(root, 'site', 'assets'), path.join(outDir, 'assets'), { recursive: true });

@@ -62,6 +62,10 @@ if (!trustedKey) {
     console.error(`key "${keyId}" is not an active key in keys/trusted-keys.json`);
     process.exit(1);
 }
+if (!keyChannel(trustedKey)) {
+    console.error(`key "${keyId}" has channel ${JSON.stringify(trustedKey.channel)}, which Folia does not know ("beta" or absent)`);
+    process.exit(1);
+}
 
 let failed = false;
 for (const target of targets) {
@@ -69,7 +73,7 @@ for (const target of targets) {
         // mods/beta takes the beta key, the other directories a release key.
         if (values.all && channelOf(target.origin) !== keyChannel(trustedKey)) continue;
         if (target.origin && channelOf(target.origin) !== keyChannel(trustedKey)) {
-            throw new Error(`${keyId} signs the ${keyChannel(trustedKey)} channel, but ${target.relative} is in the ${channelOf(target.origin)} channel`);
+            throw new Error(`${keyId} signs the ${keyChannel(trustedKey) ?? 'unknown'} channel, but ${target.relative} is in the ${channelOf(target.origin)} channel`);
         }
         const { lines } = computeSignedDigest(target.dir);
         const record = signMod(target.dir, { keyId, privateJwk: privateKey });
