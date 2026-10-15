@@ -155,9 +155,10 @@ export const parseSubmissionIssue = (body, kind = 'submission') => {
         const modPath = normalizeModPath(sections[FORM_FIELDS.path]);
         if (modPath === null) errors.push(`「${FORM_FIELDS.path}」必须是仓库内的相对路径，根目录留空`);
         Object.assign(fields, { repository, path: modPath ?? '', license: (sections[FORM_FIELDS.license] ?? '').trim() });
-    }
-    if (findUploadedImages(sections[FORM_FIELDS.screenshot]).length === 0) {
-        errors.push(`「${FORM_FIELDS.screenshot}」里需要一张模组在对应版本的 Folia 里正常运行的屏幕截图：直接把图片拖进这个框里上传（外部图片链接不算）`);
+        // Only a new mod needs a screenshot; updates do not.
+        if (findUploadedImages(sections[FORM_FIELDS.screenshot]).length === 0) {
+            errors.push(`「${FORM_FIELDS.screenshot}」里需要一张模组在对应版本的 Folia 里正常运行的屏幕截图：直接把图片拖进这个框里上传（外部图片链接不算）`);
+        }
     }
     if (!checkedAll(sections[FORM_FIELDS.confirmations] ?? '')) errors.push(`请勾选「${FORM_FIELDS.confirmations}」里的全部项目`);
     return { fields, errors };

@@ -84,8 +84,8 @@ const submissionBody = (overrides = {}) => {
 };
 
 const updateBody = (overrides = {}) => {
-    const values = { modId: 'cool-mod', ref: 'v1.1.0', changes: 'Faster.', screenshot: SCREENSHOT, confirmations: '- [X] no data', ...overrides };
-    return ['modId', 'ref', 'channel', 'changes', 'screenshot', 'confirmations']
+    const values = { modId: 'cool-mod', ref: 'v1.1.0', changes: 'Faster.', confirmations: '- [X] no data', ...overrides };
+    return ['modId', 'ref', 'channel', 'changes', 'confirmations']
         .filter((key) => values[key] !== undefined)
         .map((key) => `### ${FORM_FIELDS[key]}\n\n${values[key]}`).join('\n\n');
 };
@@ -117,7 +117,7 @@ test('issue forms read into fields', () => {
     assert.equal(issueKind({ labels: [] }), null);
 });
 
-test('a screenshot uploaded into the issue is required', () => {
+test('a new submission needs a screenshot uploaded into the issue; an update does not', () => {
     assert.deepEqual(findUploadedImages(SCREENSHOT), ['https://github.com/user-attachments/assets/0b5f6c1e-1111-4222-8333-944455556666']);
     assert.equal(findUploadedImages('![shot](https://github.com/user-attachments/assets/abc)\n![old](https://user-images.githubusercontent.com/1/2.png)').length, 2);
     assert.equal(findUploadedImages('![x](https://private-user-images.githubusercontent.com/1/2.png?jwt=t)').length, 1);
@@ -127,9 +127,10 @@ test('a screenshot uploaded into the issue is required', () => {
         '[shot.zip](https://github.com/user-attachments/files/1/shot.zip)', 'https://github.com/user-attachments/assets/abc']) {
         assert.deepEqual(findUploadedImages(text), [], text);
     }
-    for (const [kind, body] of [['submission', submissionBody({ screenshot: '_No response_' })], ['update', updateBody({ screenshot: undefined })], ['update', updateBody({ screenshot: '![x](https://i.imgur.com/a.png)' })]]) {
-        assert.match(parseSubmissionIssue(body, kind).errors.join('\n'), /运行截图.*屏幕截图/);
+    for (const body of [submissionBody({ screenshot: '_No response_' }), submissionBody({ screenshot: undefined }), submissionBody({ screenshot: '![x](https://i.imgur.com/a.png)' })]) {
+        assert.match(parseSubmissionIssue(body, 'submission').errors.join('\n'), /运行截图.*屏幕截图/);
     }
+    assert.deepEqual(parseSubmissionIssue(updateBody(), 'update').errors, []);
 });
 
 test('a second submission of the same mod is a duplicate; updates never are', () => {

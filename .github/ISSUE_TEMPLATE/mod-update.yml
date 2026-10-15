@@ -13,7 +13,7 @@ body:
         只有模组的登记维护者可以提交更新。CI 会从登记的源码仓库取回新版本，检查格式（版本号必须比当前高），
         并给出与上一个签名版本的对比链接。维护者审查后签名，新版本随即发布。
 
-        请在标题的「[模组更新]」后面写上模组的名字，并附上一张新版本在 Folia 里正常运行的截图。格式检查未通过、14 天内没有回应的 issue 会被自动关闭。需要更换源码仓库或目录时，请直接在 issue 里说明，由维护者处理。
+        请在标题的「[模组更新]」后面写上模组的名字。格式检查未通过、14 天内没有回应的 issue 会被自动关闭。需要更换源码仓库或目录时，请直接在 issue 里说明，由维护者处理。
   - type: input
     id: mod-id
     attributes:
@@ -47,15 +47,6 @@ body:
     attributes:
       label: 更新说明 / What changed
       description: 这个版本改了什么；权限有变化时请说明原因
-    validations:
-      required: true
-  - type: textarea
-    id: screenshot
-    attributes:
-      label: 运行截图 / Screenshot
-      description: |
-        一张模组在对应版本的 Folia（mod.json 写了 `folia` 时在这个范围内）里正常运行的屏幕截图：直接把图片拖进这个框里上传（外部图片链接不算），截图里最好能看到 Folia 的版本。
-        截图只留在这个 issue 里，不会进入仓库，也不是 mod.json 的介绍图片。没有截图检查不通过。
     validations:
       required: true
   - type: checkboxes
