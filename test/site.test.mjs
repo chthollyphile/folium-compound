@@ -92,6 +92,13 @@ test('the build publishes verified zips, a catalog and an escaped page', () => {
     assert.ok(html.includes('<img src="/previews/evil-mod-1.2.3.png" width="1280" height="720"'));
     assert.ok(html.includes(escapeHtml('</p><script>alert(1)</script>')));
     assert.ok(!html.includes('javascript:'), 'non-https source links are dropped');
+    // Each card links to its detail dialog, which carries the full description and the owners.
+    assert.ok(html.includes('<a href="#mod-evil-mod">'));
+    const dialog = html.slice(html.indexOf('<dialog class="detail" id="mod-evil-mod"'), html.indexOf('</dialog>') + '</dialog>'.length);
+    assert.ok(dialog.length > 0, 'the mod has a detail dialog');
+    assert.ok(dialog.includes(`<p class="detail-description">${escapeHtml('</p><script>alert(1)</script>')}</p>`));
+    assert.ok(dialog.includes('<a href="https://github.com/dev"'));
+    assert.ok(dialog.includes('data-copy="' + mod.download.sha256 + '"'));
     assert.ok(!/<script>(?!<)/.test(html.replace('<script src="/assets/app.js" defer></script>', '')), 'no inline script');
     assert.ok(fs.existsSync(path.join(outDir, 'assets', 'app.js')));
     assert.match(fs.readFileSync(path.join(outDir, '_headers'), 'utf8'), /Content-Security-Policy: default-src 'self'/);

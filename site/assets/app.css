@@ -305,6 +305,10 @@ h1 {
 
 .card-title h2 { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
 
+.card-title h2 a { text-decoration: none; }
+
+.card-title h2 a:hover { color: var(--accent); }
+
 .meta { margin: 2px 0 0; color: var(--faint); font-size: 13px; overflow-wrap: anywhere; }
 
 .meta code { color: var(--muted); }
@@ -351,26 +355,6 @@ h1 {
 
 .chip-none { font-family: var(--font); }
 
-.details { font-size: 13px; color: var(--muted); }
-
-.details summary { cursor: pointer; color: var(--faint); width: max-content; }
-
-.details summary:hover { color: var(--text); }
-
-.details dl {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 6px 14px;
-  margin: 10px 0 0;
-  padding: 12px;
-  border-radius: 10px;
-  background: var(--surface-2);
-}
-
-.details dt { color: var(--faint); }
-
-.details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-
 .hash { font-size: 11px; word-break: break-all; }
 
 .copy {
@@ -399,9 +383,9 @@ h1 {
 
 .signed svg { width: 15px; height: 15px; }
 
-.source { color: var(--muted); font-size: 13px; }
+.more { color: var(--muted); font-size: 13px; }
 
-.source:hover { color: var(--text); }
+.more:hover { color: var(--text); }
 
 .download {
   display: inline-flex;
@@ -422,6 +406,117 @@ h1 {
 .download:hover { background: var(--accent-strong); }
 
 .download .size { font-weight: 500; opacity: 0.8; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+/* ---- detail dialog */
+
+html:has(dialog.detail[open]) { overflow: hidden; }
+
+.detail {
+  width: min(720px, calc(100% - 32px));
+  max-height: calc(100% - 48px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  overscroll-behavior: contain;
+}
+
+/* showModal() focuses the dialog itself; the ring belongs on the controls inside. */
+.detail:focus-visible { outline: none; }
+
+.detail::backdrop { background: rgb(10 14 11 / 55%); backdrop-filter: blur(2px); }
+
+/* Without script, a dialog shows when its #mod-<id> is the fragment (app.js otherwise opens it modally). */
+html:not(.js) .detail:target { display: block; position: fixed; inset: 0; z-index: 20; margin: auto; overflow: auto; }
+
+.detail-body { position: relative; display: flex; flex-direction: column; gap: 16px; padding: 24px; }
+
+.detail-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  color: var(--muted);
+  font-size: 20px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.detail-close:hover { color: var(--text); background: var(--surface-2); }
+
+.detail-preview {
+  display: block;
+  margin: -24px -24px 0;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.detail-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.detail .card-head { padding-right: 32px; }
+
+.detail-preview ~ .card-head { padding-right: 0; }
+
+.detail .card-title h2 { font-size: 20px; }
+
+.detail-description { margin: 0; font-size: 15px; white-space: pre-line; overflow-wrap: anywhere; }
+
+.detail-sections { display: flex; flex-direction: column; gap: 14px; }
+
+.detail-section h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--faint); letter-spacing: 0.02em; }
+
+.detail-section dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+
+.detail-section dt { color: var(--faint); }
+
+.detail-section dd { margin: 0; min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+
+.detail-section dd a { color: var(--text); }
+
+.perm-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+
+.perm-list li { display: flex; align-items: baseline; gap: 10px; color: var(--muted); }
+
+.perm-list code {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  font-size: 11.5px;
+}
+
+.perm-list .perm-node { color: var(--warn); }
+
+.perm-list .perm-node code { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 .empty { padding: 48px 0; text-align: center; color: var(--faint); }
 
@@ -446,6 +541,11 @@ h1 {
   .grid { grid-template-columns: 1fr; }
   .filters { width: 100%; }
   .filter { flex: 1; justify-content: center; }
+  .detail { width: calc(100% - 16px); max-height: calc(100% - 16px); }
+  .detail-body { padding: 18px; }
+  .detail-preview { margin: -18px -18px 0; }
+  .detail-section dl { grid-template-columns: 1fr; gap: 2px; }
+  .detail-section dd + dt { margin-top: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
