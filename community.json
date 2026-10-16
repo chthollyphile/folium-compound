@@ -37,6 +37,18 @@
       "addedAt": "2026-10-06",
       "updatedAt": "2026-10-06"
     },
+    "folia-lx-music-mod": {
+      "owners": [
+        "wumeng114514"
+      ],
+      "submission": 36,
+      "source": "https://github.com/wumeng114514/folia-lx-music-mod",
+      "path": "",
+      "commit": "57883a250a7c88af0da1bf9d52629d8bac7bd18d",
+      "version": "1.0.1",
+      "addedAt": "2026-10-16",
+      "updatedAt": "2026-10-16"
+    },
     "lx-favorites-sync": {
       "owners": [
         "xiaomo521314"

@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "folia-lx-music-mod",
+  "modVersion": "1.0.1",
+  "digest": "sha256:296ff12be7f02959895a93e01044c5214cbf97b634b8bbc736c5de713e8b21c3",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-16T10:52:49.558Z",
+  "signature": "C6esLU42ChEiGmFOcbXDS1ynJCF/dVAMP3ah1cHlcgPz8sde32OkAKoD1Ojt0GJd7QJyNBRS5RZK4G7NZDOFDQ=="
+}

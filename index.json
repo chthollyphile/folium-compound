@@ -236,6 +236,24 @@
       ],
       "source": "https://github.com/ACUNGER0321/-spectrum-visualizer-folia-mods-",
       "sourceCommit": "0b77643b4e8a479534e7e4b32cc97c4007af071c"
+    },
+    {
+      "id": "folia-lx-music-mod",
+      "name": "Online Music Source",
+      "version": "1.0.1",
+      "author": "wumeng114514",
+      "description": "在线音源适配器，支持多平台搜索和播放",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/folia-lx-music-mod",
+      "digest": "sha256:296ff12be7f02959895a93e01044c5214cbf97b634b8bbc736c5de713e8b21c3",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-10-16T10:52:49.558Z",
+      "owners": [
+        "wumeng114514"
+      ],
+      "source": "https://github.com/wumeng114514/folia-lx-music-mod",
+      "sourceCommit": "57883a250a7c88af0da1bf9d52629d8bac7bd18d"
     }
   ]
 }
