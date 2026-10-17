@@ -294,20 +294,20 @@
     {
       "id": "folia-lx-music-mod",
       "name": "Online Music Source",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": "wumeng114514",
       "description": "在线音源适配器，支持多平台搜索和播放",
       "origin": "beta",
       "channel": "beta",
       "path": "mods/beta/folia-lx-music-mod",
-      "digest": "sha256:296ff12be7f02959895a93e01044c5214cbf97b634b8bbc736c5de713e8b21c3",
+      "digest": "sha256:423577445fdb9aa4952638f9af5b9f9a96dc26bb87dd0a344c08b62642119e48",
       "keyId": "folium-beta-2026-1",
-      "signedAt": "2026-10-16T10:52:49.558Z",
+      "signedAt": "2026-10-17T18:20:25.321Z",
       "owners": [
         "wumeng114514"
       ],
       "source": "https://github.com/wumeng114514/folia-lx-music-mod",
-      "sourceCommit": "57883a250a7c88af0da1bf9d52629d8bac7bd18d"
+      "sourceCommit": "9b28469f21147395dd17e1324ba55eb4ef743abe"
     },
     {
       "id": "lyric-style-switcher",

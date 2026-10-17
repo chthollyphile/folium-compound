@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "folia-lx-music-mod",
-  "modVersion": "1.0.1",
-  "digest": "sha256:296ff12be7f02959895a93e01044c5214cbf97b634b8bbc736c5de713e8b21c3",
+  "modVersion": "1.0.2",
+  "digest": "sha256:423577445fdb9aa4952638f9af5b9f9a96dc26bb87dd0a344c08b62642119e48",
   "keyId": "folium-beta-2026-1",
-  "signedAt": "2026-10-16T10:52:49.558Z",
-  "signature": "C6esLU42ChEiGmFOcbXDS1ynJCF/dVAMP3ah1cHlcgPz8sde32OkAKoD1Ojt0GJd7QJyNBRS5RZK4G7NZDOFDQ=="
+  "signedAt": "2026-10-17T18:20:25.321Z",
+  "signature": "bLAJSdiYBKMx1Qkga0Cw8GG9mjsn+8sQuZlOqMsGrGF/mHpjUrrhk+6ygR3zJFsJWQKoD5vsjZMIA8tsXWzaAg=="
 }

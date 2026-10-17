@@ -9,7 +9,7 @@ export default async function activate(folium) {
     const settingsSection = folium.registries.settingsSections.register({
         id: 'lx-music-settings',
         label: { 'zh-CN': '在线音源设置', en: 'Online Source Settings' },
-        description: { 'zh-CN': '在线音源播放质量设置', en: 'Online source playback quality settings' },
+        description: { 'zh-CN': '在线音源设置', en: 'Online source settings' },
         settings: [
             {
                 key: 'quality',
@@ -81,8 +81,11 @@ export default async function activate(folium) {
                 async getAudioUrl(song, quality) {
                     const songId = String(song?.id ?? '');
                     if (!songId) throw new Error('歌曲 ID 为空');
-                    const q = qualityMap[quality] || quality || '320k';
                     const settings = settingsSection.params.get();
+                    const preferredQuality = typeof settings?.['quality'] === 'string'
+                        ? settings['quality']
+                        : '320k';
+                    const q = preferredQuality || qualityMap[quality] || quality || '320k';
                     const oiapiKey = typeof settings?.['oiapi-key'] === 'string'
                         ? settings['oiapi-key'].trim()
                         : '';

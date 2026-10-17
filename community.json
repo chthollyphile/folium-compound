@@ -56,10 +56,11 @@
       "submission": 36,
       "source": "https://github.com/wumeng114514/folia-lx-music-mod",
       "path": "",
-      "commit": "57883a250a7c88af0da1bf9d52629d8bac7bd18d",
-      "version": "1.0.1",
+      "commit": "9b28469f21147395dd17e1324ba55eb4ef743abe",
+      "version": "1.0.2",
       "addedAt": "2026-10-16",
-      "updatedAt": "2026-10-16"
+      "updatedAt": "2026-10-17",
+      "lastIssue": 40
     },
     "lx-favorites-sync": {
       "owners": [
