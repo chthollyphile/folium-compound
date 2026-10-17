@@ -94,6 +94,24 @@
       "signedAt": "2026-09-24T19:10:07.806Z"
     },
     {
+      "id": "auto-skip",
+      "name": "Auto skip",
+      "version": "1.4.0",
+      "author": "kifoii",
+      "description": "与原版「无法播放时自动跳过」配合：补上原版永不跳过的登录类与网络类失败，并在原版设置关闭时接住无法播放的歌曲。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/auto-skip",
+      "digest": "sha256:235550fcb38781b25e034701a635482b9731be983bb7d902a00db59392b1dcbd",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-17T05:45:18.519Z",
+      "owners": [
+        "kifoii"
+      ],
+      "source": "https://github.com/kifoii/Auto-skip",
+      "sourceCommit": "8148e3dd28b0c43c390692af621f8b1b8e455b23"
+    },
+    {
       "id": "bilingual-ruby-lyrics",
       "name": "双语 · 注音歌词",
       "version": "1.2.3",

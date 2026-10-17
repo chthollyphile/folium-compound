@@ -1,0 +1,12 @@
+{
+  "folium": 1,
+  "id": "auto-skip",
+  "name": "Auto skip",
+  "version": "1.4.0",
+  "author": "kifoii",
+  "description": "与原版「无法播放时自动跳过」配合：补上原版永不跳过的登录类与网络类失败，并在原版设置关闭时接住无法播放的歌曲。",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": ["playback.control"],
+  "folia": ">=0.7.20 <0.8.0"
+}

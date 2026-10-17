@@ -1,5 +1,17 @@
 {
   "mods": {
+    "auto-skip": {
+      "owners": [
+        "kifoii"
+      ],
+      "submission": 33,
+      "source": "https://github.com/kifoii/Auto-skip",
+      "path": "mod",
+      "commit": "8148e3dd28b0c43c390692af621f8b1b8e455b23",
+      "version": "1.4.0",
+      "addedAt": "2026-10-17",
+      "updatedAt": "2026-10-17"
+    },
     "bilingual-ruby-lyrics": {
       "owners": [
         "Rizumu85"
