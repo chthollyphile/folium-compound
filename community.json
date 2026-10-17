@@ -110,6 +110,18 @@
       "addedAt": "2026-09-25",
       "updatedAt": "2026-09-25"
     },
+    "soda-music": {
+      "owners": [
+        "syh0119"
+      ],
+      "submission": 32,
+      "source": "https://github.com/syh0119/folia-soda-music",
+      "path": "",
+      "commit": "d7b50e24811ebaeb49c479efdc032a180eac88f8",
+      "version": "2.2.1",
+      "addedAt": "2026-10-17",
+      "updatedAt": "2026-10-17"
+    },
     "spectrum-visualizer": {
       "owners": [
         "ACUNGER0321"

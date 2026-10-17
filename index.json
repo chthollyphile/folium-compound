@@ -290,6 +290,24 @@
       ],
       "source": "https://github.com/wumeng114514/folia-lx-music-mod",
       "sourceCommit": "57883a250a7c88af0da1bf9d52629d8bac7bd18d"
+    },
+    {
+      "id": "soda-music",
+      "name": "汽水音乐",
+      "version": "2.2.1",
+      "author": "syh0119",
+      "description": "把本机汽水音乐接入为在线音源：搜索、播放（含无损 FLAC）、原生逐字歌词、无限续播。模组自带音源服务（跑在 main 里，默认 127.0.0.1:4533，随机密钥鉴权），不需要另装程序。需要先安装并登录汽水音乐 PC 客户端。会用自己的子进程加载汽水客户端自带的原生模块，并用 PowerShell 读取该客户端的 Cookies 登录态。",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/soda-music",
+      "digest": "sha256:5550100b3f633cc2b197f9d883c9e2cc2233d08eedfcc403bf6471ce9efa1ab5",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-10-17T05:45:38.006Z",
+      "owners": [
+        "syh0119"
+      ],
+      "source": "https://github.com/syh0119/folia-soda-music",
+      "sourceCommit": "d7b50e24811ebaeb49c479efdc032a180eac88f8"
     }
   ]
 }

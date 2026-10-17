@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "soda-music",
+  "modVersion": "2.2.1",
+  "digest": "sha256:5550100b3f633cc2b197f9d883c9e2cc2233d08eedfcc403bf6471ce9efa1ab5",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-17T05:45:38.006Z",
+  "signature": "3M4Xm2QSAb+iQrKdVsAF5UEnLdGcg9B5vH28mt6nRYX0AUHhins2NrSJphlRVY9ZwgEQmdgPhQu6vHGN0qkECA=="
+}
