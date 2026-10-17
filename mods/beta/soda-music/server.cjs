@@ -34,8 +34,20 @@ const zlib = require('zlib');
 const { spawn, execFileSync } = require('child_process');
 
 // ============================================================ 配置
-const PORT = parseInt(process.env.PORT || '4533', 10);
-const HOST = process.env.HOST || '127.0.0.1';
+/**
+ * 运行模式：`start({ embedded: true })` 时置真。**嵌入模式一律不读环境变量**
+ * （维护者审查意见）：用户全局设了 `HOST=0.0.0.0` 就会把本机服务暴露到局域网，
+ * `SUB_PASS`/`SODA_NATIVE_DIR` 同理 —— 密码变成可猜的固定值、原生模块目录可被指到任意位置。
+ * 环境变量只对独立运行（`node soda_subsonic.js`）生效。
+ */
+let EMBEDDED = false;
+let PORT = parseInt(process.env.PORT || '4533', 10);
+let HOST = process.env.HOST || '127.0.0.1';
+/** 系统目录下的可执行文件全路径 —— 不按名字走 PATH（同名程序可以劫持） */
+const SYS32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
+const EXE_REG = process.platform === 'win32' ? path.join(SYS32, 'reg.exe') : 'reg';
+const EXE_PS = process.platform === 'win32'
+  ? path.join(SYS32, 'WindowsPowerShell', 'v1.0', 'powershell.exe') : 'powershell';
 /**
  * 本机服务的两把钥匙（维护者审查意见：不许再用固定账号 soda/soda）：
  *   · SECRET —— 数据面（`/rest/*`）的密码。**持久化**在 paths.data/auth.json。
@@ -45,7 +57,7 @@ const HOST = process.env.HOST || '127.0.0.1';
  * 用户名保持固定的 'soda'：用户名不是秘密，密码才是。
  */
 const USER = process.env.SUB_USER || 'soda';
-let SECRET = process.env.SUB_PASS || '';
+let SECRET = process.env.SUB_PASS || '';   // 嵌入模式下 start() 会先清空，再读/生成 auth.json
 let TOKEN = '';
 const APP_ID = '386088';
 const APP_VERSION = '3.8.0';
@@ -241,7 +253,7 @@ function clientInstallDirs() {
     ];
     for (const root of roots) {
       let text = '';
-      try { text = execFileSync('reg', ['query', root, '/s'], { encoding: 'utf8', maxBuffer: 16 << 20 }); }
+      try { text = execFileSync(EXE_REG, ['query', root, '/s'], { encoding: 'utf8', maxBuffer: 16 << 20 }); }
       catch (e) { continue; }
       let cur = {};
       const flush = () => {
@@ -274,7 +286,7 @@ function findNativeIn(base) {
 
 function resolveNativeDir() {
   const cands = [];
-  if (process.env.SODA_NATIVE_DIR) cands.push(process.env.SODA_NATIVE_DIR);
+  if (!EMBEDDED && process.env.SODA_NATIVE_DIR) cands.push(process.env.SODA_NATIVE_DIR);
   cands.push(path.join(ASSET, 'native'));          // 模组自带（可选）
   cands.push(path.join(ASSET, 'lib', 'native'));   // 独立运行的布局
   cands.push(path.join(ASSET, 'native'));
@@ -401,7 +413,7 @@ async function registerDevice() {
 
 function ps(cmd, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const p = spawn('powershell', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', cmd], { windowsHide: true });
+    const p = spawn(EXE_PS, ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', cmd], { windowsHide: true });
     let o = '', e = '', done = false;
     const timer = setTimeout(() => {
       if (done) return;
@@ -447,54 +459,62 @@ async function refreshSessionFromClient() {
   }
   const tmp = path.join(os.tmpdir(), 'soda_ck_' + Date.now());
   fs.mkdirSync(tmp, { recursive: true });
-  fs.copyFileSync(lsPath, path.join(tmp, 'LocalState.json'));
-  try { fs.copyFileSync(ckPath, path.join(tmp, 'Cookies')); }
-  catch (e) { throw new Error('Cookies 库被占用 —— 请先完全退出汽水音乐客户端再试'); }
-
-  const ls = JSON.parse(fs.readFileSync(path.join(tmp, 'LocalState.json'), 'utf8'));
-  const ek = Buffer.from(ls.os_crypt.encrypted_key || '', 'base64').subarray(5);
-  if (!ek.length) throw new Error('Local State 无 encrypted_key');
-
-  let masterB64;
+  /**
+   * 维护者审查意见：%TEMP% 下这个是 Cookies 的**明文副本**，任何退出路径都必须删。
+   * 以前只在成功分支末尾删一次 —— DPAPI 失败、没 sessionid、库被占用这些抛错路径
+   * 会把明文 cookie 留在磁盘上。现在整段包进 try/finally。
+   */
   try {
-    masterB64 = await ps("Add-Type -AssemblyName System.Security; $b=[Convert]::FromBase64String('" + ek.toString('base64') +
-      "'); [Convert]::ToBase64String([System.Security.Cryptography.ProtectedData]::Unprotect($b,$null,'CurrentUser'))", 20000);
-  } catch (e) {
-    log('DPAPI 解密（PowerShell）不可用：' + e.message + '，尝试 _pc_cookie.json 兜底 …');
-    if (trySessionFromJson()) return {};
-    throw new Error('DPAPI 解密失败且无兜底：' + e.message);
-  }
-  const master = Buffer.from(masterB64, 'base64');
+    fs.copyFileSync(lsPath, path.join(tmp, 'LocalState.json'));
+    try { fs.copyFileSync(ckPath, path.join(tmp, 'Cookies')); }
+    catch (e) { throw new Error('Cookies 库被占用 —— 请先完全退出汽水音乐客户端再试'); }
 
-  const { DatabaseSync } = require('node:sqlite');
-  const db = new DatabaseSync(path.join(tmp, 'Cookies'));
-  const rows = db.prepare('SELECT host_key, name, value, encrypted_value FROM cookies').all();
-  db.close();
+    const ls = JSON.parse(fs.readFileSync(path.join(tmp, 'LocalState.json'), 'utf8'));
+    const ek = Buffer.from(ls.os_crypt.encrypted_key || '', 'base64').subarray(5);
+    if (!ek.length) throw new Error('Local State 无 encrypted_key');
 
-  function dec(enc) {
-    if (!enc || !enc.length) return '';
-    const buf = Buffer.from(enc);
-    const tag = buf.toString('latin1', 0, 3);
-    if (tag === 'v10' || tag === 'v20') {
-      const nonce = buf.subarray(3, 15), ct = buf.subarray(15);
-      const d = crypto.createDecipheriv('aes-256-gcm', master, nonce);
-      d.setAuthTag(ct.subarray(ct.length - 16));
-      let out = Buffer.concat([d.update(ct.subarray(0, ct.length - 16)), d.final()]);
-      if (tag === 'v20' && out.length > 32) out = out.subarray(32);
-      return out.toString('utf8');
+    let masterB64;
+    try {
+      masterB64 = await ps("Add-Type -AssemblyName System.Security; $b=[Convert]::FromBase64String('" + ek.toString('base64') +
+        "'); [Convert]::ToBase64String([System.Security.Cryptography.ProtectedData]::Unprotect($b,$null,'CurrentUser'))", 20000);
+    } catch (e) {
+      log('DPAPI 解密（PowerShell）不可用：' + e.message + '，尝试 _pc_cookie.json 兜底 …');
+      if (trySessionFromJson()) return {};
+      throw new Error('DPAPI 解密失败且无兜底：' + e.message);
     }
-    return buf.toString('utf8');
+    const master = Buffer.from(masterB64, 'base64');
+
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(path.join(tmp, 'Cookies'));
+    const rows = db.prepare('SELECT host_key, name, value, encrypted_value FROM cookies').all();
+    db.close();
+
+    function dec(enc) {
+      if (!enc || !enc.length) return '';
+      const buf = Buffer.from(enc);
+      const tag = buf.toString('latin1', 0, 3);
+      if (tag === 'v10' || tag === 'v20') {
+        const nonce = buf.subarray(3, 15), ct = buf.subarray(15);
+        const d = crypto.createDecipheriv('aes-256-gcm', master, nonce);
+        d.setAuthTag(ct.subarray(ct.length - 16));
+        let out = Buffer.concat([d.update(ct.subarray(0, ct.length - 16)), d.final()]);
+        if (tag === 'v20' && out.length > 32) out = out.subarray(32);
+        return out.toString('utf8');
+      }
+      return buf.toString('utf8');
+    }
+    const ck = {};
+    for (const r of rows) if (r.host_key === '.qishui.com') ck[r.name] = r.value || dec(r.encrypted_value);
+    if (!ck.sessionid) throw new Error('未找到 sessionid（客户端里还没登录？）');
+    const cookie = Object.entries(ck).map(([k, v]) => k + '=' + v).join('; ');
+    saveSessionCookie(cookie);
+    COOKIE = cookie;
+    sessHint = 'sessionid ' + String(ck.sessionid).slice(0, 10) + '… 共 ' + Object.keys(ck).length + ' 项';
+    log('已从客户端同步登录态 sessionid=' + String(ck.sessionid).slice(0, 10) + '…');
+    return ck;
+  } finally {
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { }   // 明文副本，用完即删（含异常路径）
   }
-  const ck = {};
-  for (const r of rows) if (r.host_key === '.qishui.com') ck[r.name] = r.value || dec(r.encrypted_value);
-  if (!ck.sessionid) throw new Error('未找到 sessionid（客户端里还没登录？）');
-  const cookie = Object.entries(ck).map(([k, v]) => k + '=' + v).join('; ');
-  saveSessionCookie(cookie);
-  COOKIE = cookie;
-  sessHint = 'sessionid ' + String(ck.sessionid).slice(0, 10) + '… 共 ' + Object.keys(ck).length + ' 项';
-  log('已从客户端同步登录态 sessionid=' + String(ck.sessionid).slice(0, 10) + '…');
-  try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { }   // 里面是 Cookies 明文副本，用完即删
-  return ck;
 }
 
 
@@ -751,10 +771,43 @@ async function fetchLyricOnly(trackId) {
       }
     } catch (e) { }
   }
+  await waitReady(20000);        // 启动竞态：登录态 / 签名器没好先等，别让宿主的歌词请求空手而归
   const { lyric } = await trackV2(trackId);
   fs.mkdirSync(lyricDir(), { recursive: true });
   fs.writeFileSync(f, lyric || '');
   return lyric || '';
+}
+
+/**
+ * 歌词用的轻量元信息（**不下载、不解密音频**）。
+ * -----------------------------------------------------------------------------
+ * 之前歌词接口走 ensureAudio()，为了拿一段 KRC 会把整首歌下载+解密一遍：
+ *   · 重启后第一次播歌时，歌词请求和「这首歌自己的取流」抢同一个签名/带宽，
+ *     宿主的歌词请求 25 秒超时 → 面板上留着**上一次关闭时那首**的歌词，
+ *     切下一首就好了（这首的音频此时已缓存），再切回来也正常。
+ * 现在只调 track_v2 拿 lyric / 标题，标题优先用曲库里已有的。
+ */
+async function ensureLyricMeta(trackId) {
+  trackId = safeTrackId(trackId);
+  const metaFile = path.join(cacheDir(), trackId + '.json');
+  if (fs.existsSync(metaFile)) {
+    try {
+      const m = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+      if (m && typeof m.lyric === 'string') return m;      // 已解密过：meta 里有歌词，直接用
+    } catch (e) { }
+  }
+  await waitReady(20000);        // 启动竞态：登录态 / 签名器还没好的话先等一会儿，别直接失败
+  const { track, lyric, translations } = await trackV2(trackId);
+  const known = CATALOG.tracks.get(String(trackId));
+  const meta = {
+    id: String(trackId),
+    name: (known && known.name) || track.name,
+    artists: (known && known.artists) || (track.artists || []).map(a => a.name),
+    lyric: lyric || '',
+    translations: translations === undefined ? null : translations,
+  };
+  try { fs.mkdirSync(lyricDir(), { recursive: true }); fs.writeFileSync(path.join(lyricDir(), trackId + '.txt'), meta.lyric); } catch (e) { }
+  return meta;
 }
 
 function pickItem(items) {
@@ -897,24 +950,53 @@ async function fetchRecommendedPlaylists(n) {
   return out.slice(0, n || 20);
 }
 
-/** 歌单广场（POST /luna/pc/feed/playlist-square）—— 听歌模式里的推荐歌单格子，items 全是 type=playlist。
- *  只取前 n 个（默认 10），每次刷新曲库重新拉、整体替换。曲目走通用的 /luna/pc/playlist/detail。 */
-async function fetchPlaylistSquare(n) {
-  const r = await rpcPost('/luna/pc/feed/playlist-square', { count: n || 10, is_first_request: true });
+/**
+ * 歌单广场（POST /luna/pc/feed/playlist-square）—— 听歌模式里的推荐歌单格子，items 全是 type=playlist。
+ * 曲目走通用的 /luna/pc/playlist/detail（用到时才拉）。
+ *
+ * 这个接口是**滚动推荐**：`offset` 分页有效，每次返回不同的歌单。所以不再固定 10 个，
+ * 而是按页拉到没有新歌单为止（默认最多 6 页 × 20 ≈ 100 个，去重后通常 60~80）。
+ * 想少拉就设环境变量 `SODA_SQUARE_PAGES`（独立运行才认，见「配置」一节的说明）。
+ */
+const SQUARE_PAGE = 20;
+const SQUARE_MAX_PAGES = Math.max(1, parseInt(process.env.SODA_SQUARE_PAGES || '6', 10));
+
+async function fetchPlaylistSquare(maxPages) {
+  const pages = Math.max(1, maxPages || SQUARE_MAX_PAGES);
   const out = [];
-  for (const it of (r.items || [])) {
-    const p = (it.entity && it.entity.playlist) || {};
-    if (!p.id) continue;
-    out.push({
-      id: String(p.id), name: p.title || p.name || '未命名',
-      count: p.count_tracks || p.track_count || 0,
-      cover: (p.url_cover && p.url_cover.uri) ? (() => {
-        const base = ((p.url_cover.urls && p.url_cover.urls[0]) || 'https://p3-luna.douyinpic.com/img/') + p.url_cover.uri;
-        return /~tplv|~crop/.test(base) ? base : base + '~tplv-b829550vbb-crop-center:800:800.jpg';
-      })() : '',
-    });
+  const seen = new Set();
+  for (let i = 0; i < pages; i++) {
+    let r;
+    try {
+      r = await rpcPost('/luna/pc/feed/playlist-square', {
+        count: SQUARE_PAGE,
+        offset: i * SQUARE_PAGE,
+        is_first_request: i === 0,
+      });
+    } catch (e) {
+      if (i === 0) throw e;          // 第一页就失败 → 交给上层记日志
+      break;                          // 后续页失败就用已有结果，不要把整份目录搞挂
+    }
+    const items = (r && r.items) || [];
+    if (!items.length) break;
+    let added = 0;
+    for (const it of items) {
+      const p = (it.entity && it.entity.playlist) || {};
+      if (!p.id || seen.has(String(p.id))) continue;
+      seen.add(String(p.id));
+      out.push({
+        id: String(p.id), name: p.title || p.name || '未命名',
+        count: p.count_tracks || p.track_count || 0,
+        cover: (p.url_cover && p.url_cover.uri) ? (() => {
+          const base = ((p.url_cover.urls && p.url_cover.urls[0]) || 'https://p3-luna.douyinpic.com/img/') + p.url_cover.uri;
+          return /~tplv|~crop/.test(base) ? base : base + '~tplv-b829550vbb-crop-center:800:800.jpg';
+        })() : '',
+      });
+      added++;
+    }
+    if (!added) break;                // 这一页全是重复 → 接口翻不动了
   }
-  return out.slice(0, n || 10);
+  return out;
 }
 
 async function fetchPlaylistTracks(pid) {
@@ -983,6 +1065,7 @@ async function fillFeed(target) {
 
 /** 每次要给出去的量 */
 const feedWant = () => Math.min(FEED_PAGES * FEED_BATCH, FEED_MAX_COUNT);
+
 /**
  * 池子维持的库存 = 2 倍给量。
  * 为什么要 2 倍：取走一次后还剩一整份，下一次仍然是秒开（试过只留一份缓冲，
@@ -1005,6 +1088,281 @@ const fetchFeedCached = () => fetchFeedN(feedWant());
 /** 预热池子：启动 / 每次目录刷新后调用 */
 function prewarmFeed() {
   fillFeed(feedTarget()).catch(() => { });
+}
+
+/**
+ * 「歌 → 歌单」反查索引 —— 续播跟着**当前歌单**走靠它。
+ * ===========================================================================
+ * 为什么要反查：Folia 的书库走标准 Navidrome 通道，模组的 client 根本不在那条路上，
+ * 拿不到「用户点的是哪个歌单」。它能拿到的只有 `playback.getState().currentSong`，
+ * 所以只能拿当前这首曲目去曲库里反查它出现在哪些歌单里，再用那个歌单当续播上下文。
+ *
+ * 构建代价：要把所有歌单的曲目拉一遍（十几个 playlist/detail，每个都过原生签名）。
+ * 因此：① 只在后台预热，**绝不让续播请求等它**；② 带 TTL；③ 单个歌单失败不影响其它。
+ * 索引没就绪时 takeFromContext 直接返回空 → 调用方落回通用推荐流，行为跟以前一样。
+ */
+const CTX_TTL = 30 * 60 * 1000;
+const ctxIndex = { bySong: null, at: 0, building: null };
+
+/**
+ * 粘性上下文：最近一次成功反查出来的歌单。
+ *
+ * 为什么需要：相关推荐补进来的歌**不在歌单里**，下一轮拿它反查必然落空 ——
+ * 没有粘性的话，风格会在「歌单 → 相关推荐 → 通用流」之间断掉。
+ * 有了它，从歌单播出去之后风格能一直延续；切走 15 分钟后自动脱落，不会串味。
+ */
+const stickyCtx = { plIds: [], names: [], at: 0 };
+const STICKY_TTL = 15 * 60 * 1000;
+
+function buildContextIndex() {
+  if (ctxIndex.building) return ctxIndex.building;
+  ctxIndex.building = (async () => {
+    const bySong = new Map();
+    const list = CATALOG.playlists.filter(p => p.srcId && !p.live);   // 虚拟来源（推荐流）不参与
+    let done = 0;
+    for (const pl of list) {
+      try {
+        const ts = await playlistTracks(pl);
+        for (const t of ts) {
+          const id = String(t.id);
+          const arr = bySong.get(id);
+          if (arr) { if (!arr.includes(pl.id)) arr.push(pl.id); }
+          else bySong.set(id, [pl.id]);
+        }
+        done++;
+      } catch (e) { /* 单个歌单拉失败就跳过 */ }
+    }
+    if (bySong.size) {
+      ctxIndex.bySong = bySong;
+      ctxIndex.at = Date.now();
+      log('续播上下文索引已建：' + bySong.size + ' 曲 / ' + done + '/' + list.length + ' 个歌单');
+    } else {
+      // 一个歌单都没拉到：这是「续播永远跟不上歌单」的头号嫌疑，必须留痕
+      log('续播上下文索引为空：' + done + '/' + list.length + ' 个歌单成功，bySong.size=0');
+    }
+    diagAdd({
+      at: new Date().toISOString(), event: 'buildContextIndex',
+      songs: bySong.size, playlists: list.length, ok: done,
+      names: list.map(p => p.name),
+    });
+  })().catch((e) => { log('续播上下文索引失败: ' + e.message); })
+     .finally(() => { ctxIndex.building = null; });
+  return ctxIndex.building;
+}
+
+/** 索引是否就绪（过期也算不就绪） */
+const ctxReady = () => !!(ctxIndex.bySong && Date.now() - ctxIndex.at < CTX_TTL);
+
+/** 触发一次后台构建，不等待 */
+function touchContextIndex() {
+  if (!ctxIndex.building && !ctxReady()) buildContextIndex();
+}
+
+/**
+ * 按种子曲目拉「同风格」的歌 —— `POST /luna/track/related`。
+ * ===========================================================================
+ * 结构取自汽水客户端 asar 的 `GetRelatedTracksRequest`：
+ *   { track_ids?: string[], artist_ids?: string[], scene_name?: string, ... }（全部可选）
+ * **只给 `track_ids` 当种子就行** —— 不用像 `/luna/playlist/feed/media` 那样凑一堆
+ * 上下文参数（那个实测 15 个歌单 × 两种 play_mode 全返回空）。
+ *
+ * 实测响应形状（与 `/luna/pc/feed/song-tab` 一致，所以能共用同一套取值路径）：
+ *   { status_info, has_more: boolean, items: [{ id, type:'track',
+ *       entity: { track_wrapper: { track: {...} } } }] }
+ * 只有 `has_more`、**没有游标** ⇒ 想持续拉就得**换种子**（见 takeFromContext）。
+ */
+function pickTrackFromItem(it) {
+  if (!it || typeof it !== 'object') return null;
+  const t = (it.entity && it.entity.track_wrapper && it.entity.track_wrapper.track)
+    || it.track_wrapper && it.track_wrapper.track
+    || it.track
+    || (it.entity && it.entity.track)
+    || null;
+  return (t && t.id) ? t : null;
+}
+
+/** 已经从「按种子推荐」给出去过的歌（按顺序），用来告诉服务端「这些我听过了」 */
+const relatedGiven = [];
+const RELATED_GIVEN_MAX = 120;
+
+async function lunaRelatedTracks(seedIds, dump) {
+  const ids = (seedIds || []).filter(Boolean).slice(0, 8).map(String);
+  if (!ids.length) return null;
+  const body = { track_ids: ids };
+  // `played_media`（客户端 asar 的 media.MediaPlayed）：把已经给出去过的歌报上去，
+  // 服务端据此换一批新的 —— 只回 has_more 没有游标，这是唯一能「翻页」的手段。
+  if (relatedGiven.length) {
+    body.played_media = relatedGiven.slice(-50).map((id) => {
+      const t = CATALOG.tracks.get(id);
+      return { media_id: String(id), type: 'track', played_mills: 0, duration: (t && t.duration) || 0 };
+    });
+  }
+  const j = await rpcPost('/luna/track/related', body);
+  const items = (j && Array.isArray(j.items)) ? j.items : [];
+  const tracks = [];
+  for (const it of items) {
+    const t = pickTrackFromItem(it);
+    if (t) tracks.push(normTrack(t));
+  }
+  if (dump && !tracks.length) {
+    diagAdd({
+      at: new Date().toISOString(), event: 'relatedTracks-unparsed',
+      seeds: ids, played: (body.played_media || []).length, status_code: j && j.status_code,
+      keys: j ? Object.keys(j) : null,
+      shape: j ? JSON.stringify(j).slice(0, 2000) : null,
+    });
+  }
+  return { tracks, hasMore: !!(j && j.has_more), count: items.length };
+}
+
+/**
+ * 从「当前这首曲目所属的歌单」里挑还没给出去过的歌。
+ * 拿不到上下文（索引没建好 / 这首歌不在任何歌单里）就返回空，调用方落回通用推荐流。
+ * 给出去的会记进 feedPool.seen，并顺手从待发队列里摘掉，保证同一次会话内不重复。
+ *
+ * 返回里带一个 `info`，说明这次为什么走上/没走上歌单 —— 续播出问题时全靠它定位，
+ * 设 `SODA_DIAG=1` 后会写进 paths.data/diag.json（见 diagAdd）。
+ */
+async function takeFromContext(seedId, n) {
+  const info = {
+    ready: ctxReady(),
+    indexSize: ctxIndex.bySong ? ctxIndex.bySong.size : 0,
+    building: !!ctxIndex.building,
+    hit: [],
+    reason: '',
+  };
+  if (!info.ready) {
+    touchContextIndex();                       // 顺手把它催起来，下一次就成了
+    info.reason = '索引未就绪';
+    return { songs: [], name: '', info };
+  }
+  const plIds = ctxIndex.bySong.get(String(seedId));
+  if (!plIds || !plIds.length) {
+    if (stickyCtx.plIds.length && Date.now() - stickyCtx.at < STICKY_TTL) {
+      // 当前这首歌已经不是歌单里的了（比如上一轮 related 补进来的）——
+      // 沿用上一次的上下文，风格才不会被切断。
+      info.hit = stickyCtx.names;
+      info.sticky = true;
+      info.reason = '当前歌不在歌单里，沿用上一次的上下文';
+      return await serveFromPlaylists(stickyCtx.plIds, seedId, n, '', info);
+    }
+    info.reason = '这首歌不在任何已收录的歌单里';
+    return { songs: [], name: '', info };
+  }
+  stickyCtx.plIds = plIds;
+  stickyCtx.at = Date.now();
+  stickyCtx.names = plIds.map(id => (CATALOG.playlists.find(p => p.id === id) || {}).name).filter(Boolean);
+  info.hit = stickyCtx.names;
+  return await serveFromPlaylists(plIds, seedId, n, '', info);
+}
+
+/**
+ * 续播的主体：先从歌单的静态曲目里取，取完再用**歌单里的歌当种子**调
+ * `/luna/track/related` 拉同风格的歌。
+ *
+ * 种子**每轮随机抽**（不从同一处拿）—— 因为 related 接口只回 `has_more`、没有游标，
+ * 用固定种子只会每次要回同一批，被去重集合一挡就再也给不出新歌。随机抽能保证
+ * 每轮落在歌单风格的不同邻域里，于是能一直续下去；同时把「当前正在播的歌」也塞进去
+ * 当锚点，保证跟着当下的听感走。
+ */
+async function serveFromPlaylists(plIds, seedId, n, usedName, info) {
+  const out = [];
+  const take = (t) => {
+    const id = String(t.id);
+    if (feedPool.seen.has(id)) return false;
+    feedPool.seen.add(id);
+    const qi = feedPool.q.findIndex(x => String(x.id) === id);
+    if (qi >= 0) feedPool.q.splice(qi, 1);
+    out.push(t);
+    return true;
+  };
+
+  // 1) 歌单自带的曲目，优先
+  const pool = [];
+  for (const plId of plIds) {
+    const pl = CATALOG.playlists.find(p => p.id === plId);
+    if (!pl) continue;
+    let ts = [];
+    try { ts = await playlistTracks(pl); } catch (e) { continue; }
+    for (const t of ts) { pool.push(String(t.id)); if (out.length < n) take(t); }
+    if (out.length && !usedName) usedName = pl.name;
+    if (out.length >= n) break;
+  }
+  info.pool = pool.length;
+
+  // 2) 歌单取完 → 按种子拉同风格的歌。**多轮换种子**：一次 related 只回十几个 item，
+  //    而且用同一批种子要回来的基本是同一批（会被去重挡掉），所以每轮都重新随机抽种子。
+  //
+  //    种子池分两层：
+  //      · origPool  —— 歌单自带的曲目。每轮固定占一半，**风格锚定在歌单上**，不会越漂越远。
+  //      · grownPool —— 加上 related 长出来的新歌。另一半从这儿抽，池子才会自我增长；
+  //                     只用 origPool 的话，抽几轮就全是重复的，续播第二次就枯竭。
+  if (out.length < n) {
+    const origPool = [...new Set(pool)];
+    const grownPool = new Set(origPool);
+    const anchor = /^\d{1,32}$/.test(String(seedId || '')) ? String(seedId) : '';
+    let rounds = 0, fetched = 0, hasMore = false, used = 0, dry = 0;
+    while (out.length < n && rounds < 14 && origPool.length) {
+      rounds += 1;
+      const seeds = anchor ? [anchor] : [];
+      const draw = (arr, want, avoid) => {
+        let guard = 0;
+        while (seeds.length < want && guard < 40) {
+          guard += 1;
+          const pick = arr[Math.floor(Math.random() * arr.length)];
+          if (!avoid.includes(pick)) { avoid.push(pick); seeds.push(pick); }
+        }
+      };
+      const picked = [];
+      draw(origPool, 2, picked);                                  // 锚定：1 首歌单原曲（+anchor）
+      draw([...grownPool], 3, picked);                            // 再补 1 首，让邻域能往外跳
+      if (!seeds.length) break;
+      try {
+        const r = await lunaRelatedTracks(seeds, rounds === 1);
+        if (!r || !r.tracks.length) break;
+        fetched += r.tracks.length;
+        hasMore = r.hasMore;
+        let got = 0;
+        for (const t of r.tracks) {
+          grownPool.add(String(t.id));
+          if (out.length >= n) break;
+          if (take(t)) {
+            got += 1;
+            used += 1;
+            relatedGiven.push(String(t.id));
+            if (relatedGiven.length > RELATED_GIVEN_MAX) relatedGiven.shift();
+          }
+        }
+        if (!got) { dry += 1; if (dry >= 3) break; } else { dry = 0; }
+      } catch (e) {
+        info.related = { error: (e && e.message) || String(e) };
+        break;
+      }
+    }
+    if (rounds) info.related = { rounds, fetched, used, hasMore, pool: origPool.length, grown: grownPool.size };
+    if (used && !usedName) usedName = stickyCtx.names[0] || '（同类推荐）';
+  }
+
+  if (!out.length) info.reason = info.reason || '这个歌单里已经给不出新歌了';
+  return { songs: out, name: usedName, info };
+}
+
+/**
+ * 续播决策的落盘记录。
+ * 模组日志只发给渲染端、**不落盘**，而「续播为什么没跟上歌单」光看界面看不出来。
+ * 所以把每次 /api/feed 的决策写进 paths.data/diag.json（最近 40 条），出问题直接读文件。
+ * **默认关闭**（每次写盘不值得常开）：设环境变量 `SODA_DIAG=1` 才启用 —— 排查时打开即可。
+ * 诊断本身绝不能影响功能 —— 所有失败都吞掉。
+ */
+const DIAG_ON = process.env.SODA_DIAG === '1';
+const DIAG = [];
+function diagAdd(rec) {
+  if (!DIAG_ON) return;
+  try {
+    DIAG.push(rec);
+    if (DIAG.length > 40) DIAG.shift();
+    fs.writeFileSync(path.join(dataDir(), 'diag.json'), JSON.stringify(DIAG, null, 1));
+  } catch (e) { /* 写不了就算了 */ }
 }
 
 // ============================================================ 目录缓存
@@ -1094,7 +1452,7 @@ async function refreshCatalog(force) {
       if (rec.length) log('推荐歌单 ' + rec.length + ' 个');
     } catch (e) { log('推荐歌单失败: ' + e.message); }
     try {
-      const sq = await fetchPlaylistSquare(10);   // 歌单广场：只取 10 个，刷新时整体替换
+      const sq = await fetchPlaylistSquare();   // 歌单广场：翻页去重合并，刷新时整体替换
       for (const p of sq) {
         pls.push({ id: 'pl_' + p.id, name: p.name, count: p.count, cover: p.cover, srcId: p.id, tracks: null, square: true });
       }
@@ -1117,6 +1475,8 @@ async function refreshCatalog(force) {
     CATALOG.playlists = pls;
     CATALOG.loadedAt = Date.now();
     prewarmFeed();   // 预热推荐流池（后台，不等待）
+    // 「歌 → 歌单」反查索引：等几秒再建，别和刚结束的目录刷新抢签名请求；同样不等待
+    setTimeout(() => { try { touchContextIndex(); } catch (e) { } }, 8000);
     log('目录已刷新：' + CATALOG.tracks.size + ' 曲 / ' + CATALOG.albums.size + ' 专辑 / ' + CATALOG.artists.size + ' 歌手 / ' +
       pls.length + ' 歌单，用时 ' + ((Date.now() - t0) / 1000).toFixed(1) + 's');
   })().finally(() => { CATALOG.loading = null; });
@@ -1350,6 +1710,29 @@ function metaToTrack(m) {
   };
 }
 
+/**
+ * 曲目元信息，**不下载音频**。曲库里没有这条（刚启动 / 目录还没刷完）时 getSong 用它兜底 ——
+ * 以前兜底走 ensureAudio()，等于为了返回一个标题就把整首无损下载解密一遍，
+ * 重启后第一首歌要等十几秒，宿主的歌词 / 封面请求先超时。
+ */
+async function ensureTrackMeta(trackId) {
+  trackId = safeTrackId(trackId);
+  const known = CATALOG.tracks.get(String(trackId));
+  if (known) return known;
+  const metaFile = path.join(cacheDir(), trackId + '.json');
+  if (fs.existsSync(metaFile)) {
+    try { return metaToTrack(JSON.parse(fs.readFileSync(metaFile, 'utf8'))); } catch (e) { }
+  }
+  await waitReady(20000);
+  const { track } = await trackV2(trackId);
+  return metaToTrack({
+    id: String(trackId), name: track.name,
+    artists: (track.artists || []).map(a => a.name), artistIds: (track.artists || []).map(a => String(a.id)),
+    album: (track.album && track.album.name) || '', albumId: String((track.album && track.album.id) || ''),
+    cover: rawCoverOf(track), duration: track.duration || 0,
+  });
+}
+
 const ROUTES = {
   ping: async () => ({}),
   getLicense: async () => ({ license: { valid: true } }),
@@ -1414,7 +1797,7 @@ const ROUTES = {
   getSong: async (q) => {
     await refreshCatalog();
     let t = CATALOG.tracks.get(q.id);
-    if (!t) { t = metaToTrack(await ensureAudio(q.id)); catalogAdd(t); }
+    if (!t) { t = await ensureTrackMeta(q.id); catalogAdd(t); }
     return { song: songOf(t) };
   },
 
@@ -1547,14 +1930,14 @@ const ROUTES = {
     let t = [...CATALOG.tracks.values()].find(x => x.name === q.title && x.artists.join('/').includes(q.artist || '')) ;
     const id = q.id || (t && t.id);
     if (!id) return { lyrics: { artist: q.artist || '', title: q.title || '', value: '' } };
-    const m = await ensureAudio(id);
+    const m = await ensureLyricMeta(id);
     // 经典 Subsonic 的 value 是纯文本，Folia 会自查格式（detectTimedLyricFormat 认得 enhanced-lrc、
     // 不认得 krc）。所以这里给 enhanced-lrc：`[00:15.50]<00:15.50>肌<00:15.84>寒` —— 行级 + 逐字都能用。
     const en = enhancedLrcFrom(m.lyric);
     return { lyrics: { artist: (m.artists || []).join(' / '), title: m.name, value: en || lrcFrom(m.lyric) } };
   },
   getLyricsBySongId: async (q) => {
-    const m = await ensureAudio(q.id);
+    const m = await ensureLyricMeta(q.id);
     const s = krcToStructured(m.lyric);
     const sub = s.line.length ? s.line : openSubsonicLrc(m.lyric);
     const structuredLyrics = [{
@@ -1600,7 +1983,11 @@ const ROUTES = {
     if (id && id.startsWith(PH_PREFIX)) return sendPlaceholder(res, id.slice(PH_PREFIX.length), px);
     const f = path.join(cacheDir(), 'cover_' + md5(id + '@' + px) + '.jpg');
     if (fs.existsSync(f)) return sendImage(res, fs.readFileSync(f));
-    const t = CATALOG.tracks.get(id) || [...CATALOG.tracks.values()].find(x => x.albumId === id);
+    // ⚠️ 别对「完整 URL 形式的 id」做曲库查找：那是一次几百首的全表遍历，而按定义不可能命中。
+    // 墙上有几百张卡片同时请求封面时这段会被放大成明显的卡顿。
+    const isUrlId = /^https?:\/\//i.test(String(id || ''));
+    const t = isUrlId ? null
+      : (CATALOG.tracks.get(id) || [...CATALOG.tracks.values()].find(x => x.albumId === id));
     // 只认「曲目自带的封面」或「白名单 CDN 上的链接」；其它一律走占位图，绝不代发请求
     const base = (t && t.cover) || (isAllowedCoverUrl(id) ? id : '');
     if (!base) return sendPlaceholder(res, coverLabel(id), px);
@@ -1614,7 +2001,9 @@ const ROUTES = {
         const b2 = await getBuf(base);
         fs.writeFileSync(f, b2);
         return sendImage(res, b2);
-      } catch (e2) { return sendPlaceholder(res, coverLabel(id), px); }   // CDN 挂了也别破图
+      } catch (e2) {
+        return sendPlaceholder(res, coverLabel(id), px);   // CDN 挂了也别破图
+      }
     }
   },
   stream: async (q, res, reqObj) => {
@@ -1841,7 +2230,7 @@ const server = http.createServer(async (rq, rs) => {
   if (u.pathname === '/' || u.pathname === '/index.html') {
     if (!tokenOk(rq, q)) {
       rs.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
-      return rs.end('需要令牌：请在模组日志里打开带 ?token=… 的地址');
+      return rs.end('需要令牌：令牌只经 rpc 交给模组前端，不写日志、也不进对外 URL');
     }
     rs.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return rs.end(UI_HTML);
@@ -1858,19 +2247,66 @@ const server = http.createServer(async (rq, rs) => {
   // 最多等 10 秒，等不到就照常处理，不把请求挂死。
   if (u.pathname.startsWith('/rest/')) await waitReady(10000);
 
+  if (u.pathname === '/api/context') {
+    // 诊断用：当前这首歌反查出来属于哪些歌单（续播会跟着第一个走）。
+    // 顺手在索引不就绪时触发一次后台构建 —— 用户执行「无限续播状态」就能把它催起来。
+    const ready = ctxReady();
+    const playlists = [];
+    if (ready && q.song) {
+      for (const id of (ctxIndex.bySong.get(String(q.song)) || [])) {
+        const pl = CATALOG.playlists.find(p => p.id === id);
+        if (pl) playlists.push({ id: pl.id, name: pl.name });
+      }
+    }
+    if (!ready) touchContextIndex();
+    const body = JSON.stringify({
+      ok: true, ready,
+      indexSize: ctxIndex.bySong ? ctxIndex.bySong.size : 0,
+      building: !!ctxIndex.building,
+      playlists,
+    });
+    rs.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) });
+    return rs.end(body);
+  }
+
   if (u.pathname === '/api/feed') {
     // 给模组的「无限续播」用：每次返回一批全新的推荐（池子是 splice 式的，天然不重复）
+    //
+    // `song=<当前曲目 id>`（可选）：**续播跟着当前歌单走**。
+    //   先给「这首歌所属歌单」里还没给出去过的歌，不够再从通用推荐流补。
+    //   拿不到上下文（索引还没建好 / 这首不在任何歌单里）时行为与以前完全一致，就是纯推荐流。
     let out;
     try {
       const n = parseInt(q.n || '60', 10) || 60;
-      const ts = await fetchFeedN(n);
+      let ts = [];
+      let source = '';
+      let info = null;
+      if (q.song) {
+        const got = await takeFromContext(String(q.song), n);
+        ts = got.songs;
+        source = got.name;
+        info = got.info;
+        log('续播上下文 seed=' + q.song + ' → ' +
+          (info.hit.length ? '「' + info.hit.join(' / ') + '」' : info.reason) +
+          '，给出 ' + ts.length + ' 首');
+      }
+      const rest = n - ts.length;
+      if (rest > 0) ts = ts.concat(await fetchFeedN(rest));
       out = {
-        ok: true, count: ts.length,
+        ok: true, count: ts.length, source,
         songs: ts.map(t => ({
           id: t.id, name: t.name, artists: t.artists || [], album: t.album || '',
           cover: t.cover || '', duration: t.duration || 0,
         })),
       };
+      diagAdd({
+        at: new Date().toISOString(), n,
+        seed: q.song ? String(q.song) : null,
+        source: source || null, got: ts.length,
+        indexSize: ctxIndex.bySong ? ctxIndex.bySong.size : 0,
+        building: !!ctxIndex.building,
+        info,
+      });
     } catch (e) { out = { ok: false, error: e.message, count: 0, songs: [] }; }
     const body = JSON.stringify(out);
     rs.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) });
@@ -1902,7 +2338,7 @@ const server = http.createServer(async (rq, rs) => {
   if (u.pathname === '/api/lyrics') {
     let out;
     try {
-      const m = await ensureAudio(q.id);
+      const m = await ensureLyricMeta(q.id);
       const raw = m.lyric || '';
       const isKrc = /^\[\d+,\d+\]/m.test(raw);
       out = { ok: !!raw, format: isKrc ? 'krc' : 'lrc', text: raw, title: m.name, artist: (m.artists || []).join(' / ') };
@@ -1976,6 +2412,16 @@ const server = http.createServer(async (rq, rs) => {
  *   opts.forceSessionSync 强制重新从汽水客户端提取登录态。
  */
 async function start(opts = {}) {
+  /**
+   * 嵌入宿主时**不认环境变量**（维护者审查意见）：`HOST=0.0.0.0` 会把服务暴露到局域网，
+   * `SUB_PASS` 会把数据面密码变成可猜的固定值，`SODA_NATIVE_DIR` 能把原生模块目录指到任意位置。
+   */
+  if (opts.embedded) {
+    EMBEDDED = true;
+    HOST = '127.0.0.1';
+    PORT = 4533;
+    SECRET = '';
+  }
   sweepTempCookies();
   // 路径：优先用宿主给的 getter（Folium 1.5+）；否则退回 opts.dataDir（独立运行 / 旧宿主）
   if (opts.resolvePaths) {
@@ -2007,8 +2453,16 @@ async function start(opts = {}) {
     server.listen(PORT, HOST, () => { server.removeListener('error', onErr); resolve(); });
   });
   log('就绪 → http://' + HOST + ':' + PORT);
-  log('Folia 里填：Navidrome 服务器 http://' + HOST + ':' + PORT + '　用户名 ' + USER + '　密码 ' + SECRET);
-  log('设置页（带令牌，仅本机可开）：http://' + HOST + ':' + PORT + '/?token=' + TOKEN);
+  if (EMBEDDED) {
+    // 维护者审查意见：日志里**不打** `/rest` 密码、也不打带令牌的设置页地址 ——
+    // 嵌进宿主后这份日志会进模组面板，还经常被用户整段贴到 issue 里。
+    // 密码在数据目录的 auth.json（模组会自动写进宿主的 Navidrome 配置），令牌只经 rpc 给模组前端。
+    log('Folia 里填：Navidrome 服务器 http://' + HOST + ':' + PORT + '　用户名 ' + USER + '　密码 ******（已自动写入宿主，见数据目录 auth.json）');
+    log('设置页：http://' + HOST + ':' + PORT + '/ （需启动令牌，令牌只经 rpc 交给模组前端，不写日志）');
+  } else {
+    log('Folia 里填：Navidrome 服务器 http://' + HOST + ':' + PORT + '　用户名 ' + USER + '　密码 ' + SECRET);
+    log('设置页（带令牌，仅本机可开）：http://' + HOST + ':' + PORT + '/?token=' + TOKEN);
+  }
 
   // ---- 后台初始化 ------------------------------------------------------------
   // 顺序不能乱：原生签名器 → 设备身份 → 登录态 → 曲库。每一步失败都只记日志，

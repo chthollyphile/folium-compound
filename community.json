@@ -129,10 +129,11 @@
       "submission": 32,
       "source": "https://github.com/syh0119/folia-soda-music",
       "path": "",
-      "commit": "d7b50e24811ebaeb49c479efdc032a180eac88f8",
-      "version": "2.2.1",
+      "commit": "acd3e584e124ccc2ffdee5d13243c4ea2e2c52d1",
+      "version": "2.3.2",
       "addedAt": "2026-10-17",
-      "updatedAt": "2026-10-17"
+      "updatedAt": "2026-10-17",
+      "lastIssue": 42
     },
     "spectrum-visualizer": {
       "owners": [
