@@ -122,6 +122,18 @@
       "addedAt": "2026-09-25",
       "updatedAt": "2026-09-25"
     },
+    "miside-drop": {
+      "owners": [
+        "baiyangmuzz"
+      ],
+      "submission": 45,
+      "source": "https://github.com/baiyangmuzz/miside-drop",
+      "path": "",
+      "commit": "d52c8f007d618f422f3a2bb79fda18b5fda8ccea",
+      "version": "2.5.2",
+      "addedAt": "2026-10-17",
+      "updatedAt": "2026-10-17"
+    },
     "soda-music": {
       "owners": [
         "syh0119"

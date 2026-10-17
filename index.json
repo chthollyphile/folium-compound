@@ -238,6 +238,24 @@
       "sourceCommit": "b33fa291b5e6a5ad65182dc4b35d036e6852de9d"
     },
     {
+      "id": "miside-drop",
+      "name": "MiSide 立体掉落歌词",
+      "version": "2.5.2",
+      "author": "baiyangmuzz",
+      "description": "MiSide 风格歌词动画：打字机逐字浮现，整句说完后整行坠落到地面，停留后淡出。带灰阶立体挤出、重力与触地反弹。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/miside-drop",
+      "digest": "sha256:fd4a3554694a6d2d328592f8f766d71479d9cba799c58f5fd9f0b3c7c50d8588",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-17T18:18:43.332Z",
+      "owners": [
+        "baiyangmuzz"
+      ],
+      "source": "https://github.com/baiyangmuzz/miside-drop",
+      "sourceCommit": "d52c8f007d618f422f3a2bb79fda18b5fda8ccea"
+    },
+    {
       "id": "spectrum-visualizer",
       "name": "频谱可视化",
       "version": "0.3.3",

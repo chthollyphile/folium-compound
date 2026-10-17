@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "miside-drop",
+  "modVersion": "2.5.2",
+  "digest": "sha256:fd4a3554694a6d2d328592f8f766d71479d9cba799c58f5fd9f0b3c7c50d8588",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-17T18:18:43.332Z",
+  "signature": "mroLdqCJb1PN79M//uu/27kEW4D0WjHuGRhy0/PYpNTHOswe0uWSi9A/hMeWZBVQsM1Z0jOWAT9peCLW1nbeBw=="
+}
