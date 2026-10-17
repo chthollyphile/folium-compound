@@ -98,6 +98,18 @@
       "addedAt": "2026-09-29",
       "updatedAt": "2026-09-29"
     },
+    "lyric-style-switcher": {
+      "owners": [
+        "Huaq520"
+      ],
+      "submission": 21,
+      "source": "https://github.com/Huaq520/lyric-style-switcher",
+      "path": "",
+      "commit": "09372321945806a844fc1caff70145b27addb10d",
+      "version": "1.2.1",
+      "addedAt": "2026-10-17",
+      "updatedAt": "2026-10-17"
+    },
     "lyrics-list": {
       "owners": [
         "chthollyphile"

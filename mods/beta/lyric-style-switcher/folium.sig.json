@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "lyric-style-switcher",
+  "modVersion": "1.2.1",
+  "digest": "sha256:90d0afed8b454e1cd22a6d6fc06e67666d777fb1f00632f5adb7e2b1a0c355e2",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-17T10:32:30.688Z",
+  "signature": "rUGaQPYnuX8S/oSZdxjGF2iAAwgYyfHtpkoGzk92MQETuKaJNQZCPyUAgF2/c4UYE6GLE/2fLdPYS9POEQyJAQ=="
+}

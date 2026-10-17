@@ -292,6 +292,24 @@
       "sourceCommit": "57883a250a7c88af0da1bf9d52629d8bac7bd18d"
     },
     {
+      "id": "lyric-style-switcher",
+      "name": "智能歌词样式切换",
+      "version": "1.2.1",
+      "author": "Huaq520",
+      "description": "把“随机”添加到歌词动画模式列表末尾；从 Folia 的全部官方和第三方歌词动画中随机选择，并支持每首歌随机、固定随机和本地记忆。进入本模组随机时会提示并关闭宿主的同名随机开关。",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/lyric-style-switcher",
+      "digest": "sha256:90d0afed8b454e1cd22a6d6fc06e67666d777fb1f00632f5adb7e2b1a0c355e2",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-10-17T10:32:30.688Z",
+      "owners": [
+        "Huaq520"
+      ],
+      "source": "https://github.com/Huaq520/lyric-style-switcher",
+      "sourceCommit": "09372321945806a844fc1caff70145b27addb10d"
+    },
+    {
       "id": "soda-music",
       "name": "汽水音乐",
       "version": "2.2.1",
