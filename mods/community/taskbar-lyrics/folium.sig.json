@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "taskbar-lyrics",
+  "modVersion": "1.0.3",
+  "digest": "sha256:7ca08b3ee6161ae86b426240b5da7d55a33cc8056e3046e0514314a3b56e110e",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-17T05:45:00.095Z",
+  "signature": "NPmMywinzPRCkRlWam0ckJIBL8HJ4E1i05I1iEsOyYeiTwDaUSg3GevIRFJKif+KZ8QTze5+S/G5U1F2NZFvDg=="
+}

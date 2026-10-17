@@ -109,6 +109,18 @@
       "version": "0.3.3",
       "addedAt": "2026-09-28",
       "updatedAt": "2026-09-28"
+    },
+    "taskbar-lyrics": {
+      "owners": [
+        "moneker"
+      ],
+      "submission": 27,
+      "source": "https://github.com/moneker/folium-taskbar-lyrics",
+      "path": "",
+      "commit": "eeaa209db28d69f14eae3df5084a5186e4d1e991",
+      "version": "1.0.3",
+      "addedAt": "2026-10-17",
+      "updatedAt": "2026-10-17"
     }
   }
 }
