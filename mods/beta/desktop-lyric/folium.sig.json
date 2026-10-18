@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "desktop-lyric",
+  "modVersion": "1.0.1",
+  "digest": "sha256:b89a642d95a350044da336941693351cd6176b2491bfd020428faaef902f8dac",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-18T12:50:55.125Z",
+  "signature": "jytPC7LybKtzKh5OEfkAr4HoCNV6VIUE0Jntij6l3e88aqvdTr3KAYAagzAofEhuniO5irsaWUsZKDZby20VCw=="
+}

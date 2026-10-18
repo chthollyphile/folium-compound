@@ -37,6 +37,18 @@
       "addedAt": "2026-09-28",
       "updatedAt": "2026-09-28"
     },
+    "desktop-lyric": {
+      "owners": [
+        "aming2778"
+      ],
+      "submission": 43,
+      "source": "https://github.com/aming2778/folia-desktop-lyric",
+      "path": "desktop-lyric",
+      "commit": "a379272fe7af9177e62d7249401eac02b3f4eb33",
+      "version": "1.0.1",
+      "addedAt": "2026-10-18",
+      "updatedAt": "2026-10-18"
+    },
     "enhanced-remote-widget": {
       "owners": [
         "hoangmaituan882-hue"
