@@ -130,10 +130,11 @@
       "submission": 45,
       "source": "https://github.com/baiyangmuzz/miside-drop",
       "path": "",
-      "commit": "d52c8f007d618f422f3a2bb79fda18b5fda8ccea",
-      "version": "2.5.2",
+      "commit": "a9d5b1b5b52527e26fa1a8ef1be2e7b08fd3bda8",
+      "version": "2.5.3",
       "addedAt": "2026-10-17",
-      "updatedAt": "2026-10-17"
+      "updatedAt": "2026-10-18",
+      "lastIssue": 47
     },
     "soda-music": {
       "owners": [
