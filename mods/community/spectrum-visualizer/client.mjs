@@ -1,6 +1,6 @@
 // mods/spectrum-visualizer/client.mjs
 //
-// Folium 1.2+ 播放页图层模组（stageLayer）。
+// Folium 1.6 播放页图层模组（stageLayer）。
 // 把原 spectrum-viewer 项目（viewer.js + viewer.css）的频谱显示逻辑做成
 // Folia 播放页上的一个独立小组件：左下角（被挡时自动避让）的紧凑频谱卡，不占歌词区。
 //
@@ -11,15 +11,17 @@
 //     依据是 Folia 自己拿 Math.floor(freq / 21.5) 索引频谱数组划分频段，21.5 Hz/格）
 //   · 自动避让：命中测试宿主元素，撞上"下一首预告"等遮挡时自动换位
 //   · 可选背景透明：去掉卡片底色 / 毛玻璃 / 描边，只留频谱柱与读数
-//   · 音频走 ctx.audio（getPower / getSpectrum，Folium 1.2+）
+//   · 音频走 ctx.audio（getPower / getSpectrum）
 //
 // 与 visualizer 的区别：stageLayers 是播放页的叠加图层（歌词之上、控件之下，
-// slot 'player.stage.front'），mount 只收 container（ctx 可能有也可能没有），
-// 容器默认点击穿透 —— 纯显示组件正好。
+// slot 'player.stage.front'），mount 的 ctx 是 FoliumStageContext，容器默认点击穿透。
 //
-// 渲染驱动：官方文档明确"音频数值每帧刷新、无事件通知，需在帧循环里主动读取"，
-// 所以这里用 requestAnimationFrame 自驱循环（visualizer 用歌钟是因为它要跟歌词；
-// 频谱是连续信号，rAF 更自然，也顺带兼容 mount 不给 ctx 的情况）。
+// 声明方式（Folium 1.6，Folia >= 0.7.21）：帧循环、定时器一律走 ctx 的 onFrame / every ——
+// 宿主在 mount 结束时自动停掉它们，不用（也不该）自己养 rAF / setInterval。
+// 设置值从 settingsSections 句柄的 `handle.settings`（FoliumSettingAccess）读取，
+// 不再用 1.5 及更早的 `handle.params`（Folium 2 起移除）。
+// mod.json 已声明 `"folia": ">=0.7.21"`，更老的宿主会被宿主自己拦下并提示升级，
+// 所以这里不做版本探测、也不留旧 API 的兜底。
 
 const BARS = 48;
 
@@ -74,24 +76,36 @@ const computeTopBin = (specLen, sampleRate) => {
    播放页小组件 mount
    ============================================================ */
 
-const mountStageWidget = (settings, container, ctx, logger) => {
-  /* ctx / audio 都是可选的（sample-rickroll 的 mount 只收 container），
-     全部做防御式访问：拿不到就画空闲底座、读数显示 n/a。 */
-  const audio = ctx && ctx.audio ? ctx.audio : null;
-  const getAudio = () => (ctx && ctx.audio ? ctx.audio : audio);
+/* app.viewChanged 的当前视图。只有 'player' 才做避让扫描：
+   首页（包括"主页半透明、播放页垫在下面"的情况）上，采样点命中的是首页的
+   卡片 / 模糊层，永远找不到干净位，扫描纯属白烧主线程。 */
+let appView = 'player';
+let notifyViewBack = null;   // 由 mount 填：回到播放页时立即补扫一次
+
+const mountStageWidget = (section, container, ctx, logger) => {
+  /* 设置值：1.6 的 settingsSections 句柄把 FoliumSettingAccess 放在 `.settings`
+     （1.5 及更早叫 `.params`，Folium 2 移除；本版本不再读旧名）。values 在值变化前是同一个对象。 */
+  const values = section.settings;
+  const opts = () => values.get();
+
+  /* ctx.audio：宿主的音频分析器（Folium 1.2+；本模组最低 1.6，恒存在）。 */
+  const getAudio = () => ctx.audio;
+
+  /* 首页期间不扫描，切回播放页时补一次定位。 */
+  const onViewBack = () => schedulePlace(true);
+  notifyViewBack = onViewBack;
 
   /* 走宿主的日志通道（落到 %APPDATA%\Folia\logs）：避让挪位、采样率兜底各记一行，
-     出问题时可以直接看日志，不用猜。 */
+     出问题时可以直接看日志。 */
   const log = (msg) => {
     try { if (logger && typeof logger.info === 'function') logger.info(msg); } catch (_) {}
   };
 
   /* 宿主不给采样率，靠设置项假定；峰值频率与频率轴都从这里取值。
-     填多少用多少，非正值退回 DEFAULT_SR —— 生效值只写一行日志，方便核对
-     （宿主会把 number 型设置项写歪，日志里能看出实际吃进去的是哪个数）。 */
+     填多少用多少，非正值退回 DEFAULT_SR —— 生效值只写一行日志，方便核对。 */
   let lastSr = -1;
   const sampleRate = () => {
-    const v = Number(settings.params.get().sampleRate);
+    const v = Number(opts().sampleRate);
     const sr = v > 0 ? v : DEFAULT_SR;
     if (sr !== lastSr) {
       lastSr = sr;
@@ -146,8 +160,7 @@ const mountStageWidget = (settings, container, ctx, logger) => {
   const sg = canvas.getContext('2d');
   const axisEl = shell.querySelector('.sv-axis');
   /* ⚠️ 选择器注意：data-meter 挂在承载数值的 <span> 自己身上（单位 <small> 是兄弟节点），
-     写成 [data-meter="x"] strong 这类带祖先/后代的组合会取到 null
-     （0.1.0 就是在这里崩的），一律用属性选择器直接取。 */
+     写成 [data-meter="x"] strong 这类带祖先/后代的组合会取到 null*/
   const powerEl = shell.querySelector('[data-meter="power"]');
   const peakEl = shell.querySelector('[data-meter="peak"]');
 
@@ -156,7 +169,7 @@ const mountStageWidget = (settings, container, ctx, logger) => {
   /* ---- 外观：背景透明开关（每帧读一次设置，值变了才写样式） ---- */
   let transparentSkin = null;
   const applySkin = () => {
-    const on = settings.params.get().transparentBg === true;
+    const on = opts().transparentBg === true;
     if (on === transparentSkin) return;
     transparentSkin = on;
     shell.style.background = on ? 'transparent' : 'rgba(8,12,9,.42)';
@@ -167,10 +180,15 @@ const mountStageWidget = (settings, container, ctx, logger) => {
   };
   applySkin();
 
-  /* ---- 高 DPI 适配 ---- */
+  /* ---- 高 DPI 适配 ----
+     CSS 尺寸缓存在这里，paint() 每帧直接用 —— 不在帧循环里读 clientWidth/Height，
+     避免把宿主拖动时整棵 DOM 的布局回算拽进帧循环。 */
+  let viewW = 0, viewH = 0;
   const resize = () => {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
+    viewW = rect.width;
+    viewH = rect.height;
     const d = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.max(1, Math.round(rect.width * d));
     canvas.height = Math.max(1, Math.round(rect.height * d));
@@ -193,8 +211,9 @@ const mountStageWidget = (settings, container, ctx, logger) => {
           以及不可见元素，剩下的"紧凑块"才算遮挡物；
        3) 默认位（左下角）被挡 → 按候选序列（左下 → 逐级上移 → 左上 →
           右侧同样两档）挑第一个 0 命中的位置；
-       4) 400 ms 轮询 + 容器 ResizeObserver + container 子树 childList 变化
-          即时重算；连续两轮被挡才挪（≈ 800 ms），挪完 1.2 s 冷却，
+       4) 400 ms 基准轮询（一个干净位都找不到时指数退避到 4 s）+ 容器
+          ResizeObserver + container 子树 childList 变化即时重算；连续两轮
+          被挡才挪（≈ 800 ms），挪完 1.2 s 冷却，
           避免歌词逐句刷新时来回跳。
      ============================================================ */
   const AVOID = {
@@ -205,10 +224,14 @@ const mountStageWidget = (settings, container, ctx, logger) => {
     bottom: 20,
     step: 16,         // 逐级上移的步长（小步让位，观感更稳）
     maxLift: 200,     // 最多抬高多少 px：宁可略微压住，也不要让组件躲到很远的地方
-    interval: 400,    // 轮询间隔（ms）
+    interval: 400,    // 基准轮询间隔（ms）
+    retryMax: 4000,   // 找不到干净位时指数退避的上限（ms）
+    forcedGap: 120,   // urgent 重算（尺寸变化 / 切回播放页）的最小间隔（ms）
+    settle: 8000,     // 没有可用位置时的静默期（ms）
     bleedRatio: 0.6,  // 面积 ≥ 舞台 60% 的元素按背景层处理，不算遮挡
     minArea: 400,     // 小于 20×20 的元素忽略
-    cols: 4, rows: 3, // 采样点阵
+    cols: 4, rows: 3, // 候选位打分的点阵
+    coarseCols: 3, coarseRows: 2, // 判断「当前位置是否被挡」的稀疏点阵
     smoothBack: 3000, // 位置连续干净多久才考虑回到默认位
     cooldown: 1200,   // 两次挪位之间的最小间隔
   };
@@ -221,19 +244,20 @@ const mountStageWidget = (settings, container, ctx, logger) => {
     return null;
   })();
 
-  /* 采样点上的元素链。故意同时问 shadow root 与 document：
-     shadow DOM 里只有前者能看到兄弟层，document 那一层还能顺带发现外部浮层。 */
+  /* 采样点上的元素链：优先问 shadow root —— 图层在 ShadowRoot 里，只有它看得到兄弟层；
+     拿不到结果时才回落到 document 兜外部浮层。两者都问会让每次采样多一倍开销。 */
   const hitAt = (x, y) => {
-    const out = [];
     if (hitRoot) {
-      try { for (const n of hitRoot.elementsFromPoint(x, y)) out.push(n); } catch (_) {}
+      try {
+        const list = hitRoot.elementsFromPoint(x, y);
+        if (list && list.length) return list;
+      } catch (_) {}
     }
     try {
-      if (document.elementsFromPoint) {
-        for (const n of document.elementsFromPoint(x, y)) if (!out.includes(n)) out.push(n);
-      }
-    } catch (_) {}
-    return out;
+      return document.elementsFromPoint ? document.elementsFromPoint(x, y) : [];
+    } catch (_) {
+      return [];
+    }
   };
 
   /* node 是 container 自己或它的祖先吗（舞台根 / 播放器根都算，不算遮挡物）。 */
@@ -271,36 +295,125 @@ const mountStageWidget = (settings, container, ctx, logger) => {
     return node.tagName.toLowerCase() + (node.id ? '#' + node.id : '') + cls;
   };
 
-  /* 矩形被挡得多厉害：命中点越多越"挡"。0 = 干净。
-     out 传数组时顺带记下遮挡物描述，只用于日志诊断。 */
-  const scoreRect = (r, cRect, out) => {
+  /* 一个节点在一轮扫描内的只读快照。三个昂贵成员都按需求：
+       矩形 —— 先拿，面积过滤要用；
+       样式 —— 只有面积过关的节点才 getComputedStyle；
+       绘制 —— 只有可见、且不是容器祖先的节点才算。
+     旧写法拿到节点就一并求样式和 paints，结果给每个命中的小图标、
+     透明布局壳都做了一遍样式解析。 */
+  const nodeInfo = (node, cache) => {
+    let info = cache.get(node);
+    if (!info) {
+      let rect = null;
+      try { rect = node.getBoundingClientRect(); } catch (_) {}
+      info = { rect, cs: null, covers: null, paints: null };
+      cache.set(node, info);
+    }
+    return info;
+  };
+
+  const styleOf = (info, node) => {
+    if (info.cs === null) {
+      try { info.cs = window.getComputedStyle(node); } catch (_) { info.cs = false; }
+    }
+    return info.cs || null;
+  };
+
+  const paintOf = (info, node, cs) => {
+    if (info.paints === null) info.paints = paints(node, cs || styleOf(info, node));
+    return info.paints;
+  };
+
+  /* 一个采样点上有没有"真的挡住"的元素。顺序按代价排：
+     矩形 → 面积/背景层 → 样式 → 容器祖先 → 是否画了东西。 */
+  const blockerAt = (x, y, cache, stageArea, out, bg) => {
+    for (const node of hitAt(x, y)) {
+      if (!node || node.nodeType !== 1) continue;
+      if (node === shell || shell.contains(node)) continue;
+      if (bg && bg.has(node)) continue;
+      const info = nodeInfo(node, cache);
+      const nr = info.rect;
+      if (!nr || nr.width * nr.height < AVOID.minArea) continue;
+      if (stageArea > 0 && nr.width * nr.height >= stageArea * AVOID.bleedRatio) continue;
+      const cs = styleOf(info, node);
+      if (cs && (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0')) continue;
+      if (info.covers === null) info.covers = coversContainer(node);
+      if (info.covers) continue;
+      if (!paintOf(info, node, cs)) continue;   // 透明布局壳不算遮挡
+      if (out && out.length < 3) out.push(describe(node));
+      return true;
+    }
+    return false;
+  };
+
+  /* 矩形被挡得多厉害：命中点越多越"挡"，0 = 干净。
+     out 传数组时顺带记下遮挡物描述，只用于日志诊断。
+     coarse=true 用 3×2 稀疏点阵，只回答「是否被挡」。 */
+  const scoreRect = (r, cRect, out, cache, coarse, bg) => {
     if (!r.width || !r.height) return Number.MAX_SAFE_INTEGER;
     const stageArea = cRect.width * cRect.height;
-    const seen = new Set();
+    const cols = coarse ? AVOID.coarseCols : AVOID.cols;
+    const rows = coarse ? AVOID.coarseRows : AVOID.rows;
     let hits = 0;
-    for (let iy = 0; iy < AVOID.rows; iy += 1) {
-      for (let ix = 0; ix < AVOID.cols; ix += 1) {
-        const x = r.left + ((ix + 0.5) / AVOID.cols) * r.width;
-        const y = r.top + ((iy + 0.5) / AVOID.rows) * r.height;
+    for (let iy = 0; iy < rows; iy += 1) {
+      for (let ix = 0; ix < cols; ix += 1) {
+        const x = r.left + ((ix + 0.5) / cols) * r.width;
+        const y = r.top + ((iy + 0.5) / rows) * r.height;
+        if (blockerAt(x, y, cache, stageArea, out, bg)) hits += 1;
+      }
+    }
+    return hits;
+  };
+
+  /* 只用中心点判断"这个候选像不像干净的"：26 个候选 26 次命中测试。 */
+  const centerHits = (r, cRect, cache, bg) => {
+    const stageArea = cRect.width * cRect.height;
+    return blockerAt(r.left + r.width / 2, r.top + r.height / 2, cache, stageArea, null, bg) ? 1 : 0;
+  };
+
+  /* 背景装饰识别：海报渐变、阴影、暗角这类铺满舞台的层，会在几乎所有采样点上
+     出现。它们不是"挡住组件的 UI"，不该把组件推到别处 —— 先在舞台网格上探一遍，
+     出现率 ≥ 60% 的节点按背景忽略。每次扫描现算，布局变了自然跟着变。 */
+  const findBackground = (cRect) => {
+    const cols = 4, rows = 3;
+    const hits = new Map();
+    let points = 0;
+    for (let iy = 0; iy < rows; iy += 1) {
+      for (let ix = 0; ix < cols; ix += 1) {
+        points += 1;
+        const x = cRect.left + ((ix + 0.5) / cols) * cRect.width;
+        const y = cRect.top + ((iy + 0.5) / rows) * cRect.height;
+        const seen = new Set();
         for (const node of hitAt(x, y)) {
           if (!node || node.nodeType !== 1 || seen.has(node)) continue;
           seen.add(node);
           if (node === shell || shell.contains(node)) continue;
-          if (coversContainer(node)) continue;
-          const nr = node.getBoundingClientRect();
-          if (nr.width * nr.height < AVOID.minArea) continue;
-          if (stageArea > 0 && nr.width * nr.height >= stageArea * AVOID.bleedRatio) continue;
-          let cs = null;
-          try { cs = window.getComputedStyle(node); } catch (_) {}
-          if (cs && (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0')) continue;
-          if (!paints(node, cs)) continue;   // 透明布局壳不算遮挡
-          hits += 1;
-          if (out && out.length < 3) out.push(describe(node));
-          break;   // 一个采样点最多记一次
+          hits.set(node, (hits.get(node) || 0) + 1);
         }
       }
     }
-    return hits;
+    const bg = new Set();
+    const limit = points * 0.6;
+    for (const [node, n] of hits) {
+      if (n >= limit) bg.add(node);
+    }
+    return bg;
+  };
+
+  /* 挑候选位：先按中心点排序，再对最有希望的 4 个做 3×2 粗筛 + 4×3 复核。
+     返回第一个 0 命中的下标，没有则 -1。
+     全被挡时最坏约 26 + 4×6 = 50 次命中测试（原来 26×12 = 312 次）。 */
+  const pickSpot = (spots, cRect, cache, bg) => {
+    const order = spots
+      .map((sp, i) => ({ i, c: centerHits(sp, cRect, cache, bg) }))
+      .sort((a, b) => a.c - b.c || a.i - b.i);
+    const limit = Math.min(order.length, 4);
+    for (let k = 0; k < limit; k += 1) {
+      const i = order[k].i;
+      if (scoreRect(spots[i], cRect, null, cache, true, bg) !== 0) continue;
+      if (scoreRect(spots[i], cRect, null, cache, false, bg) === 0) return i;
+    }
+    return -1;
   };
 
   /* 候选位，按偏好排序：左下角默认位 → 同列每 AVOID.step 像素上移一格 → 右侧同样一列。
@@ -334,9 +447,12 @@ const mountStageWidget = (settings, container, ctx, logger) => {
   let blocked = 0;         // 连续被遮挡的轮数
   let cleanSince = 0;      // 当前位置连续干净的起点
   let cooldownUntil = 0;
-  let lastPlace = 0;
   let revealed = false;
   let legacyFix = false;
+  let nextScan = 0;        // 下一次允许扫描的时间
+  let lastForced = 0;      // 上一次 urgent 重算的时间
+  let lastSlowLog = 0;     // 慢扫描日志限速
+  let lastSettleLog = 0;   // 静默原因日志限速
 
   const reveal = () => {
     if (revealed) return;
@@ -345,9 +461,9 @@ const mountStageWidget = (settings, container, ctx, logger) => {
   };
   const revealTimer = setTimeout(reveal, 900);   // 兜底：算不出位置也得先显出来
 
-  const autoPlace = (now) => {
+  const autoPlace = (now, forced) => {
     /* 关掉自动避让 → 退回 0.2.x 的固定左下位。 */
-    if (settings.params.get().autoAvoid === false) {
+    if (opts().autoAvoid === false) {
       if (!legacyFix) {
         legacyFix = true;
         curDx = 0; curDy = 0; curIndex = -1;
@@ -366,6 +482,30 @@ const mountStageWidget = (settings, container, ctx, logger) => {
       shell.style.bottom = 'auto';
     }
 
+    /* 只在真正的播放页做避让。首页（尤其半透明主页）会把播放页垫在下面：
+       此时命中测试打到的是首页卡片和模糊层，一个干净位都找不到 —— 原来每个
+       400 ms 周期都要把 26 个候选全量重扫一遍，主线程就被这顿空转拖住了。 */
+    if (appView !== 'player') {
+      nextScan = now + AVOID.retryMax;
+      return;
+    }
+
+    /* 播放器面板展开、盖住舞台时不挪：挪了也看不见。 */
+    const display = typeof ctx.getDisplay === 'function' ? ctx.getDisplay() : null;
+    if (display && display.isPanelOpen) {
+      nextScan = now + AVOID.retryMax;
+      return;
+    }
+
+    /* urgent（容器尺寸变化 / 切回播放页）立即算；轮询与子树变化遵守 nextScan。
+       歌词逐句刷新都会改子树，不能每次都当成"必须立刻重扫"。 */
+    if (forced) {
+      if (now - lastForced < AVOID.forcedGap) return;
+      lastForced = now;
+    } else if (now < nextScan) {
+      return;
+    }
+
     const cRect = container.getBoundingClientRect();
     if (cRect.width < 160 || cRect.height < 100) return;   // 舞台还没量出来 / 太小，别折腾
 
@@ -373,44 +513,91 @@ const mountStageWidget = (settings, container, ctx, logger) => {
     const w = cur.width, h = cur.height;
     if (w < 60 || h < 40) return;
 
+    const scanStart = performance.now();
+    /* 一轮扫描共用一个节点缓存：同一节点被多个采样点命中时只求一次矩形/样式。 */
+    const cache = new Map();
+
     /* transform 是纯平移，减掉当前偏移就能还原"未偏移"的基准位。 */
     const baseLeft = cur.left - curDx;
     const baseTop = cur.top - curDy;
-    const curScore = scoreRect(cur, cRect);
+    /* 当前位置只做稀疏采样：只需要知道"有没有被挡"。 */
+    let curScore = scoreRect(cur, cRect, null, cache, true);
+
+    /* 被挡时才去分辨"真遮挡"和"背景装饰"（海报渐变、暗角、阴影……）。
+       findBackground 只探 12 个点，比把 26 个候选全扫一遍便宜得多。 */
+    let bg = null;
+    if (curScore > 0) {
+      bg = findBackground(cRect);
+      if (bg.size) {
+        const relaxed = scoreRect(cur, cRect, null, cache, true, bg);
+        if (relaxed !== curScore) curScore = relaxed;
+      }
+    }
 
     if (curScore > 0) { blocked += 1; cleanSince = 0; }
     else { blocked = 0; if (!cleanSince) cleanSince = now; }
 
     const spots = candidates(cRect, w, h);
-    let scores = null;
-    const clearIndex = () => {
-      if (!scores) scores = spots.map((sp) => scoreRect(sp, cRect));
-      return scores.indexOf(0);
-    };
 
     let target = -1;
+    let settled = false;
     if (curIndex < 0) {
       /* 首次定位：默认位（左下角）优先，被挡就往后挑；一个干净位都没有也先回默认位。 */
-      const zero = clearIndex();
-      target = zero !== -1 ? zero : 0;
+      const pick = pickSpot(spots, cRect, cache, bg);
+      target = pick >= 0 ? pick : 0;
     } else if (curScore === 0) {
       /* 没被挡：只有当前位置排在默认位之后、且已连续干净 3 s，才考虑回到默认位。 */
       if (curIndex > 0 && now - cleanSince > AVOID.smoothBack && now >= cooldownUntil) {
-        const zero = clearIndex();
-        if (zero !== -1 && zero < curIndex) target = zero;
+        const pick = pickSpot(spots, cRect, cache, bg);
+        if (pick >= 0 && pick < curIndex) target = pick;
       }
     } else if (blocked >= 2 && now >= cooldownUntil) {
-      /* 被挡：只在真找得到 0 命中的位置时才挪；宁可不挪，也别挪进更挤的地方。 */
-      target = clearIndex();
+      /* 被挡：找得到干净位才挪；一个都没有（或已经站在最干净的位置）就静默一段，
+         别再每 400 ms 把 26 个候选重扫一遍 —— 满屏元素时这正是卡顿的来源。 */
+      const pick = pickSpot(spots, cRect, cache, bg);
+      if (pick >= 0 && pick !== curIndex) target = pick;
+      else settled = true;
     }
 
-    if (target < 0) { reveal(); return; }
+    /* 慢扫描留痕：只在 >8 ms 且距上次 >5 s 时写一行，便于确认线上表现。 */
+    const scanMs = performance.now() - scanStart;
+    if (scanMs > 8 && now - lastSlowLog > 5000) {
+      lastSlowLog = now;
+      log(
+        `避让扫描 ${scanMs.toFixed(1)}ms：视图=${appView}，` +
+        `候选 ${spots.length}，blocked=${blocked}，target=${target}，settled=${settled}`,
+      );
+    }
+
+    if (settled) {
+      /* 已经尽力了：先停 8 s。容器尺寸变化 / 切回播放页仍会立即重算。
+         每 30 s 记一次挡住当前位置的元素，方便判断是不是判定过严。 */
+      if (now - lastSettleLog > 30000) {
+        lastSettleLog = now;
+        const blockers = [];
+        scoreRect(cur, cRect, blockers, cache, true, bg);
+        log(
+          '没有干净位，先停 8s；当前位置的遮挡物：' +
+          (blockers.length ? blockers.join(' / ') : '（未采集到）'),
+        );
+      }
+      nextScan = now + AVOID.settle;
+      reveal();
+      return;
+    }
+
+    if (target < 0) {
+      /* 还在等「连续两轮」确认：保持基准间隔，下一轮再判。 */
+      nextScan = now + AVOID.interval;
+      reveal();
+      return;
+    }
 
     const dx = Math.round(spots[target].left - baseLeft);
     const dy = Math.round(spots[target].top - baseTop);
     if (dx !== curDx || dy !== curDy) {
       const blockers = [];
-      if (curIndex >= 0 && curScore > 0) scoreRect(cur, cRect, blockers);
+      if (curIndex >= 0 && curScore > 0) scoreRect(cur, cRect, blockers, cache, true, bg);
       const lift = Math.max(0, Math.round(spots[0].top - spots[target].top));
       log(
         `自动避让：相对默认位抬高 ${lift}px` +
@@ -424,27 +611,35 @@ const mountStageWidget = (settings, container, ctx, logger) => {
     blocked = 0;
     cleanSince = now;
     cooldownUntil = now + AVOID.cooldown;
+    nextScan = now + AVOID.interval;
     reveal();
   };
 
   /* 挂载时同步定位一次，避免第一帧闪在容器左上角。 */
-  autoPlace(performance.now());
+  autoPlace(performance.now(), true);
 
   let placeQueued = false;
-  const schedulePlace = () => {
+  let placeUrgent = false;
+  const schedulePlace = (urgent) => {
+    if (urgent) placeUrgent = true;
     if (placeQueued) return;
     placeQueued = true;
-    requestAnimationFrame(() => { placeQueued = false; autoPlace(performance.now()); });
+    requestAnimationFrame(() => {
+      placeQueued = false;
+      const u = placeUrgent;
+      placeUrgent = false;
+      autoPlace(performance.now(), u);
+    });
   };
   /* 舞台尺寸变化 / 子树增删（下一首预告滑入、歌词换行）→ 立刻重算。 */
-  const co = typeof ResizeObserver === 'function' ? new ResizeObserver(schedulePlace) : null;
+  const co = typeof ResizeObserver === 'function' ? new ResizeObserver(() => schedulePlace(true)) : null;
   if (co) co.observe(container);
   const mo = typeof MutationObserver === 'function'
     ? new MutationObserver((records) => {
         for (const rec of records) {
           const t = rec.target;
           if (t === shell || (t && shell.contains(t))) continue;   // 自己内部的刷新不算
-          schedulePlace();
+          schedulePlace(false);
           return;
         }
       })
@@ -512,18 +707,21 @@ const mountStageWidget = (settings, container, ctx, logger) => {
     }
 
     const db = Math.round(-60 + 60 * Math.max(0, Math.min(1, Number(power) || 0)));
-    powerEl.textContent = String(db);
+    const powerText = String(db);
+    if (powerEl.textContent !== powerText) powerEl.textContent = powerText;
 
-    peakEl.textContent = peakHz > 0
+    const peakText = peakHz > 0
       ? (peakHz >= 1000 ? (peakHz / 1000).toFixed(1) + 'k' : String(peakHz))
       : '—';
+    if (peakEl.textContent !== peakText) peakEl.textContent = peakText;
   };
 
   /* ---- 主绘制 ---- */
   const paint = () => {
     applySkin();
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
+    const w = viewW;
+    const h = viewH;
+    if (!w || !h) { readMeters(performance.now()); return; }
     sg.clearRect(0, 0, w, h);
 
     const a = getAudio();
@@ -537,7 +735,7 @@ const mountStageWidget = (settings, container, ctx, logger) => {
     if (spectrum && (spectrum.length !== axisSpecLen || sampleRate() !== axisSr)) buildAxis();
 
     const hasSignal = !!spectrum;
-    const idleBase = settings.params.get().showIdleBase !== false;
+    const idleBase = opts().showIdleBase !== false;
     const bw = w / BARS;
     const specLen = spectrum ? spectrum.length : 1024;
     const top = computeTopBin(specLen, sampleRate());
@@ -560,19 +758,18 @@ const mountStageWidget = (settings, container, ctx, logger) => {
     readMeters(performance.now());
   };
 
-  /* ---- rAF 自驱循环（音频数据每帧刷新、无事件通知） ---- */
-  let raf = 0;
-  const loop = () => {
-    paint();
-    const now = performance.now();
-    if (now - lastPlace >= AVOID.interval) { lastPlace = now; autoPlace(now); }
-    raf = requestAnimationFrame(loop);
-  };
-  raf = requestAnimationFrame(loop);
+  /* ---- 帧循环：音频数值每帧刷新、无事件通知，只能在帧里主动读。
+     ctx.onFrame 跑在宿主自己的帧循环上（多模组共享），mount 结束自动停。 ---- */
+  const stopFrame = ctx.onFrame(() => paint());
+
+  /* ---- 避让轮询（400 ms）：同样走 ctx.every，由宿主在 mount 结束时停掉 ---- */
+  const stopPlaceTimer = ctx.every(AVOID.interval, () => autoPlace(performance.now()));
 
   /* ---- 卸载 ---- */
   return () => {
-    cancelAnimationFrame(raf);
+    stopFrame();
+    stopPlaceTimer();
+    if (notifyViewBack === onViewBack) notifyViewBack = null;
     clearTimeout(revealTimer);
     try { ro.disconnect(); } catch (_) {}
     try { co && co.disconnect(); } catch (_) {}
@@ -598,17 +795,12 @@ const meterHtml = (label, unit, key) => `
    ============================================================ */
 
 export default function activate(folium) {
-  /* 能力探测：ctx.audio 是 Folium 1.2 才补的。老宿主只 warn、不退出——
-     图层照常挂载（画空闲底座），audio 调用处有运行时探测。 */
-  const minor = folium.host?.folium?.minor ?? 0;
-  if (minor < 2) {
-    folium.log.warn(
-      'spectrum-visualizer needs Folium 1.2+ for ctx.audio; the widget will idle on this host.',
-    );
-  }
+  /* 本模组按 Folium 1.6 的声明方式写：ctx.audio、ctx.onFrame / ctx.every、
+     settingsSections 句柄的 `.settings`（不再是 `.params`）。mod.json 声明了
+     `"folia": ">=0.7.21"`，老宿主在加载前就会被拦下，这里不需要版本探测。 */
 
-  /* 设置分区 */
-  const settings = folium.registries.settingsSections.register({
+  /* 设置分区（句柄上的 `.settings` 就是 FoliumSettingAccess） */
+  const section = folium.registries.settingsSections.register({
     id: 'spectrum-visualizer',
     label: { 'zh-CN': '频谱可视化', en: 'Spectrum visualizer' },
     description: {
@@ -663,17 +855,22 @@ export default function activate(folium) {
   });
 
   /* 注册播放页图层：歌词之上、播放器控件之下。
-     mount 可能只收到 container（sample-rickroll 就只用了 container），
-     ctx 的获取在 mountStageWidget 里做防御式处理。 */
+     需要 mod.json 里的 `stageLayers` 权限（1.5 及更早叫 `ui.stage`，Folium 2 移除）。 */
+  const offView = folium.events.on('app.viewChanged', (event) => {
+    appView = event && typeof event.view === 'string' ? event.view : 'player';
+    if (appView === 'player' && notifyViewBack) notifyViewBack();
+  });
+
   const layerHandle = folium.registries.stageLayers.register({
     id: 'spectrum-widget',
     slot: 'player.stage.front',
-    mount: (container, ctx) => mountStageWidget(settings, container, ctx, folium.log),
+    mount: (container, ctx) => mountStageWidget(section, container, ctx, folium.log),
   });
 
-  /* 卸载 */
+  /* 卸载：返回函数即 1.6 / 2.0 的规范写法（不再用 { dispose }）。 */
   return () => {
+    try { offView(); } catch (_) {}
     try { layerHandle.unregister(); } catch (_) {}
-    try { settings.unregister(); } catch (_) {}
+    try { section.unregister(); } catch (_) {}
   };
 }

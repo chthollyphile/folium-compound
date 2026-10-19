@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "spectrum-visualizer",
-  "modVersion": "0.3.3",
-  "digest": "sha256:63d6fe449051ddc38717634335625af914caa45bcbfc36feda5e8cc8986cec25",
+  "modVersion": "0.4.0",
+  "digest": "sha256:df04af37a7c4eaa557b92cc0a9b6de4c1fca73d8d40c1251e920aee5593ca5b1",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-09-28T13:19:15.737Z",
-  "signature": "2DQhMXgrDfqImdaCG1hgcMobKlFWfDJPp0PLX5e9usY5KYcNFEehvzLrWqXyKPROpNeEpABS0XRX56ikOty9Cg=="
+  "signedAt": "2026-10-19T16:49:27.963Z",
+  "signature": "l1nkKb7EuhmEc/DKSigThjR1MS3OYV76YDOB8oicj8eFjolLJQbIEdY2pYKSueh8wJntv5GiqVPTF5XGXPhSAQ=="
 }

@@ -258,20 +258,20 @@
     {
       "id": "spectrum-visualizer",
       "name": "频谱可视化",
-      "version": "0.3.3",
-      "author": "spectrum-viewer",
-      "description": "播放页左下角的频谱小组件：48 段频谱柱 + 输入功率 / 峰值频率读数，带自动避让（被下一首预告等元素挡住时自动上移或换边）、可切背景透明，不占歌词区。算法与配色对齐独立版 spectrum-viewer；音频走 Folium 1.2+ 的 ctx.audio，不额外采集系统音频。",
+      "version": "0.4.0",
+      "author": "ACUNGER，DeepSeek v4",
+      "description": "播放页左下角的频谱小组件：48段频谱柱+输入功率/峰值频率读数带自动避让、背景透明，不占歌词区。不额外采集系统音频。若您有旧版本使用需求请到本插件的GitHub页寻找旧版",
       "origin": "community",
       "channel": "release",
       "path": "mods/community/spectrum-visualizer",
-      "digest": "sha256:63d6fe449051ddc38717634335625af914caa45bcbfc36feda5e8cc8986cec25",
+      "digest": "sha256:df04af37a7c4eaa557b92cc0a9b6de4c1fca73d8d40c1251e920aee5593ca5b1",
       "keyId": "folium-ci-2026-1",
-      "signedAt": "2026-09-28T13:19:15.737Z",
+      "signedAt": "2026-10-19T16:49:27.963Z",
       "owners": [
         "ACUNGER0321"
       ],
       "source": "https://github.com/ACUNGER0321/-spectrum-visualizer-folia-mods-",
-      "sourceCommit": "0b77643b4e8a479534e7e4b32cc97c4007af071c"
+      "sourceCommit": "b12e0f922057eb1c589cacd0aff2086477061689"
     },
     {
       "id": "taskbar-lyrics",

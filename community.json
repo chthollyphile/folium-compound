@@ -181,10 +181,11 @@
       "submission": 2,
       "source": "https://github.com/ACUNGER0321/-spectrum-visualizer-folia-mods-",
       "path": "spectrum-visualizer",
-      "commit": "0b77643b4e8a479534e7e4b32cc97c4007af071c",
-      "version": "0.3.3",
+      "commit": "b12e0f922057eb1c589cacd0aff2086477061689",
+      "version": "0.4.0",
       "addedAt": "2026-09-28",
-      "updatedAt": "2026-09-28"
+      "updatedAt": "2026-10-19",
+      "lastIssue": 54
     },
     "taskbar-lyrics": {
       "owners": [
