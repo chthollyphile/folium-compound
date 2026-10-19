@@ -328,6 +328,24 @@
       "sourceCommit": "9b28469f21147395dd17e1324ba55eb4ef743abe"
     },
     {
+      "id": "global-hotkeys",
+      "name": "全局快捷键",
+      "version": "1.2.0",
+      "author": "qwquartz",
+      "description": "应用失去焦点时也能用：播放/暂停、上下一曲、音量加减，键位在模组设置里自己录。",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/global-hotkeys",
+      "digest": "sha256:e123e160f3c64da1a71e3e1d15bd89e02f03e6d239d06b21d4a8237d8db369fd",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-10-19T04:46:15.026Z",
+      "owners": [
+        "qwquartz"
+      ],
+      "source": "https://github.com/qwquartz/folia-global-hotkeys",
+      "sourceCommit": "248ba91760ca0b144a2c6c717572a4781ec84c81"
+    },
+    {
       "id": "lyric-style-switcher",
       "name": "智能歌词样式切换",
       "version": "1.2.1",

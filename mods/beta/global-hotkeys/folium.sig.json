@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "global-hotkeys",
+  "modVersion": "1.2.0",
+  "digest": "sha256:e123e160f3c64da1a71e3e1d15bd89e02f03e6d239d06b21d4a8237d8db369fd",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-19T04:46:15.026Z",
+  "signature": "KxW8Uu/2EtjhEXHHNex930h7QUZXE5hOJPaO/Dz/YWgc9gVmDp4/MWRRajJxooeVlfVjs1J8c3WxpGvGVzu3Aw=="
+}

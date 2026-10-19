@@ -74,6 +74,18 @@
       "updatedAt": "2026-10-17",
       "lastIssue": 40
     },
+    "global-hotkeys": {
+      "owners": [
+        "qwquartz"
+      ],
+      "submission": 52,
+      "source": "https://github.com/qwquartz/folia-global-hotkeys",
+      "path": "",
+      "commit": "248ba91760ca0b144a2c6c717572a4781ec84c81",
+      "version": "1.2.0",
+      "addedAt": "2026-10-19",
+      "updatedAt": "2026-10-19"
+    },
     "lx-favorites-sync": {
       "owners": [
         "xiaomo521314"

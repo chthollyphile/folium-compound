@@ -1,0 +1,12 @@
+{
+  "folium": 1,
+  "id": "global-hotkeys",
+  "name": "全局快捷键",
+  "version": "1.2.0",
+  "author": "qwquartz",
+  "description": "应用失去焦点时也能用：播放/暂停、上下一曲、音量加减，键位在模组设置里自己录。",
+  "main": "index.cjs",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": ["playback.control", "filesystem.data"]
+}
