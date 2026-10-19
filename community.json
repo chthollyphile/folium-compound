@@ -194,10 +194,11 @@
       "submission": 27,
       "source": "https://github.com/moneker/folium-taskbar-lyrics",
       "path": "",
-      "commit": "eeaa209db28d69f14eae3df5084a5186e4d1e991",
-      "version": "1.0.3",
+      "commit": "ad5b6c11b19a1f4b1dce260463e7dc149a1128f1",
+      "version": "1.0.5",
       "addedAt": "2026-10-17",
-      "updatedAt": "2026-10-17"
+      "updatedAt": "2026-10-19",
+      "lastIssue": 51
     }
   }
 }
