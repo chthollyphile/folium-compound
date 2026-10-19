@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "remote-window-edge",
+  "modVersion": "1.0.0",
+  "digest": "sha256:ec0b568da6a5285ea1b4ee0936e951dff72ab5c9c416a491bcb4abdf2172ac17",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-19T17:05:00.525Z",
+  "signature": "rFYztx/5j9mYxY9sFAOBNHvMf0fv7/O9Hj/pdl76IFEhZMcBokGjF+Tw6hasvViJBcPo16RKe9aq3Q9NsyWMBw=="
+}

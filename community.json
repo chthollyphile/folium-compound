@@ -161,6 +161,18 @@
       "updatedAt": "2026-10-18",
       "lastIssue": 47
     },
+    "remote-window-edge": {
+      "owners": [
+        "miaowu104-gif"
+      ],
+      "submission": 57,
+      "source": "https://github.com/miaowu104-gif/remote-window-edge",
+      "path": "",
+      "commit": "a4b47a753a0d839346174e2b0263ca1804bc0e66",
+      "version": "1.0.0",
+      "addedAt": "2026-10-19",
+      "updatedAt": "2026-10-19"
+    },
     "soda-music": {
       "owners": [
         "syh0119"
