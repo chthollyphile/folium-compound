@@ -9,11 +9,11 @@ const VOLUME_STEP = 0.05;
 // One row per action. `defaultValue` must match the main entry's DEFAULTS: the schema owns the
 // persisted value, main owns the fallback it uses before the panel has ever been opened.
 const FIELDS = [
-    { key: 'playPause', label: { 'zh-CN': '播放 / 暂停', en: 'Play / pause' }, defaultValue: 'Ctrl+Alt+Space' },
-    { key: 'previous', label: { 'zh-CN': '上一曲', en: 'Previous track' }, defaultValue: 'Ctrl+Alt+A' },
-    { key: 'next', label: { 'zh-CN': '下一曲', en: 'Next track' }, defaultValue: 'Ctrl+Alt+D' },
-    { key: 'volumeUp', label: { 'zh-CN': '音量加', en: 'Volume up' }, defaultValue: 'Ctrl+Alt+W' },
-    { key: 'volumeDown', label: { 'zh-CN': '音量减', en: 'Volume down' }, defaultValue: 'Ctrl+Alt+S' },
+    { key: 'playPause', label: { 'zh-CN': '播放 / 暂停', en: 'Play / pause' }, defaultValue: 'Ctrl+Alt+Shift+Space' },
+    { key: 'previous', label: { 'zh-CN': '上一曲', en: 'Previous track' }, defaultValue: 'Ctrl+Alt+Shift+A' },
+    { key: 'next', label: { 'zh-CN': '下一曲', en: 'Next track' }, defaultValue: 'Ctrl+Alt+Shift+D' },
+    { key: 'volumeUp', label: { 'zh-CN': '音量加', en: 'Volume up' }, defaultValue: 'Ctrl+Alt+Shift+W' },
+    { key: 'volumeDown', label: { 'zh-CN': '音量减', en: 'Volume down' }, defaultValue: 'Ctrl+Alt+Shift+S' },
 ];
 
 // `event.code` names Electron's accelerator keys differently for the ones that are not a single
@@ -56,9 +56,11 @@ const MODIFIER_CODES = new Set([
     'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'MetaLeft', 'MetaRight',
 ]);
 
+// `globalShortcut.isRegistered` only sees keys this process registered (the host and other mods),
+// so an accelerator another program owns fails in register() instead, not here.
 const REASON_TEXT = {
-    occupied: '已被其他程序占用',
-    'register-failed': '注册失败（可能被输入法或系统占用）',
+    occupied: '已被 Folia 或其他模组占用',
+    'register-failed': '可能被其他程序或输入法占用',
     duplicate: '和另一个动作重复',
     empty: '没有设置',
 };
@@ -146,7 +148,7 @@ export default function activate(folium) {
         delete window.__foliaHotkey;
     });
 
-    folium.registries.settingsSections.register({
+    const section = folium.registries.settingsSections.register({
         id: 'keys',
         label: { 'zh-CN': '全局快捷键', en: 'Global hotkeys' },
         description: {
@@ -164,6 +166,31 @@ export default function activate(folium) {
         // owns persistence and validation.
         settingsPanel: (container, ctx) => mountPanel(container, ctx, folium),
     });
+
+    // The schema owns the persisted values, and importing a visual config writes them, while the
+    // main entry only ever sees what was pushed to it. Pushing once here keeps the two in step
+    // without waiting for the panel to be opened and a key to be pressed again.
+    try {
+        const access = section && section.settings;
+        if (access) {
+            pushBindings(folium, access.get());
+            access.onChange(() => pushBindings(folium, access.get()));
+        }
+    } catch (error) {
+        folium.log.warn('读取设置区块的键位失败，沿用上次保存的键位', error);
+    }
+}
+
+/** Offers a whole binding set to the main entry; a failure is logged, not surfaced here. */
+function pushBindings(folium, values) {
+    try {
+        const pending = folium.rpc.call('rebind', { ...values });
+        if (pending && typeof pending.then === 'function') {
+            pending.then(undefined, (error) => folium.log.warn('同步键位失败', error));
+        }
+    } catch (error) {
+        folium.log.warn('同步键位失败', error);
+    }
 }
 
 function mountPanel(container, ctx, folium) {

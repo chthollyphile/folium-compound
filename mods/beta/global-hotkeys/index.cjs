@@ -13,11 +13,11 @@ const STORAGE_KEY = 'bindings';
 // Every action the client implements, with the accelerator it gets until the user picks one.
 // The keys here are the contract with client.mjs: both sides name the same five actions.
 const DEFAULTS = {
-    playPause: 'Ctrl+Alt+Space',
-    previous: 'Ctrl+Alt+A',
-    next: 'Ctrl+Alt+D',
-    volumeUp: 'Ctrl+Alt+W',
-    volumeDown: 'Ctrl+Alt+S',
+    playPause: 'Ctrl+Alt+Shift+Space',
+    previous: 'Ctrl+Alt+Shift+A',
+    next: 'Ctrl+Alt+Shift+D',
+    volumeUp: 'Ctrl+Alt+Shift+W',
+    volumeDown: 'Ctrl+Alt+Shift+S',
 };
 
 // The window whose page runs this mod's client. Cached once found.
@@ -34,6 +34,9 @@ const resolveMainWindow = async () => {
     for (const win of windows) {
         try {
             if (await win.webContents.executeJavaScript('Boolean(window.__foliaHotkey)')) {
+                // Only a confirmed window is cached. Caching windows[0] here would pin the wrong
+                // window for the whole session after one press before the client had started,
+                // and every later press would keep going to it.
                 mainWindow = win;
                 return win;
             }
@@ -42,8 +45,8 @@ const resolveMainWindow = async () => {
         }
     }
 
-    mainWindow = windows[0] ?? null;
-    return mainWindow;
+    // Not found: this press does nothing, and nothing is remembered. The next press probes again.
+    return null;
 };
 
 const dispatch = async (action) => {
