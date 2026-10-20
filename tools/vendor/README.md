@@ -6,4 +6,4 @@ permission and experimental ids) and `deprecated.cjs` (Folium 1.5 names read as 
 copies of the files of the same name in `electron/modSystem/`. Do not edit them here: when Folia changes the manifest
 rules, copy all three over again from the latest Folia release (`diff` against Folia should print nothing).
 
-Current copy: Folia v0.7.21 (Folium 1.6).
+Current copy: Folia main at chthollyphile/folia-major@f3a9070 (Folium 1.7, not yet in a release; recopy from the release that ships it).
