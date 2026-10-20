@@ -1,0 +1,13 @@
+{
+  "folium": 1,
+  "id": "clock-perf-widget",
+  "name": "时钟 · FPS · 性能",
+  "version": "2.3.0",
+  "author": "PHMUTIKZ",
+  "description": "三张互相独立的悬浮卡：时钟（四种结构不同的样式 + 日期/星期）、FPS（纯数字，标签在左）、性能监测（Folia CPU / Folia 内存 / GPU 占用与温度 + 分进程明细，可竖排或三条横排）。GPU 占用与温度只支持 NVIDIA 显卡（依赖 nvidia-smi），没有时只显示 —。各自开关、各自拖拽记忆位置、各自样式与倍率，可放应用顶层或播放页。",
+  "main": "main.cjs",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": ["ui.stage", "filesystem.data"],
+  "folia": ">=0.7.20 <0.8.0"
+}

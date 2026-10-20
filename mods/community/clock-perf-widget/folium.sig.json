@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "clock-perf-widget",
+  "modVersion": "2.3.0",
+  "digest": "sha256:3fa975cb77ff1915d6faf69c850f6d99cabc381bf07572d5ebcdc0182f9e2011",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-20T04:57:51.828Z",
+  "signature": "nQanWR+Rr8YnBu4FEw9YAkReTuS0nXiJfmwD7HRVrJyLIl7UTvOL/ydxVRppKy+IY52D6xskdhGD+fSRQus5Bw=="
+}

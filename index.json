@@ -148,6 +148,24 @@
       "sourceCommit": "2498536c457f316abf1219decbb82b80faaef2b6"
     },
     {
+      "id": "clock-perf-widget",
+      "name": "时钟 · FPS · 性能",
+      "version": "2.3.0",
+      "author": "PHMUTIKZ",
+      "description": "三张互相独立的悬浮卡：时钟（四种结构不同的样式 + 日期/星期）、FPS（纯数字，标签在左）、性能监测（Folia CPU / Folia 内存 / GPU 占用与温度 + 分进程明细，可竖排或三条横排）。GPU 占用与温度只支持 NVIDIA 显卡（依赖 nvidia-smi），没有时只显示 —。各自开关、各自拖拽记忆位置、各自样式与倍率，可放应用顶层或播放页。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/clock-perf-widget",
+      "digest": "sha256:3fa975cb77ff1915d6faf69c850f6d99cabc381bf07572d5ebcdc0182f9e2011",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-20T04:57:51.828Z",
+      "owners": [
+        "PHMUTIKZ"
+      ],
+      "source": "https://github.com/PHMUTIKZ/clock-perf-widget",
+      "sourceCommit": "c93bc6f6d75f0ea9d18f1847b6f46092b208ae3a"
+    },
+    {
       "id": "enhanced-remote-widget",
       "name": "增强版悬浮小组件",
       "version": "1.15.3",
