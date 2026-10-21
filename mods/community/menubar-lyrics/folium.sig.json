@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "menubar-lyrics",
+  "modVersion": "1.0.1",
+  "digest": "sha256:e402e535660919d2fcae64649219f110824d828a8fe304ca7111ca22cf62bff6",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-21T01:56:47.971Z",
+  "signature": "JTs9eo2Y9KMmTExnegWdzfo8kPz0WauhQk3OX3vS3AQMK2WZI6CW5+8DLIRN7uPTEAkiDpCkIj526KiBtqY/Dw=="
+}

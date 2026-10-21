@@ -1,0 +1,13 @@
+{
+  "folium": 1,
+  "id": "menubar-lyrics",
+  "name": "菜单栏歌词",
+  "version": "1.0.1",
+  "author": "pomepii",
+  "description": "在 macOS 菜单栏显示当前播放的歌词，并提供播放 / 暂停、上一曲、下一曲、收藏控制。",
+  "main": "index.cjs",
+  "client": "client.mjs",
+  "preview": "preview.jpg",
+  "permissions": ["playback.read", "playback.control", "filesystem.data"],
+  "folia": ">=0.7.21 <0.8.0"
+}

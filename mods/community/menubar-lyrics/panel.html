@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden;
+      -webkit-user-select:none;user-select:none;cursor:default;
+      font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif}
+    .card{margin:16px;height:calc(100% - 32px);box-sizing:border-box;border-radius:18px;
+      padding:14px 18px 12px;color:#fff;
+      background:linear-gradient(180deg,rgba(255,255,255,.12) 0%,rgba(255,255,255,.03) 40%,rgba(255,255,255,.06) 100%),
+        rgba(22,22,26,.90);
+      border:.5px solid rgba(255,255,255,.24);
+      box-shadow:0 10px 26px rgba(0,0,0,.38),0 2px 6px rgba(0,0,0,.22),
+        inset 0 .5px 0 rgba(255,255,255,.45)}
+    .title{font-size:13px;font-weight:600;letter-spacing:.1px;opacity:.96;margin-bottom:10px}
+    .row{display:flex;align-items:center;justify-content:space-between;height:30px}
+    .row span{font-size:12.5px;opacity:.92}
+    .sw{width:38px;height:22px;border-radius:11px;background:rgba(255,255,255,.18);
+      position:relative;transition:background .18s ease;border:.5px solid rgba(255,255,255,.14)}
+    .sw.on{background:#34c759;border-color:rgba(255,255,255,.24)}
+    .sw i{position:absolute;top:1.5px;left:1.5px;width:18px;height:18px;border-radius:50%;
+      background:#fff;transition:left .18s cubic-bezier(.3,.9,.4,1);box-shadow:0 1px 2.5px rgba(0,0,0,.35)}
+    .sw.on i{left:18px}
+    .seg{display:flex;border-radius:8px;overflow:hidden;border:.5px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.08)}
+    .seg button{-webkit-appearance:none;appearance:none;border:0;background:transparent;color:#fff;
+      font-size:12px;padding:5px 12px;opacity:.72;cursor:default}
+    .seg button.on{background:rgba(255,255,255,.90);color:#1b1b1f;opacity:1;font-weight:600}
+    .divider{height:.5px;background:rgba(255,255,255,.14);margin:9px 0 7px}
+    .wl{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+    .wl b{font-size:12.5px;font-weight:500;opacity:.92}
+    .wl em{font-style:normal;font-size:11px;opacity:.6}
+    input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;margin:0}
+    input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:3px;
+      background:linear-gradient(to right,rgba(255,255,255,.95) 0%,rgba(255,255,255,.95) var(--p,50%),
+        rgba(255,255,255,.20) var(--p,50%),rgba(255,255,255,.20) 100%)}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;
+      background:#fff;margin-top:-6px;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+    .label{font-size:10.5px;opacity:.5;margin:8px 0 5px;letter-spacing:.2px}
+    .preview{height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+      padding:0 10px;background:rgba(0,0,0,.42);border:.5px solid rgba(255,255,255,.12);overflow:hidden}
+    .pv{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;opacity:.95;
+      text-align:center}
+    .hint{font-size:10.5px;opacity:.45;margin-top:8px;line-height:1.35}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="title">菜单栏歌词</div>
+    <div class="row"><span>在菜单栏显示歌词</span><div class="sw" id="swEnabled"><i></i></div></div>
+    <div class="row"><span>显示翻译</span><div class="sw" id="swTranslation"><i></i></div></div>
+    <div class="row"><span>暂停时显示</span><div class="seg" id="segPaused"><button data-v="lyric">当前歌词</button><button data-v="title">歌名 - 歌手</button></div></div>
+    <div class="divider"></div>
+    <div class="wl"><b>歌词宽度</b><em id="value">168 px</em></div>
+    <input type="range" id="range" min="60" max="320" step="2" value="168">
+    <div class="label">PREVIEW</div>
+    <div class="preview" id="previewBox"><div class="pv" id="preview">♪</div></div>
+    <div class="hint">歌词在这个宽度内显示：播放时超宽会滚动，暂停时以省略号收尾；短句居中。</div>
+  </div>
+  <script>
+    const api = window.menubarLyricsSettings;
+    const swEnabled = document.getElementById('swEnabled');
+    const swTranslation = document.getElementById('swTranslation');
+    const segPaused = document.getElementById('segPaused');
+    const range = document.getElementById('range');
+    const valueLabel = document.getElementById('value');
+    const preview = document.getElementById('preview');
+    let dragging = false;
+    swEnabled.onclick = () => api && api.update({ enabled: !swEnabled.classList.contains('on') });
+    swTranslation.onclick = () => api && api.update({ showTranslation: !swTranslation.classList.contains('on') });
+    segPaused.querySelectorAll('button').forEach((btn) => {
+      btn.onclick = () => api && api.update({ pausedContent: btn.dataset.v });
+    });
+    const paintRange = (v) => {
+      const min = Number(range.min);
+      const max = Number(range.max);
+      range.style.setProperty('--p', ((v - min) / (max - min) * 100).toFixed(2) + '%');
+      valueLabel.textContent = v + ' px';
+    };
+    range.addEventListener('pointerdown', () => { dragging = true; });
+    window.addEventListener('pointerup', () => { dragging = false; });
+    range.addEventListener('input', () => {
+      const v = Number(range.value);
+      paintRange(v);
+      api && api.update({ widthPx: v });
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') api && api.close();
+    });
+    const apply = (state) => {
+      if (!state) return;
+      swEnabled.classList.toggle('on', Boolean(state.enabled));
+      swTranslation.classList.toggle('on', Boolean(state.showTranslation));
+      const paused = state.pausedContent === 'title' ? 'title' : 'lyric';
+      segPaused.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === paused));
+      if (!dragging && Number(state.widthPx) !== Number(range.value)) range.value = String(state.widthPx);
+      paintRange(Number(range.value));
+      preview.textContent = state.preview || '\u266a';
+      preview.style.width = Math.round(Number(state.widthPx) || 168) + 'px';
+    };
+    if (api && api.onState) api.onState(apply);
+  </script>
+</body>
+</html>
