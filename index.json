@@ -184,6 +184,24 @@
       "sourceCommit": "7f0c86526be25f744c60f081bebbaf26f243c823"
     },
     {
+      "id": "listening-archive",
+      "name": "听歌档案",
+      "version": "1.2.4",
+      "author": "imicola",
+      "description": "Folia 本机听歌档案：播放排行、累计时长、声河、热力图、单曲轨迹与备份。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/listening-archive",
+      "digest": "sha256:54a8a6cd00371382554f526113d7e99cd5058a167721ff923ad8c56f9f3f76c8",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-21T02:03:31.470Z",
+      "owners": [
+        "imicola"
+      ],
+      "source": "https://github.com/imicola/folia-listening-archive",
+      "sourceCommit": "fbdfbd45e9f17446ba99c45069ba3cd860f65e0d"
+    },
+    {
       "id": "lx-favorites-sync",
       "name": "LX Music 收藏同步",
       "version": "1.7.2",

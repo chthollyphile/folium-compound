@@ -1,0 +1,17 @@
+{
+  "folium": 1,
+  "id": "listening-archive",
+  "name": "听歌档案",
+  "version": "1.2.4",
+  "preview": "preview.jpg",
+  "author": "imicola",
+  "description": "Folia 本机听歌档案：播放排行、累计时长、声河、热力图、单曲轨迹与备份。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "permissions": [
+    "filesystem.data",
+    "stageLayers",
+    "playback.control"
+  ],
+  "folia": ">=0.7.21 <0.8.0"
+}

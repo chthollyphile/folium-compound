@@ -100,6 +100,18 @@
       "updatedAt": "2026-10-19",
       "lastIssue": 53
     },
+    "listening-archive": {
+      "owners": [
+        "imicola"
+      ],
+      "submission": 61,
+      "source": "https://github.com/imicola/folia-listening-archive",
+      "path": "dist/listening-archive",
+      "commit": "fbdfbd45e9f17446ba99c45069ba3cd860f65e0d",
+      "version": "1.2.4",
+      "addedAt": "2026-10-21",
+      "updatedAt": "2026-10-21"
+    },
     "lx-favorites-sync": {
       "owners": [
         "xiaomo521314"
