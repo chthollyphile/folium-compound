@@ -56,10 +56,11 @@
       "submission": 43,
       "source": "https://github.com/aming2778/folia-desktop-lyric",
       "path": "desktop-lyric",
-      "commit": "a379272fe7af9177e62d7249401eac02b3f4eb33",
-      "version": "1.0.1",
+      "commit": "1ee4ef50c7f4205b4f5257583e4092eed958cbaa",
+      "version": "1.0.4",
       "addedAt": "2026-10-18",
-      "updatedAt": "2026-10-18"
+      "updatedAt": "2026-10-21",
+      "lastIssue": 62
     },
     "enhanced-remote-widget": {
       "owners": [

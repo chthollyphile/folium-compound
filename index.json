@@ -330,20 +330,20 @@
     {
       "id": "desktop-lyric",
       "name": "桌面歌词",
-      "version": "1.0.1",
-      "author": "DSH",
+      "version": "1.0.4",
+      "author": "aming2778",
       "description": "在桌面显示一行歌词（普通字体），支持锁定（鼠标穿透）、拖动、切换歌曲和自定义颜色。",
       "origin": "beta",
       "channel": "beta",
       "path": "mods/beta/desktop-lyric",
-      "digest": "sha256:b89a642d95a350044da336941693351cd6176b2491bfd020428faaef902f8dac",
+      "digest": "sha256:98732c51c515c0bccad6eb491b4358da83ddef2aca3212c05f1a1b8e6e58f930",
       "keyId": "folium-beta-2026-1",
-      "signedAt": "2026-10-18T12:50:55.125Z",
+      "signedAt": "2026-10-21T01:57:02.352Z",
       "owners": [
         "aming2778"
       ],
       "source": "https://github.com/aming2778/folia-desktop-lyric",
-      "sourceCommit": "a379272fe7af9177e62d7249401eac02b3f4eb33"
+      "sourceCommit": "1ee4ef50c7f4205b4f5257583e4092eed958cbaa"
     },
     {
       "id": "folia-lx-music-mod",
