@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "vinyl-disc",
+  "modVersion": "1.7.7",
+  "digest": "sha256:5ebe7733e52651ca3065a076c30ccd268a2c9bf4f162889c3a1c973e2bc90ffc",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-21T18:15:58.834Z",
+  "signature": "nFBi6Ph/XL5z5DEg6zshRHlBDo5/p1+iqtevKsjRNKhSlOlbEROR8gNns8OtVXy5q+RgIpyzRCmAPKqj8caaCQ=="
+}

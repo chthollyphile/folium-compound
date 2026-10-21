@@ -346,6 +346,24 @@
       "sourceCommit": "ad5b6c11b19a1f4b1dce260463e7dc149a1128f1"
     },
     {
+      "id": "vinyl-disc",
+      "name": "黑胶唱片",
+      "version": "1.7.7",
+      "author": "pomepii",
+      "description": "一个歌词动画模式：选中后播放界面出现黑胶唱片——当前歌曲的封面作碟心，播放时唱片旋转、唱臂落下，暂停时唱臂抬起、唱片停转，歌词在唱片旁排布。参考 QQ 音乐 / 网易云音乐的黑胶效果；不选中则完全不出现，不影响其他模式。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/vinyl-disc",
+      "digest": "sha256:5ebe7733e52651ca3065a076c30ccd268a2c9bf4f162889c3a1c973e2bc90ffc",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-21T18:15:58.834Z",
+      "owners": [
+        "Zhangyx0824"
+      ],
+      "source": "https://github.com/Zhangyx0824/folia-mod-vinyl-disc",
+      "sourceCommit": "a85debc0d9e73d7c7a9fb1616fe1eb5e76436246"
+    },
+    {
       "id": "desktop-lyric",
       "name": "桌面歌词",
       "version": "1.0.4",
