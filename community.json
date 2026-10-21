@@ -206,10 +206,11 @@
       "submission": 57,
       "source": "https://github.com/miaowu104-gif/remote-window-edge",
       "path": "",
-      "commit": "a4b47a753a0d839346174e2b0263ca1804bc0e66",
-      "version": "1.0.0",
+      "commit": "15ea698120488e77d659ae57b21ec27daea29d81",
+      "version": "1.1.0",
       "addedAt": "2026-10-19",
-      "updatedAt": "2026-10-19"
+      "updatedAt": "2026-10-21",
+      "lastIssue": 68
     },
     "soda-music": {
       "owners": [
