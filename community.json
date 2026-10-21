@@ -180,10 +180,11 @@
       "submission": 58,
       "source": "https://github.com/zhangyx0824/folia-mod-menubar-lyrics",
       "path": "menubar-lyrics",
-      "commit": "1ecd3d72c2636e6a70e6a849c1394b7331c61f17",
-      "version": "1.0.1",
+      "commit": "da40e11d6067cef8e15727c120b1de7f84afcf52",
+      "version": "1.0.2",
       "addedAt": "2026-10-21",
-      "updatedAt": "2026-10-21"
+      "updatedAt": "2026-10-21",
+      "lastIssue": 67
     },
     "miside-drop": {
       "owners": [

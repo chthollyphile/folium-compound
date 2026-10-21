@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "menubar-lyrics",
-  "modVersion": "1.0.1",
-  "digest": "sha256:e402e535660919d2fcae64649219f110824d828a8fe304ca7111ca22cf62bff6",
+  "modVersion": "1.0.2",
+  "digest": "sha256:c4502c511a2e46da6136a9d40e1338faa8069c9c683f3feb0caf49cec0994f0b",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-10-21T01:56:47.971Z",
-  "signature": "JTs9eo2Y9KMmTExnegWdzfo8kPz0WauhQk3OX3vS3AQMK2WZI6CW5+8DLIRN7uPTEAkiDpCkIj526KiBtqY/Dw=="
+  "signedAt": "2026-10-21T18:14:31.582Z",
+  "signature": "81J7wIVP5ZLm5cphUBr7jUXBg0oKBl4lEvDpnNFBSxhbhMtdNt3jyhm95eXI0gX1RHLqrzhPk47DYz2nUjrRAg=="
 }

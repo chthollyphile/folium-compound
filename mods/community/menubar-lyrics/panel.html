@@ -50,18 +50,20 @@
     <div class="title">菜单栏歌词</div>
     <div class="row"><span>在菜单栏显示歌词</span><div class="sw" id="swEnabled"><i></i></div></div>
     <div class="row"><span>显示翻译</span><div class="sw" id="swTranslation"><i></i></div></div>
+    <div class="row"><span>逐字歌词</span><div class="sw" id="swKaraoke"><i></i></div></div>
     <div class="row"><span>暂停时显示</span><div class="seg" id="segPaused"><button data-v="lyric">当前歌词</button><button data-v="title">歌名 - 歌手</button></div></div>
     <div class="divider"></div>
     <div class="wl"><b>歌词宽度</b><em id="value">168 px</em></div>
     <input type="range" id="range" min="60" max="320" step="2" value="168">
     <div class="label">PREVIEW</div>
-    <div class="preview" id="previewBox"><div class="pv" id="preview">♪</div></div>
-    <div class="hint">歌词在这个宽度内显示：播放时超宽会滚动，暂停时以省略号收尾；短句居中。</div>
+    <div class="preview" id="previewBox"><div class="pv" id="preview">暂无歌词</div></div>
+    <div class="hint">歌词在这个宽度内显示：开启逐字歌词时演唱到的部分逐字浮现，关闭或暂停时超宽以省略号收尾。</div>
   </div>
   <script>
     const api = window.menubarLyricsSettings;
     const swEnabled = document.getElementById('swEnabled');
     const swTranslation = document.getElementById('swTranslation');
+    const swKaraoke = document.getElementById('swKaraoke');
     const segPaused = document.getElementById('segPaused');
     const range = document.getElementById('range');
     const valueLabel = document.getElementById('value');
@@ -69,6 +71,7 @@
     let dragging = false;
     swEnabled.onclick = () => api && api.update({ enabled: !swEnabled.classList.contains('on') });
     swTranslation.onclick = () => api && api.update({ showTranslation: !swTranslation.classList.contains('on') });
+    swKaraoke.onclick = () => api && api.update({ karaoke: !swKaraoke.classList.contains('on') });
     segPaused.querySelectorAll('button').forEach((btn) => {
       btn.onclick = () => api && api.update({ pausedContent: btn.dataset.v });
     });
@@ -92,11 +95,12 @@
       if (!state) return;
       swEnabled.classList.toggle('on', Boolean(state.enabled));
       swTranslation.classList.toggle('on', Boolean(state.showTranslation));
+      swKaraoke.classList.toggle('on', state.karaoke === true);
       const paused = state.pausedContent === 'title' ? 'title' : 'lyric';
       segPaused.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === paused));
       if (!dragging && Number(state.widthPx) !== Number(range.value)) range.value = String(state.widthPx);
       paintRange(Number(range.value));
-      preview.textContent = state.preview || '\u266a';
+      preview.textContent = state.preview || '暂无歌词';
       preview.style.width = Math.round(Number(state.widthPx) || 168) + 'px';
     };
     if (api && api.onState) api.onState(apply);

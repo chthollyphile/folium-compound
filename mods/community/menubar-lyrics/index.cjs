@@ -42,6 +42,11 @@ const DEFAULTS = Object.freeze({
     // What the item shows while playback is paused: the current lyric line
     // (cut with an ellipsis) or the track itself, "歌名 - 歌手".
     pausedContent: 'lyric', // 'lyric' | 'title'
+    // Karaoke-style reveal: while playing, the sung part appears character by
+    // character over the line's start → end time (the status item cannot
+    // colour text, so this is the plain-text take on the karaoke effect).
+    // Off by default: the full line is shown unless the user turns it on.
+    karaoke: false,
 });
 
 const MARQUEE_MS = 240;
@@ -76,6 +81,7 @@ module.exports = async function activate(api) {
                 ...stored,
                 widthPx: normalizeWidth(stored.widthPx),
                 pausedContent: normalizePausedContent(stored.pausedContent),
+                karaoke: stored.karaoke === true,
             };
             // `iconSide` belonged to an early build that drew a note glyph next
             // to the lyric; the setting is gone and must not come back.
@@ -117,7 +123,7 @@ module.exports = async function activate(api) {
     // in pixels the same way the earlier patch did.
     const charWidth = (ch) => {
         const code = ch.codePointAt(0);
-        if (code === 0x20) return 4.2;
+        if (code === 0x20 || code === 0xa0) return 4.2;
         if (code < 0x0080) return 7.4;
         const wide = code >= 0x1100 && (
             code <= 0x115f
@@ -139,19 +145,25 @@ module.exports = async function activate(api) {
     };
 
     const SPACE_WIDTH = 4.2;
+    // macOS trims whitespace at both ends of a status item title (plain spaces
+    // and NBSP alike — probed on 26.x), so the item always hugs the trimmed
+    // text and centring comes for free. Padding still uses no-break spaces so
+    // that, should a macOS build keep them, they keep the item width constant
+    // instead of collapsing.
+    const PAD = '\u00a0';
 
     // The item keeps a constant width: otherwise the whole menu bar jitters on
     // every marquee frame and the click target moves under the pointer.
     const padToWidth = (text, target) => {
         const missing = target - textWidth(text);
         if (missing < SPACE_WIDTH) return text;
-        return text + ' '.repeat(Math.floor(missing / SPACE_WIDTH));
+        return text + PAD.repeat(Math.floor(missing / SPACE_WIDTH));
     };
 
     const centre = (text, target) => {
         const missing = target - textWidth(text);
         if (missing < SPACE_WIDTH * 2) return padToWidth(text, target);
-        const pad = ' '.repeat(Math.floor(missing / SPACE_WIDTH / 2));
+        const pad = PAD.repeat(Math.floor(missing / SPACE_WIDTH / 2));
         return pad + text + pad;
     };
 
@@ -180,6 +192,10 @@ module.exports = async function activate(api) {
     };
 
     // ----- lyric lookup ---------------------------------------------------
+    // No look-ahead here: a line only becomes current once its first character
+    // is due (timeSec >= startTime). Counting a line as current slightly
+    // *before* its start made the whole sentence pop up and then vanish into
+    // the karaoke reveal — the exact glitch the reveal was meant to avoid.
     const resolveLine = (lines, timeSec) => {
         if (!Array.isArray(lines) || lines.length === 0) return null;
         let current = null;
@@ -187,15 +203,20 @@ module.exports = async function activate(api) {
         for (const line of lines) {
             const start = typeof line?.startTime === 'number' ? line.startTime : -Infinity;
             const end = typeof line?.endTime === 'number' ? line.endTime : Infinity;
-            if (timeSec + 0.35 >= start && timeSec < end) current = line;
+            if (timeSec >= start && timeSec < end) current = line;
             if (start <= timeSec) previous = line;
         }
-        if (!current && previous) {
-            const start = typeof previous.startTime === 'number' ? previous.startTime : 0;
-            if (timeSec - start < 6) current = previous;
-        }
+        // Between two lines (interludes, intros) the last sung line stays on
+        // screen — falling back to a placeholder there looked like a glitch.
+        if (!current && previous) current = previous;
         const text = typeof current?.fullText === 'string' ? current.fullText.trim() : '';
-        return text ? { text, translation: typeof current.translation === 'string' ? current.translation.trim() : '' } : null;
+        if (!text) return null;
+        return {
+            text,
+            translation: typeof current.translation === 'string' ? current.translation.trim() : '',
+            startTime: typeof current.startTime === 'number' ? current.startTime : NaN,
+            endTime: typeof current.endTime === 'number' ? current.endTime : NaN,
+        };
     };
 
     // "歌名 - 歌手" for the paused state. The public song DTO is small, so read
@@ -220,15 +241,62 @@ module.exports = async function activate(api) {
         return artist ? `${name} - ${artist}` : name;
     };
 
-    const composeText = (snapshot) => {
+    // The public snapshot has no lyric offset field (the offset lives in the
+    // player's own lyric panel), so the position is used as-is.
+    const composeLine = (snapshot) => {
         const position = Number.isFinite(snapshot?.position) ? snapshot.position : 0;
-        const offset = Number.isFinite(snapshot?.lyricOffsetMs) ? snapshot.lyricOffsetMs / 1000 : 0;
-        const line = resolveLine(snapshot?.lines, Math.max(0, position - offset));
+        const timeSec = Math.max(0, position);
+        const line = resolveLine(snapshot?.lines, timeSec);
         if (!line) return null;
-        if (settings.showTranslation && line.translation) {
-            return `${line.text} ｜ ${line.translation}`;
+        const translation = settings.showTranslation && line.translation ? line.translation : '';
+        return {
+            original: line.text,
+            translation,
+            text: translation ? `${line.text} ｜ ${translation}` : line.text,
+            startTime: line.startTime,
+            endTime: line.endTime,
+            timeSec,
+        };
+    };
+
+    const composeText = (snapshot) => composeLine(snapshot)?.text ?? null;
+
+    // Karaoke reveal: the status item only takes plain text, so instead of
+    // colouring the sung part we reveal it character by character, scaled over
+    // the line's start → end time.
+    const revealedCount = (composed) => {
+        const total = composed.original.length;
+        if (!Number.isFinite(composed.startTime)) return total;
+        const end = Number.isFinite(composed.endTime) ? composed.endTime : composed.startTime + 4;
+        if (composed.timeSec <= composed.startTime) return Math.min(1, total);
+        if (composed.timeSec >= end) return total;
+        const ratio = (composed.timeSec - composed.startTime) / Math.max(0.25, end - composed.startTime);
+        return Math.min(total, Math.max(1, Math.floor(ratio * total)));
+    };
+
+    const karaokeText = (composed) => {
+        const shown = composed.original.slice(0, Math.max(0, revealedCount(composed)));
+        return composed.translation ? `${shown} ｜ ${composed.translation}` : shown;
+    };
+
+    // Lay the growing text out where the centred full line would start, so the
+    // characters appear in place instead of dragging the status item around.
+    const karaokePad = (fullText, shownText, target) => {
+        const missing = target - textWidth(fullText);
+        const pad = missing >= SPACE_WIDTH * 2 ? Math.floor(missing / SPACE_WIDTH / 2) : 0;
+        return padToWidth(`${PAD.repeat(pad)}${shownText}`, target);
+    };
+
+    // Long lines: keep the tail of what has been sung, so the text flows in
+    // from the right the way a karaoke line does.
+    const tailByWidth = (text, target) => {
+        let out = '';
+        for (let index = text.length - 1; index >= 0; index -= 1) {
+            const candidate = text[index] + out;
+            if (textWidth(candidate) > target) break;
+            out = candidate;
         }
-        return line.text;
+        return out;
     };
 
     // ----- status item ----------------------------------------------------
@@ -315,17 +383,40 @@ module.exports = async function activate(api) {
             return snapshot;
         }
 
-        const lyricText = composeText(snapshot);
+        const composed = composeLine(snapshot);
+        const lyricText = composed ? composed.text : null;
         // Only swap in the track title while paused, and only when it exists.
         const songTitle = !playing && settings.pausedContent === 'title' ? composeSongTitle(snapshot) : '';
-        const text = songTitle || lyricText;
+        // No lyric yet (intro, instrumental, unsynced track): show "歌名 - 歌手",
+        // and if even that is missing leave the item blank rather than putting a
+        // placeholder glyph in the menu bar.
+        const text = songTitle || lyricText || composeSongTitle(snapshot);
         const width = normalizeWidth(settings.widthPx);
 
         if (!text) {
             stopMarquee();
             marqueeOffset = 0;
             marqueeKey = '';
-            setTitle(centre('♪', width));
+            setTitle('');
+            return snapshot;
+        }
+
+        // Karaoke: while playing a line that has already started, draw only the
+        // part already sung — the full sentence never shows before its time.
+        // Before a line starts (and during interludes) the last sung line stays.
+        const lineStarted = composed
+            && Number.isFinite(composed.startTime)
+            && composed.timeSec >= composed.startTime;
+        if (settings.karaoke && playing && composed && lineStarted) {
+            const shown = karaokeText(composed);
+            stopMarquee();
+            marqueeOffset = 0;
+            marqueeKey = '';
+            setTitle(
+                textWidth(shown) > width
+                    ? padToWidth(tailByWidth(shown, width), width)
+                    : karaokePad(composed.text, shown, width),
+            );
             return snapshot;
         }
 
@@ -388,6 +479,13 @@ module.exports = async function activate(api) {
 
     api.rpc.handle(COMMAND_CHANNEL, () => {
         clientSeen = true;
+        // A pending call can outlive the renderer that made it (reload, page
+        // crash). Release those before taking over this one, otherwise the next
+        // command would be handed to a promise nobody is waiting on any more.
+        while (commandWaiters.length > 0) {
+            const stale = commandWaiters.shift();
+            stale({ command: null });
+        }
         if (queuedCommands.length > 0) return { command: queuedCommands.shift() };
         return new Promise((resolve) => { commandWaiters.push(resolve); });
     });
@@ -534,7 +632,7 @@ module.exports = async function activate(api) {
 
     // ----- settings panel --------------------------------------------------
     const PANEL_WIDTH = 396;
-    const PANEL_HEIGHT = 364;
+    const PANEL_HEIGHT = 394;
 
     let panel = null;
 
@@ -549,7 +647,7 @@ module.exports = async function activate(api) {
             const lyric = composeText(snapshot);
             const title = composeSongTitle(snapshot);
             const playing = snapshot.state === 'playing';
-            const raw = (!playing && settings.pausedContent === 'title' ? (title || lyric) : lyric) || title || '♪';
+            const raw = (!playing && settings.pausedContent === 'title' ? (title || lyric) : lyric) || title || '';
             preview = truncateWithEllipsis(raw, normalizeWidth(settings.widthPx));
         }
         try {
@@ -558,6 +656,7 @@ module.exports = async function activate(api) {
                 showTranslation: Boolean(settings.showTranslation),
                 widthPx: normalizeWidth(settings.widthPx),
                 pausedContent: normalizePausedContent(settings.pausedContent),
+                karaoke: settings.karaoke === true,
                 preview,
             });
         } catch (error) { /* reloading */ }
@@ -625,20 +724,28 @@ module.exports = async function activate(api) {
         panel.focus();
     };
 
-    const onPanelUpdate = (_event, patch) => {
-        if (!panel || panel.isDestroyed()) return;
+    // Both channels are global on ipcMain, so they only accept messages that
+    // really come from our own settings panel.
+    const fromPanel = (event) => Boolean(
+        panel && !panel.isDestroyed() && event && event.sender === panel.webContents,
+    );
+
+    const onPanelUpdate = (event, patch) => {
+        if (!fromPanel(event)) return;
         if (!patch || typeof patch !== 'object') return;
         const next = {};
         if (typeof patch.enabled === 'boolean') next.enabled = patch.enabled;
         if (typeof patch.showTranslation === 'boolean') next.showTranslation = patch.showTranslation;
         if (patch.widthPx !== undefined && Number.isFinite(Number(patch.widthPx))) next.widthPx = normalizeWidth(patch.widthPx);
         if (patch.pausedContent === 'lyric' || patch.pausedContent === 'title') next.pausedContent = normalizePausedContent(patch.pausedContent);
+        if (typeof patch.karaoke === 'boolean') next.karaoke = patch.karaoke;
         if (Object.keys(next).length === 0) return;
         applySettings(next);
     };
 
-    const onPanelClose = () => {
-        if (panel && !panel.isDestroyed()) panel.hide();
+    const onPanelClose = (event) => {
+        if (!fromPanel(event)) return;
+        panel.hide();
     };
 
     ipcMain.on('menubar-lyrics:update', onPanelUpdate);
