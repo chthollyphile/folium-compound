@@ -488,10 +488,11 @@ function mountVinyl(folium, container, ctx, settingsAccess) {
                 const row = document.createElement('div');
                 row.style.cssText = `opacity:${active ? '1' : String(Math.max(0.16, 0.62 - (distance - 1) * 0.15))};`;
                 if (active) row.dataset.active = 'true';
-                // The lyric line itself.
+                // The lyric line itself. Long lines wrap onto the next line
+                // instead of being cut off with an ellipsis.
                 const lineEl = document.createElement('div');
                 lineEl.style.cssText = [
-                    'line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;',
+                    'line-height:1.5;white-space:normal;overflow-wrap:anywhere;word-break:break-word;',
                     `font-size:${Math.round(active ? base : base * 0.8)}px;`,
                     `font-weight:${active ? weight : 600};`,
                 ].join('');
@@ -539,7 +540,7 @@ function mountVinyl(folium, container, ctx, settingsAccess) {
                         `font-size:${Math.round(base * 0.62)}px;color:${dimColor};`,
                         'font-weight:400;line-height:1.4;margin-top:0.18em;',
                         `opacity:${active ? '0.78' : '0.7'};`,
-                        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;',
+                        'white-space:normal;overflow-wrap:anywhere;word-break:break-word;',
                     ].join('');
                     transEl.textContent = trans;
                     row.appendChild(transEl);
