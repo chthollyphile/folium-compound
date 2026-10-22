@@ -263,6 +263,18 @@
       "addedAt": "2026-10-21",
       "updatedAt": "2026-10-22",
       "lastIssue": 71
+    },
+    "visualizer-jump": {
+      "owners": [
+        "tumuyan"
+      ],
+      "submission": 70,
+      "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
+      "path": "mods/visualizer-jump",
+      "commit": "b72e51b4e91bb435206f5c1cdcf728967909884a",
+      "version": "1.0.0",
+      "addedAt": "2026-10-22",
+      "updatedAt": "2026-10-22"
     }
   }
 }

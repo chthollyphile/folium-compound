@@ -364,6 +364,24 @@
       "sourceCommit": "8499bb53870949dd7b09727c6ba6ddacd53578c3"
     },
     {
+      "id": "visualizer-jump",
+      "name": "跳一跳歌词特效",
+      "version": "1.0.0",
+      "author": "tumuyan",
+      "description": "一个仿跳一跳经典小游戏的歌词特效。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/visualizer-jump",
+      "digest": "sha256:72e3ff1bbd0459d9590a1998bfe45087457244dcac60bf1f9dc87fb197137770",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-22T11:28:54.356Z",
+      "owners": [
+        "tumuyan"
+      ],
+      "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
+      "sourceCommit": "b72e51b4e91bb435206f5c1cdcf728967909884a"
+    },
+    {
       "id": "desktop-lyric",
       "name": "桌面歌词",
       "version": "1.0.4",
