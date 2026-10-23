@@ -1,8 +1,9 @@
 // mods/visualizer-jump/jumpTimeline.mjs
 // 时间那一层：「小人什么时候跳」。纯计算，不碰 DOM。
 //
-// 一行歌词有自己的起止时间。第 k 块踩在**它自己**开唱的那一刻：起跳只占一小截，
-// 其余时间小人站在那根柱子上。于是「进度」与「唱到哪个词」是同一件事。
+// 一行歌词有自己的起止时间。第 k 块**落在**它自己开唱的那一刻——那一秒既是这句话的
+// 第一个音，也是小人的落地、冲击环的起点与柱子开始下沉的那一刻；他在那根柱子上一直站到
+// 下一次起跳（起跳是从下一个字的开唱往回推一个滞空），于是他脚下的永远是正在唱的那一块。
 // 这一行没有逐字时间时，才把几个块**均分**在这一行的时长里。
 // 柱子不再按时间去「立起来」、也没有整行淡出：画面一直在呼吸就分不清进度。
 //
@@ -49,18 +50,27 @@ const smooth = (value) => {
 /**
  * 空档走到第 `phase`（0…1）时，位置该按「起点 / 拐点 / 终点」三点怎么加权，权重和为 1。
  *
- * 两段各占一半时间：起点 → 拐点（`a`）、拐点 → 终点（`b`），各自 `smoothstep`。
- * 两条路在屏幕上可能差着九十度，直接插值会把拐角切掉、看着像整屏被横甩；
- * 分段之后两头必然是纯一点（`phase = 0` 只剩起点、`1` 只剩终点），中间不会出现三权重全 0 的空洞。
+ * 两条腿（起点 → 拐点、拐点 → 终点）在屏幕上可能差着九十度，直接插值会把拐角切掉、
+ * 看着像整屏被横甩；分段之后两头必然是纯一点（`phase = 0` 只剩起点、`1` 只剩终点）。
  *
- * 小人与镜头共用这一把尺子：他在路上的位置就是这三点加权出来的点，镜头钉着他，
- * 于是「他跳过拐角」和「镜头绕开拐角」是同一件事。
+ * `share` 是**拐点占整段路程的几成**（缺省一半）：按它分时间，两条腿的速度是同一个数
+ * ——这样才是「绕过拐角」而不是「先在拐角前蹭一段、过去之后再窜出去」。
+ * 以前固定一半对一半，而第一腿只有半个块那么长、第二腿要跨到下一行的行首，
+ * 同样的时间跑差着好几倍的路，句末于是「镜头先在拐角前蹭一会儿、忽然往下一行蹿出去」。
+ *
+ * 每条腿内部**匀速**：整段之外镜头的每一段本来就是匀速的，再给每条腿各加一次缓动，
+ * 只会让它在拐点那里把速度收到 0（旧版两段各走一次 smoothstep 就是这么糊的）——
+ * 绕过拐角需要的是转向，不是刹车。
  */
-export const resolvePathWeights = (phase) => {
+export const resolvePathWeights = (phase, share = 0.5) => {
     const t = clamp01(phase);
-    const a = t <= 0.5 ? smooth(t * 2) : 1;
-    const b = t <= 0.5 ? 0 : smooth((t - 0.5) * 2);
-    return { first: 1 - a, mid: a - b, second: b };
+    const corner = Math.max(0, Math.min(1, Number.isFinite(share) ? share : 0.5));
+    if (t <= corner) {
+        const local = corner > 0 ? t / corner : 0;
+        return { first: 1 - local, mid: local, second: 0 };
+    }
+    const local = corner < 1 ? (t - corner) / (1 - corner) : 1;
+    return { first: 0, mid: 1 - local, second: local };
 };
 
 /**
@@ -202,20 +212,7 @@ export const buildLineTimeline = (options = {}) => {
         const window = Math.max(0.05, landings[index + 1] - landings[index]);
         flyShares.push(Math.max(MIN_FLY_SHARE, Math.min(MAX_FLY_SHARE, flySeconds / window)));
     }
-    /*
-     * 镜头自己的到站时刻：第 k 块在 `landings[k] − lag × 上一跳的间隔` 到站。
-     *
-     * 小人只在腾空那一截前进、落地之后站着不动；镜头要是照他的曲线走，就成了
-     * 「走一截、停一截」——节奏一快，画面就在「动—停—动」地抖。所以镜头走**匀速**：
-     * 每一段的窗口覆盖「这一跳 + 落地后站着那一截」，段与段首尾相接，行内于是全程在走。
-     *
-     * `lag` 取「站着那一截」的一半：镜头比小人晚半截到站（他落地时镜头还在走），
-     * 也比他早半截离站——两头各摊半截，镜头落在小人身后 / 身前都不超过半截，不会一头偏到底。
-     * 站着多久每一跳都不一样（见 flyShares），所以 `lag` 也按跳算。
-     */
-    const cameraTimes = landings.map((landing, index) => (
-        index === 0 ? landing : landing - ((1 - (flyShares[index - 1] ?? MAX_FLY_SHARE)) / 2) * (landing - landings[index - 1])
-    ));
+    // 镜头的到站时刻要按「他在每一根上站多久」算（详见下面 hops 之后的那一处）。
     // 末根柱子的回弹时刻：跨行那一跳的起步点（缺省按这一行唱完算，见 resolveLastRelease）。
     const lastRelease = Number.isFinite(options.lastRelease) ? options.lastRelease : end;
     /*
@@ -248,39 +245,102 @@ export const buildLineTimeline = (options = {}) => {
      */
     const tailRelease = Number.isFinite(tailEnd) && tailEnd > lastLanding + 1e-6;
     const handoverTime = tailRelease ? lastLanding + (tailEnd - lastLanding) * handover : null;
-    if (tailRelease) cameraTimes.push(tailEnd);
     /*
-     * 末段（末块落点 → 下一行开口）不参与 `cameraTimes` 那套「块号的匀速轴」：
-     * 它是由 `tailSpan` 单独驱动的一段折线（见 client 的 `tailFlight`），
-     * 所以上面那一项只是给 `resolveCameraPath` 留个到站记号，
-     * 真正画出来的位置一律走 `resolveTailAirborne`。
+     * 每一次起跳：窗口是「上一块落地 → 这一块开唱」，而**落地就落在这一块开唱的那一秒**。
+     *
+     * 以前是反过来的：他在这一块**自己**开唱的那一刻起跳、滞空结束就落了地——于是
+     *   1. 落地落在两个词中间的任意一处，跟歌的拍子没有关系（冲击环、柱子那一沉
+     *      都是不与任何一个字同时发生的，画面因而「不听歌」）；
+     *   2. 他是踩着**上一个词**站在这一块上的：这一块的词一开口他就跳走了，
+     *      嘴里唱的和脚下站的差着一整格。
+     * 现在反过来钉：这一块开唱的那一秒，正好是他落在它顶上的那一秒——环、尘、柱子的
+     * 下沉都与那句话的第一个音同时发生，他也就整段站在正在唱的那句话上。
+     *
+     * 起跳顺着落点往回推一个滞空（比例由 `flyShares` 给）：滞空是几秒就是几秒，
+     * 与这句唱得快还是慢无关（见 MIN_FLY_SHARE / MAX_FLY_SHARE）。
      */
     const hops = [];
     for (let index = 0; index < Math.max(0, total - 1); index += 1) {
         const hopStart = landings[index];
         const hopEnd = landings[index + 1];
+        const fly = (hopEnd - hopStart) * (flyShares[index] ?? MAX_FLY_SHARE);
         hops.push({
             index,
             from: index,
             to: index + 1,
+            // 窗口的头：上一块的落地。这一跳之前他站在上一块上把它的词唱完。
             start: hopStart,
-            // 起跳只占一小截：其余时间小人站在柱子上，跟着这句词一起唱。
-            landTime: hopStart + (hopEnd - hopStart) * (flyShares[index] ?? MAX_FLY_SHARE),
+            // 起跳：往回一个滞空。出发之前他一直站在上一块上，跟着那块自己的词。
+            liftTime: hopEnd - fly,
+            // 落地：这一块自己的开唱那一刻。
+            landTime: hopEnd,
             end: hopEnd,
         });
     }
     /*
+     * 他从每一根柱子上迈步的时刻：出了这一跳，最后一根就是跨行那一跳的起步点
+     * （由 `lastRelease` 给；缺省按这一行唱完算）。它同时也是「他站在这一根上多久」的止点。
+     */
+    const leaveTimes = landings.map((landing, index) => (
+        index < hops.length ? hops[index].liftTime : lastRelease
+    ));
+    /*
+     * 镜头自己的到站时刻：他在第 k 根上站到 `leaveTimes[k]`，镜头按**这段停留的中点**到站。
+     *
+     * 小人只在腾空那一截前进、站着的时候纹丝不动；镜头要是照他的曲线走，就成了
+     * 「走一截、停一截」——节奏一快，画面就在「动—停—动」地抖。所以镜头走**匀速**：
+     * 每一段的窗口覆盖「站着那一截 + 这一跳」，段与段首尾相接，行内于是全程在走。
+     *
+     * 到站取停留的中点：镜头比他晚半截到站（他落地时镜头还在走）、也比他早半截离站，
+     * 两头各摊半截，镜头落在他身前 / 身后都不超过半截，不会一头偏到底。
+     * 站着多久每一根都不一样（见 leaveTimes），所以这个中点也按根算。
+     *
+     * 第 0 根不必推：他从上一行跨过来就落在它上面，镜头顺着上一行的末段直接接手，
+     * 画面一刻不停；顺推的话行的开口处会平白呆站半截。
+     */
+    const cameraTimes = landings.map((landing, index) => (
+        index === 0 ? landing : landing + Math.max(0, leaveTimes[index] - landing) / 2
+    ));
+    /*
+     * 镜头到站**末块**的那一刻：末段的窗口就按它起步（见返回的 `cameraTail`）。
+     * 到站之后镜头立刻开始往下一行首块走，不留「已经到站、这一行却还没唱完」的空档。
+     */
+    const cameraStop = cameraTimes.length > 0 ? cameraTimes[cameraTimes.length - 1] : start;
+    if (tailRelease) cameraTimes.push(tailEnd);
+    // 时刻排得挤到一起时兜一下：段与段之间至少留一点宽度，`resolveCameraPath` 才不会除零。
+    for (let index = 1; index < cameraTimes.length; index += 1) {
+        if (cameraTimes[index] <= cameraTimes[index - 1]) cameraTimes[index] = cameraTimes[index - 1] + 1e-3;
+    }
+    /*
+     * 末段（镜头从末块走到下一行首块）自己有一个窗口：`cameraStop` → `tailEnd`。
+     *
+     * 它**不能**借用小人那一开窗（`tailSpan`，从末块落点起算）：小人在末块上一直站到
+     * 唱完那一刻才起跳，镜头的到站却在他那段停留的中点——比他早。共用窗口的下场是
+     * 「镜头已经站到末块上、低头却发现这一行还没唱完」：那一截里调用方既不能用行内那几段
+     * （首尾两端夹在同一块上，画面停住），又还不到接管的时候；等接管了，相位早就走了
+     * 小半程——画面于是「停一会儿，忽然往下一行蹿一下」。
+     *
+     * 按镜头自己的到站时刻起步，这三段就首尾相接了：行内最后一段在这儿交班，末段从同一个
+     * 点出发，终点仍是下一行开口那一刻。
+     */
+    // 没有下一行时（整首的最后一句）就没有末段可接：镜头停在末块上，别留下一个指向虚处的窗口。
+    const cameraTail = tailRelease && Number.isFinite(options.nextStart) && tailEnd > cameraStop
+        ? { begin: cameraStop, end: tailEnd }
+        : null;
+    /*
      * 每根柱子自己的两个时刻（柱子被踩下去 / 弹回来，见 jumpCourse.resolvePillarSpring）：
-     *   - `pressTime`：小人**落**在它上面的那一刻 —— 第 0 根是这一行开口（他从上一行
-     *     跨过来就落在它上面），其余是上一跳的落点 `hops[index - 1].landTime`；
-     *   - `releaseTime`：他**跳走**的那一刻 —— 这一跳的起跳 `landings[index]`
-     *     （最后一根是跨行那一跳的起步点，由 `lastRelease` 给；缺省按这一行唱完算）。
+     *   - `pressTime`：小人**落**在它上面的那一刻 —— 就是这一块自己开唱的那一刻
+     *     （第 0 根是这一行开口：他从上一行跨过来就落在它上面）；
+     *   - `releaseTime`：他**跳走**的那一刻 —— 这一跳的起跳（`leaveTimes`），
+     *     最后一根是跨行那一跳的起步点，由 `lastRelease` 给；缺省按这一行唱完算。
+     *
+     * 于是柱子被踩沉下去的那一秒正好是这句话的第一个音：听觉与画面落在同一处。
      */
     const pillars = landings.map((landing, index) => ({
         index,
         riseTime: index === 0 ? start : landing - minGap,
         pressTime: index === 0 ? start : (hops[index - 1]?.landTime ?? start),
-        releaseTime: index < hops.length ? hops[index].start : lastRelease,
+        releaseTime: leaveTimes[index],
     }));
     return {
         start,
@@ -307,6 +367,11 @@ export const buildLineTimeline = (options = {}) => {
             begin: lastLanding,
             end: tailRelease ? tailEnd : lastLanding,
         },
+        /*
+         * 末段**镜头**自己的窗口（`cameraStop → tailEnd`）：与小人那一开窗不同起点，
+         * 见上面 `cameraTail` 那一处说明。调用方画末段一律按它取相位。
+         */
+        cameraTail,
         /*
          * 空档里**人站着不动**的那一截：`pillarRest` 到 `gapShift` 之间。
          * 收尾窗的「呼吸」只该长在这里——末块上人还在唱的时候，或者他已经在路上之后，
@@ -379,13 +444,15 @@ export const resolveRunnerState = (options = {}) => {
     }
 
     for (const hop of timeline.hops) {
-        if (t < hop.start) return { index: hop.from, from: hop.from, to: hop.from, progress: 1, airborne: false };
+        // 起跳是窗口里的第二个时刻：之前他站在上一块上，跟着那块自己的词一起唱。
+        const lift = Number.isFinite(hop.liftTime) ? hop.liftTime : hop.start;
+        if (t < lift) return { index: hop.from, from: hop.from, to: hop.from, progress: 1, airborne: false };
         if (t < hop.landTime) {
             return {
                 index: hop.to,
                 from: hop.from,
                 to: hop.to,
-                progress: (t - hop.start) / Math.max(1e-6, hop.landTime - hop.start),
+                progress: (t - lift) / Math.max(1e-6, hop.landTime - lift),
                 airborne: true,
             };
         }

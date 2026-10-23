@@ -172,6 +172,8 @@ const HANDOVER_SHARE = 0.22;
 /** 新行登场：柱子从落位点下方这么多格处往上滑出来。 */
 const REVEAL_RISE_CELLS = 0.9;
 
+
+
 /** 新行登场：单根柱子滑上来用多久（秒）。 */
 const REVEAL_SECONDS = 0.4;
 
@@ -388,7 +390,9 @@ const layoutLine = ({ line, folium, knobs, lineIndex, window, cap, nextStart, ha
     if (units.length === 0) return null;
 
     /*
-     * 时间与字共用一条轴：每块踩在**自己**开唱的那一刻跳过去（见 jumpTimeline）。
+     * 时间与字共用一条轴：每块**落在**它自己开唱的那一刻（见 jumpTimeline）——
+     * 落地、冲击环、柱子被踩下去，都与这句话的第一个音同时发生；起跳是从那一刻往回
+     * 推一个滞空，于是他脚下的那一块永远是正在唱的那一块。
      * 收尾上限用 `window.writeEnd`：下一行开口之前这一行的最后一跳必须已经落地。
      */
     const timeline = buildLineTimeline({
@@ -417,7 +421,10 @@ const layoutLine = ({ line, folium, knobs, lineIndex, window, cap, nextStart, ha
 
 const mountJump = (folium, container, ctx) => {
     const stage = createJumpStage(container);
-    stage.setOpacity(ctx.getDisplay()?.visualizerOpacity ?? 1);
+    /*
+     * 「特效不透明度」不在这里写：宿主已经把它加在可视化所在的那一层上了（FoliumDisplay
+     * 的 visualizerOpacity 说明写着别再加一遍），再写一次等于把值乘了两次。
+     */
 
     let knobs = readKnobs(ctx.getSettings());
     // 排版缓存：换行要反复读相邻几行，且旋钮 / 时间窗变一次就整表作废。
@@ -703,9 +710,26 @@ const mountJump = (folium, container, ctx) => {
             });
         };
 
+        /**
+         * 这一行的**路尾**（拐点）在柱顶高度上的屏幕位置：下一行从这里起铺，
+         * 跨行那一跳的两端就落在它两侧（`accumulateRowRoad` 的行尾点）。
+         *
+         * 镜头绕过拐角要经过它：从末块一路走到这里，才拐向下一行的首块。
+         * 以前是从末块的屏幕坐标上硬推一个 x 偏移量当拐点（`len / √2`），
+         * 那一点离末块只有几个像素——「绕拐角」等于原地掉头，两条腿差着几十倍的路。
+         */
+        const placeCorner = (lineIndex) => {
+            const entry = road[Math.max(0, Math.min(road.length - 1, lineIndex))] ?? null;
+            if (!entry) return null;
+            const world = entry.along === 'x'
+                ? { x: entry.x + entry.length, y: entry.y }
+                : { x: entry.x, y: entry.y + entry.length };
+            return projection.project(world.x, world.y, heightCells);
+        };
+
         return {
             cellPx, depth, crossCells, heightCells, projection,
-            road, placeRow,
+            road, placeRow, placeCorner,
             // 小人脚下留给上一行的那块高度：镜头把他钉在离画面底边这么高的地方。
             // 一格按最小像素算，一格再小也不会把落点挤出画面底边。
             anchorBelowPx: belowCells * Math.max(cellPx, CELL_FLOOR_PX),
@@ -752,10 +776,25 @@ const mountJump = (folium, container, ctx) => {
     };
 
     /**
+     * 这一行之前还排得出柱子吗？排不出就是**整曲第一行**：它前面没有人可跳过来（见入场一跳）。
+     * 判法和 `sceneRows` 里找「刚唱完那一行」一样：往回退几行找第一个排得出柱子的行。
+     */
+    const hasRowBefore = (rowIndex) => {
+        for (let index = rowIndex - 1; index >= 0 && index >= rowIndex - 3; index -= 1) {
+            if (layoutOf(index)) return true;
+        }
+        return false;
+    };
+
+    /**
      * 这一行登场的两个时刻：
-     *   - `start`：它第一次出现在画面上的时刻——通常是镜头切到它前一行那一刻（那时它
-     *     作为「下一行」登场）。两行之间夹了空行时它会被提前挂上来，那时按行号排班的
-     *     时刻还在未来，取两者中更早的那个，免得这一行先隐身一段时间再冒出来；
+     *   - `start`：它第一次出现在画面上的那一刻——他落在**它前一行**首块上的那一刻
+     *     （n 行唱完、跳到 n+1 行时，n+2 行才挂上画面）。那一刻是前一行的时间窗里的
+     *     `afterEnd`（= 这一行的开口），**不是** `writeEnd`：`writeEnd` 比交班早一截
+     *     （还要留出跨行那一跳的余量），照它排班的话动画在他还在空中时就放完了——
+     *     等这一行真的挂上画面，柱子已经站定，看着就是「凭空出现」。
+     *     两行之间夹了空行时它会被提前挂上来，那时按行号排班的时刻还在未来，
+     *     取两者中更早的那个，免得这一行先隐身一段时间再冒出来；
      *   - `budget`：它必须落位完成的秒数 —— 到它自己接手（变成「正在写」的那一行）为止。
      *     短句时这一截很短，错开量会被压一压，免得小人跳上一根还在上升的柱子。
      *
@@ -763,8 +802,8 @@ const mountJump = (folium, container, ctx) => {
      */
     const revealWindowOf = (index, rowIndex) => {
         if (index <= 1) return { start: null, budget: 0 };
-        const scheduled = windows[index - 2]?.writeEnd;
-        const onScreen = rowIndex >= 1 ? windows[rowIndex - 1]?.writeEnd : null;
+        const scheduled = windows[index - 2]?.afterEnd;
+        const onScreen = rowIndex >= 1 ? windows[rowIndex - 1]?.afterEnd : null;
         const start = Math.min(
             Number.isFinite(scheduled) ? scheduled : Number.POSITIVE_INFINITY,
             Number.isFinite(onScreen) ? onScreen : Number.POSITIVE_INFINITY,
@@ -847,6 +886,25 @@ const mountJump = (folium, container, ctx) => {
         const idleRisePx = idle.rise * cellPx * IDLE_RISE_CELLS;
         const idleDriftPx = idle.drift * projection.lift * IDLE_DRIFT_CELLS;
 
+        /*
+         * 入场一跳：全曲**第一行**（它前面没有排得出柱子的行）的第一块没有
+         * 「他从别处跳过来」这一下——他一上来就站在那块上面，柱子却照样在第一个字开口
+         * 那一刻被踩沉下去（`pressTime` 就是这一行开口）。没有来由地忽然沉一截，看着就是跳变。
+         *
+         * 于是开口之前给他补一次**原地起跳**：他跳起来、落回同一块的同一点上，
+         * 那一沉就成了落地该有的那一沉（冲击环也一并有了，见下面 `landings`）。
+         * 开口之前挤不出这一跳（第一个字就贴在 0 秒）时反过来：**这一根始终不下沉**——
+         * 宁可少一点弹性，也不要凭空掉一截。
+         */
+        const openingAt = Number.isFinite(windows[rows.rowIndex]?.writeStart)
+            ? windows[rows.rowIndex].writeStart
+            : null;
+        const debutRow = rows.rowIndex >= 0 && !hasRowBefore(rows.rowIndex) && openingAt !== null;
+        // 原地的那一跳也照「滞空时间」那颗旋钮给，看着和行内那几跳是同一套动作。
+        const entranceLead = clamp(knobs.flySeconds, 0.2, 0.9);
+        const hasEntrance = debutRow && openingAt >= entranceLead;
+        const sinklessOpening = debutRow && !hasEntrance;
+
         /**
          * 这一根柱子此刻沉下去多少（像素）：小人踩上来就沉、跳走就弹回来并小幅振动几下。
          *
@@ -855,6 +913,11 @@ const mountJump = (folium, container, ctx) => {
          * 幅度由旋钮「柱子弹性」给，0 = 纹丝不动。
          */
         const sinkPxOf = (item) => {
+            /*
+             * 没跳可依的那一根（全曲第一块、且开口前挤不出入场一跳）**不许沉**——
+             * 它是凭空掉下去的，见下面 `hasEntrance` 那一处。
+             */
+            if (sinklessOpening && item.role === 'current' && item.unitIndex === 0) return 0;
             const spring = item.timeline?.pillars?.[item.unitIndex];
             if (!spring) return 0;
             return resolvePillarSpring({
@@ -959,8 +1022,9 @@ const mountJump = (folium, container, ctx) => {
         /*
          * 小人此刻在哪一格都由时间直接推出来，三种状态：
          *   1. 跨行那一跳：上一行唱完到这一行开口之间，他自己从上一行最后一根跳过来；
-         *   2. 行内的某一跳：这块词开唱，他就往这块词跳；
-         *   3. 都不在：站在自己那一行已经落地的那根柱子上（也含「还没轮到他」的第一根）。
+         *   2. 行内的某一跳：这块词开唱之前一个滞空起跳、开唱那一刻落在它上面；
+         *   3. 都不在：站在自己那一行已经落地的那根柱子上——下一条词开口前的那零点几秒
+         *      他不走（也含「还没轮到他」的第一根）。
          */
         /*
          * 按**块号**排序：`placed` 是按屏幕上下（画家算法）排过的，不能拿来当行内的顺序，
@@ -1002,15 +1066,23 @@ const mountJump = (folium, container, ctx) => {
         const shiftAir = resolveShiftAirborne({ ...shiftSpans, time: timeSec });
         const runner = resolveRunnerState({ timeline, time: timeSec });
         const tailFrom = current[current.length - 1];
+        // 入场那一跳的窗口：开口之前一个滞空起跳、开口那一刻落回原地。
+        const entranceAir = hasEntrance
+            ? resolveTailAirborne({ begin: openingAt - entranceLead, end: openingAt, time: timeSec })
+            : null;
+        const entrancing = Boolean(entranceAir?.airborne) && Boolean(current[0]);
         const hopper = shiftAir?.airborne && tailFrom && next.length > 0
             ? { kind: 'shift', from: tailFrom, to: next[0], progress: shiftAir.phase }
-            : { kind: 'inline', from: current[runner.from], to: current[runner.to], progress: runner.progress };
+            : entrancing
+                // 原地起跳：两端是同一块，只有抛物线那一下在动。
+                ? { kind: 'entrance', from: current[0], to: current[0], progress: entranceAir.phase }
+                : { kind: 'inline', from: current[runner.from], to: current[runner.to], progress: runner.progress };
         const hopping = hopper.kind === 'shift';
         const fromUnit = hopper.from;
         const toUnit = hopper.to;
         const airProgress = hopper.progress;
         // 真在空中（腾空那一截）才做挤压：站着的帧不该被压扁。
-        const airborne = hopping || runner.airborne;
+        const airborne = hopping || entrancing || runner.airborne;
 
         /*
          * 镜头：把「小人走到路上第几格」钉到画面的锚点上。
@@ -1031,30 +1103,34 @@ const mountJump = (folium, container, ctx) => {
          * 末段：从**这一行末块**走到**下一行首块**。两条路的夹角可能是九十度，
          * 走直线会把拐点切掉，所以沿折线走（三段权重见 `resolvePathWeights`）。
          *
-         * 它的窗口是 `tailSpan`（末块落点 → 下一行开口）：
-         *   - 起点接上行内那几段，于是末块落地之后镜头一刻都不停；
-         *   - 终点就是开口那一刻，与小人跨行那一跳的落地严丝合缝。
-         * 唱完那一刻落在它中间，镜头在那之前就已经在走——画面不会在收尾那一刻停住。
+         * 它的窗口是 `cameraTail`（镜头到站末块那一刻 → 下一行开口），**不是**小人的
+         * `tailSpan`：小人站在末块上一直唱到最后一刻才起跳，镜头的到站却在他那段停留的
+         * 中点。按自己的窗口走，行内最后一段才与它首尾相接：镜头一到站末块，末段就从同一个
+         * 点、同一个时刻接出去。终点仍是开口那一刻，与小人跨行那一跳的落地严丝合缝。
+         *
+         * 于是「拍到最后一个字到下一行第一个字」这一截里画面一直在走：镜头到站那一刻就
+         * 上路，不再先冻住一段、再忽然跳到一个已经走了半程的相位上。
          *
          * 窗口与端点都取自**这一行自己**的排版（`timeline` / `current` 的末块），
          * 不看「上一行」：收尾窗里这一行还在手上（`rows.rowIndex` 仍是它），
          * 那一刻画面上根本没有「刚唱完的那一行」可依。第 0 行也照样适用——它没有上一行，
          * 却有下一行要跨。
          */
-        const tailFlight = current.length > 0 && next.length > 0
+        const cameraTail = timeline?.cameraTail ?? null;
+        const tailFlight = current.length > 0 && next.length > 0 && cameraTail
             ? resolveTailAirborne({
-                begin: timeline?.tailSpan?.begin,
-                end: timeline?.tailSpan?.end,
+                begin: cameraTail.begin,
+                end: cameraTail.end,
                 time: timeSec,
             })
             : null;
         /*
          * 末段还在走：这一屏上除了它没有别的镜头可走（行内那几段都已经过去了）。
-         * 只在「这一行唱完」之后才接手——末段的起点是末块落点，可末块落地之后
-         * 他还得站一会儿把最后几个字唱完，那之前镜头仍按行内那套匀速走。
+         * 起点就是镜头自己到站末块的那一刻，所以到站即可接手——中间不留空档：
+         * 以前要等到这一行唱完才接手，那一截里行内那几段的首尾都夹在末块上，画面就停住了。
          */
         const tailing = Boolean(tailFlight) && tailFlight.phase < 1
-            && timeSec >= (closing?.afterStart ?? Number.POSITIVE_INFINITY);
+            && timeSec >= (cameraTail?.begin ?? Number.POSITIVE_INFINITY);
         const camFrom = hopping || tailing
             ? current[current.length - 1]
             : current[Math.min(camera.index, current.length - 1)];
@@ -1068,11 +1144,16 @@ const mountJump = (folium, container, ctx) => {
              * 折线：起点 → 拐点（两行的接头）→ 终点。
              * 小人在路上时起点就是他脚下那块，镜头于是**钉着他**；他还站在末块上时
              * （末块落地到起跳之间）这条折线照样在走，正好把那一截填平。
+             *
+             * 两条腿按**路程**分时间（见 `cornerShareOf`）：只差那么半块的头一腿不该
+             * 跟「跨到下一行行首」那一腿平分整段空档，否则镜头先在拐角前慢慢蹭、
+             * 过了拐角又猛地窜出去——句末看着就是「停一下、忽然移动」。
              */
-            const weights = resolvePathWeights(camProgress);
+            const corner = board.placeCorner(camFrom.lineIndex) ?? camFrom.top;
+            const weights = resolvePathWeights(camProgress, cornerShareOf(camFrom.top, corner, camTo.top));
             focus = weightedFocus([
                 [camFrom.top, weights.first],
-                [shiftCorner(camFrom), weights.mid],
+                [corner, weights.mid],
                 [camTo.top, weights.second],
             ]);
         }
@@ -1144,7 +1225,13 @@ const mountJump = (folium, container, ctx) => {
             if (target) landings.push({ landTime: hop.landTime, top: target.top, sink: target.sinkPx ?? 0 });
         });
         const shiftLand = windows[rows.rowIndex]?.writeStart;
-        if (rows.rowIndex > 0 && Number.isFinite(shiftLand) && current[0]) {
+        /*
+         * 跨行那一跳的落地（下一个开口那一刻），以及入场那一跳的落地（第一个字开口那一刻）
+         * ——两处都是「他真的从空中落下来」，所以都铺一圈环。
+         * 挤不出入场一跳时（`sinklessOpening`）不铺：那一帧没有落地这回事。
+         */
+        if (!sinklessOpening && Number.isFinite(shiftLand) && current[0]
+            && ((rows.rowIndex > 0 && !debutRow) || hasEntrance)) {
             landings.push({ landTime: shiftLand, top: current[0].top, sink: current[0].sinkPx ?? 0 });
         }
         /*
@@ -1172,7 +1259,8 @@ const mountJump = (folium, container, ctx) => {
             // 跟着「跳跃轨迹」那个旋钮一起淡：想要干净的画面就把两者一起关掉。
             opacity: 0.35 + 0.65 * knobs.trail,
         }));
-        stage.setOpacity(ctx.getDisplay()?.visualizerOpacity ?? 1);
+        // 宿主关掉歌词文字时只藏柱顶那块字，场景照旧跳（见 jumpStage.setTextVisible）。
+        stage.setTextVisible(ctx.getDisplay()?.showText);
     };
 
     /**
@@ -1195,17 +1283,18 @@ const mountJump = (folium, container, ctx) => {
     };
 
     /**
-     * 两行接头那一点（拐点）在屏幕上的位置：上一行末块**沿路的外沿**、落在路的中心线上。
+     * 拐点把整段折路分成两条腿，各自在屏幕上多长 → 它占路程的几成。
      *
-     * 它就摆在两条路的交汇处（`accumulateRowRoad` 让下一行从这里起铺），
-     * 跨行那一段沿折线走时以它为中途站——镜头这才不会把拐角切掉、从中途飞过去。
+     * 这个数拿去给 `jumpTimeline.resolvePathWeights` 分时间：按**路程**分，两条腿的速度
+     * 才一样。头一腿（末块 → 拐点）通常只有半个块那么短，第二腿要一路走到下一行的行首，
+     * 平分时间的话镜头就先在短腿上磨蹭、过了拐点再猛窜出去，句末看着像卡了一帧再跳一下。
      */
-    const shiftCorner = (fromItem) => {
-        const step = (Number(fromItem?.len) || 0) / Math.SQRT2;
-        return {
-            x: fromItem.top.x + (fromItem.direction ?? 1) * step,
-            y: fromItem.top.y,
-        };
+    const cornerShareOf = (startPoint, cornerPoint, endPoint) => {
+        const reach = (pointA, pointB) => Math.hypot(pointB.x - pointA.x, pointB.y - pointA.y);
+        const first = reach(startPoint, cornerPoint);
+        const second = reach(cornerPoint, endPoint);
+        const total = first + second;
+        return total > 1e-6 ? first / total : 0.5;
     };
 
     /** 两点之间按 `progress` 取一点：镜头锚的是「它在路上走到哪儿」，不含抛物线那一下。 */
@@ -1298,6 +1387,23 @@ const mountJump = (folium, container, ctx) => {
         return stamps;
     };
 
+    /*
+     * 静态模式（宿主的「静止模式」，OBS 的静态配置也是它）：契约要求画 `staticLineIndex`
+     * 那一行的**一帧**，之后不再动。宿主在静态模式下给的歌词时钟照旧在走（主窗口与 OBS
+     * 都每帧写它），所以静态时不能订阅时间——订阅了「静止」对这个特效等于没开，还白烧一屏
+     * 等距重排。取景时刻改用那一行自己的进度，拿不到行才退回当前时刻。
+     */
+    const still = Boolean(ctx.staticMode);
+    /** 定格在行内六成处：块基本写完、人也在行内，和宿主给别的样式定格的取法一致。 */
+    const STILL_LINE_RATIO = 0.6;
+    const stillTime = () => {
+        const index = ctx.staticLineIndex ?? ctx.getLineIndex?.() ?? -1;
+        const line = index >= 0 ? (ctx.lines ?? [])[index] : null;
+        const span = line && Number.isFinite(line.endTime) ? line.endTime - line.startTime : 0;
+        return line ? line.startTime + (span > 0 ? span * STILL_LINE_RATIO : 0) : ctx.lyricTime.get();
+    };
+    const nowTime = () => (still ? stillTime() : ctx.lyricTime.get());
+
     let paintedTime = Number.NaN;
     let failedOnce = false;
 
@@ -1306,7 +1412,7 @@ const mountJump = (folium, container, ctx) => {
      */
     const paint = (timeSec, force = false) => {
         if (!Number.isFinite(timeSec)) return;
-        // 同一个时刻不画第二遍：`currentTime` 在一帧里可能被写好几次，repaint 也会来一脚。
+        // 同一个时刻不画第二遍：`lyricTime` 在一帧里可能被写好几次，repaint 也会来一脚。
         if (!force && timeSec === paintedTime) return;
         paintedTime = timeSec;
         try {
@@ -1337,7 +1443,7 @@ const mountJump = (folium, container, ctx) => {
             boardEpoch += 1;
         }
         palette = resolveJumpPalette(ctx.getTheme(), folium);
-        paint(ctx.currentTime.get(), true);
+        paint(nowTime(), true);
     };
 
     /*
@@ -1349,17 +1455,18 @@ const mountJump = (folium, container, ctx) => {
     const resizeObserver = typeof ResizeObserver === 'function'
         ? new ResizeObserver(() => {
             metricsDirty = true;
-            paint(ctx.currentTime.get(), true);
+            paint(nowTime(), true);
         })
         : null;
     resizeObserver?.observe(container);
 
-    paint(ctx.currentTime.get());
-    const offTime = ctx.currentTime.on('change', (value) => paint(value));
-    const offChanges = ctx.subscribe(repaint);
+    paint(nowTime());
+    // 静态模式不订阅时间：那一帧画完就收工，换哪一行由宿主重新挂载来说。
+    const offTime = still ? null : ctx.onLyricTime((value) => paint(value));
+    const offChanges = ctx.onChange(repaint);
 
     return () => {
-        offTime();
+        offTime?.();
         offChanges();
         // 观察器不断开的话，它会一直强引用着已经脱离文档的整棵子树（cinerama 踩过同一个坑）。
         resizeObserver?.disconnect();

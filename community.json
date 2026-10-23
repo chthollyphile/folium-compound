@@ -271,10 +271,11 @@
       "submission": 70,
       "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
       "path": "mods/visualizer-jump",
-      "commit": "b72e51b4e91bb435206f5c1cdcf728967909884a",
-      "version": "1.0.0",
+      "commit": "4422273c34ebb96734ead9def53756b8d05c08fd",
+      "version": "1.1.0",
       "addedAt": "2026-10-22",
-      "updatedAt": "2026-10-22"
+      "updatedAt": "2026-10-23",
+      "lastIssue": 74
     }
   }
 }

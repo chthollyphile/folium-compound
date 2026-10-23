@@ -99,6 +99,8 @@ export const createJumpStage = (container) => {
     container.append(root);
 
     const pillars = [];
+    /** 现在画不画柱顶那块字（宿主的 `getDisplay().showText`）；见 `setTextVisible`。 */
+    let textVisible = true;
     let runner = null;
     // 上一次真正重排过的顺序（见 arrange）：没变就一个节点都不动。
     let arrangeKey = null;
@@ -112,6 +114,8 @@ export const createJumpStage = (container) => {
         while (pillars.length <= slot) {
             const entry = createPillarNode();
             entry.slot = pillars.length;
+            // 池子里新取的柱子也要跟上「现在画不画字」：关掉字之后才登场的柱子不能带着字出场。
+            entry.label.style.visibility = textVisible ? '' : 'hidden';
             scene.append(entry.node);
             pillars.push(entry);
         }
@@ -530,15 +534,20 @@ export const createJumpStage = (container) => {
     };
 
     /*
-     * 这一份不透明度是宿主那个「特效不透明度」旋钮：它跟着 display 变，不跟着时间变，
-     * 所以值没动就不写（这一层以前是每帧无条件写一次 root 样式）。
+     * 宿主说「现在不该画歌词」（`getDisplay().showText` 为 false，比如设置窗口盖住播放页）
+     * 时只藏字：柱子、小人、轨迹照旧画，和内置模式一致。
+     *
+     * 藏的是字盒的 `visibility`，不是把字换成空串——柱子的块长由这块字推出来（jumpShape /
+     * jumpProject），换了字整条路的排版就跟着变，来回切一次画面要跳一次。
+     * 它只跟 display 变，不跟时间变，所以值没动就一个节点都不写。
      */
-    let opacityValue = null;
-    const setOpacity = (value) => {
-        const next = String(clamp01(value));
-        if (next === opacityValue) return;
-        opacityValue = next;
-        root.style.opacity = next;
+    const setTextVisible = (visible) => {
+        const next = visible !== false;
+        if (next === textVisible) return;
+        textVisible = next;
+        pillars.forEach((entry) => {
+            entry.label.style.visibility = next ? '' : 'hidden';
+        });
     };
 
     return {
@@ -550,7 +559,7 @@ export const createJumpStage = (container) => {
         paintRunner,
         drawTrail,
         drawImpact,
-        setOpacity,
+        setTextVisible,
         dispose: () => {
             root.remove();
             pillars.length = 0;
