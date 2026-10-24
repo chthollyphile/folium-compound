@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'" />
+        <title>Folia 桌面歌词</title>
+        <link rel="stylesheet" href="bundle.css" />
+    </head>
+    <body>
+        <div id="app">
+            <!-- 窗口底色：一块带圆角的面板，模式 / 颜色 / 不透明度都由设置驱动。 -->
+            <div id="backdrop"></div>
+            <!-- 顶部三栏：歌名 / 播放控制 / 锁定与关闭。鼠标移进来才淡出显示。 -->
+            <div id="header">
+                <div class="slot left"><span id="song"></span></div>
+                <div class="slot center">
+                    <button type="button" data-cmd="previous" title="上一首">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h2v14H7zM20 5v14L9.5 12z" /></svg>
+                    </button>
+                    <button type="button" data-cmd="playpause" id="playpause" title="播放 / 暂停">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+                    </button>
+                    <button type="button" data-cmd="next" title="下一首">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5h2v14h-2zM4 5v14l10.5-7z" /></svg>
+                    </button>
+                </div>
+                <div class="slot right">
+                    <button type="button" data-cmd="lock" id="lock" title="锁定 / 解锁">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a5 5 0 0 0-5 5v3H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3z" /></svg>
+                    </button>
+                    <button type="button" data-cmd="close" title="关闭">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" class="stroke"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="stage">
+                <div id="lyric"></div>
+                <div id="placeholder" hidden></div>
+            </div>
+        </div>
+        <script src="bundle.js"></script>
+    </body>
+</html>

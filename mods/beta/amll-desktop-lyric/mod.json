@@ -1,0 +1,16 @@
+{
+  "folium": 1,
+  "id": "amll-desktop-lyric",
+  "name": "桌面歌词 (AMLL)",
+  "version": "0.1.0",
+  "author": "TypeDreamMoon",
+  "description": "独立的置顶透明歌词窗口：AMLL 逐字歌词、单行/双行/多行歌词板、可搜索的字体选择器（中西文分离 + Folia 主题字体）、窗口底色与圆角、鼠标穿透与位置锁定。",
+  "main": "main.cjs",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": [
+    "playback.control",
+    "filesystem.data"
+  ],
+  "folia": ">=0.7.20 <0.8.0"
+}

@@ -1,5 +1,17 @@
 {
   "mods": {
+    "amll-desktop-lyric": {
+      "owners": [
+        "TypeDreamMoon"
+      ],
+      "submission": 83,
+      "source": "https://github.com/TypeDreamMoon/folia-desktop-lyric",
+      "path": "mod",
+      "commit": "7f3850a82304c76e49cffbaeb168ec12ddcd5d28",
+      "version": "0.1.0",
+      "addedAt": "2026-10-24",
+      "updatedAt": "2026-10-24"
+    },
     "auto-skip": {
       "owners": [
         "kifoii"

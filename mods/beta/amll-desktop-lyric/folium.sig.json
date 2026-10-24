@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "amll-desktop-lyric",
+  "modVersion": "0.1.0",
+  "digest": "sha256:01b0a8349c69e099e6da61fb4d54dfef1db57d64c59bbcdb25f7d30ea19aac1f",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-24T05:39:48.883Z",
+  "signature": "2cY2arJZ0fmv/FIdnAlo4w8SjhJp0lCcHXk53f09lhweaejpzLl1t0TnpJ1pQm7dZvfuZvO2O8O5pqzkx6PVDg=="
+}
