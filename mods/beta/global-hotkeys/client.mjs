@@ -56,10 +56,10 @@ const MODIFIER_CODES = new Set([
     'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'MetaLeft', 'MetaRight',
 ]);
 
-// `globalShortcut.isRegistered` only sees keys this process registered (the host and other mods),
-// so an accelerator another program owns fails in register() instead, not here.
+// `globalShortcut.isRegistered` only sees keys this process registered (the host's own global
+// shortcuts and other mods), so an accelerator another program owns fails in register() instead.
 const REASON_TEXT = {
-    occupied: '已被 Folia 或其他模组占用',
+    occupied: '已被 Folia 的全局快捷键或其他模组占用',
     'register-failed': '可能被其他程序或输入法占用',
     duplicate: '和另一个动作重复',
     empty: '没有设置',
@@ -101,9 +101,14 @@ const toAccelerator = (event) => {
     return [...mods, key].join('+');
 };
 
+// Set while the settings panel writes values itself. The commit that follows reports its own
+// failures; letting the section-wide onChange register the set again would overwrite that report,
+// and every key would go unregistered for a moment between the two calls.
+let committing = false;
+
 export default function activate(folium) {
-    // The export window loads every mod too; there is no player there, and publishing would
-    // make the main entry pick the wrong window.
+    // The export window loads every mod too; there is no player there, and no main entry sending
+    // it actions either.
     if (folium.env.context !== 'main') {
         return;
     }
@@ -136,7 +141,9 @@ export default function activate(folium) {
         }
     };
 
-    window.__foliaHotkey = {
+    // The main entry sends the action name when a key goes down (`api.rpc.send`, Folium 1.7).
+    // Nothing is published on `window`, so nothing in the host page can see or replace it.
+    const actions = {
         playPause: () => safe('toggle', () => folium.playback.toggle()),
         previous: () => safe('previous', () => folium.playback.previous()),
         next: () => safe('next', () => folium.playback.next()),
@@ -144,9 +151,18 @@ export default function activate(folium) {
         volumeDown: () => changeVolume(-VOLUME_STEP),
     };
 
-    folium.onDispose(() => {
-        delete window.__foliaHotkey;
-    });
+    try {
+        folium.rpc.on('action', (payload) => {
+            const run = typeof payload === 'string' ? actions[payload] : null;
+            if (run) {
+                run();
+                return;
+            }
+            folium.log.warn('收到未知的按键动作', payload);
+        });
+    } catch (error) {
+        folium.log.warn('监听按键动作失败', error);
+    }
 
     const section = folium.registries.settingsSections.register({
         id: 'keys',
@@ -174,7 +190,12 @@ export default function activate(folium) {
         const access = section && section.settings;
         if (access) {
             pushBindings(folium, access.get());
-            access.onChange(() => pushBindings(folium, access.get()));
+            access.onChange(() => {
+                if (committing) {
+                    return;
+                }
+                pushBindings(folium, access.get());
+            });
         }
     } catch (error) {
         folium.log.warn('读取设置区块的键位失败，沿用上次保存的键位', error);
@@ -231,20 +252,25 @@ function mountPanel(container, ctx, folium) {
     };
 
     const commit = async (field, accelerator, previous) => {
-        ctx.settings.set({ [field.key]: accelerator });
-        const failed = await rebind();
-        if (failed === null) {
-            return;
-        }
-        const mine = failed.find((entry) => entry && entry.action === field.key);
-        if (mine) {
-            // Put the old key back: leaving a key the OS refused registered would make the row
-            // claim something that is not true.
-            ctx.settings.set({ [field.key]: previous });
-            await rebind();
-            setStatus(`${accelerator} ${REASON_TEXT[mine.reason] ?? '无法注册'}`, true);
-        } else {
-            setStatus(`${accelerator} 已生效`, false);
+        committing = true;
+        try {
+            ctx.settings.set({ [field.key]: accelerator });
+            const failed = await rebind();
+            if (failed === null) {
+                return;
+            }
+            const mine = failed.find((entry) => entry && entry.action === field.key);
+            if (mine) {
+                // Put the old key back: leaving a key the OS refused registered would make the row
+                // claim something that is not true.
+                ctx.settings.set({ [field.key]: previous });
+                await rebind();
+                setStatus(`${accelerator} ${REASON_TEXT[mine.reason] ?? '无法注册'}`, true);
+            } else {
+                setStatus(`${accelerator} 已生效`, false);
+            }
+        } finally {
+            committing = false;
         }
     };
 
@@ -333,14 +359,19 @@ function mountPanel(container, ctx, folium) {
         if (recording) {
             recording.finish();
         }
-        ctx.settings.reset();
-        const failed = await rebind();
-        render();
-        const hasFailure = Boolean(failed && failed.length > 0);
-        setStatus(
-            hasFailure ? `${failed.length} 个默认键无法注册（对照日志换一个）` : '已恢复默认',
-            hasFailure,
-        );
+        committing = true;
+        try {
+            ctx.settings.reset();
+            const failed = await rebind();
+            render();
+            const hasFailure = Boolean(failed && failed.length > 0);
+            setStatus(
+                hasFailure ? `${failed.length} 个默认键无法注册（对照日志换一个）` : '已恢复默认',
+                hasFailure,
+            );
+        } finally {
+            committing = false;
+        }
     });
 
     footer.append(reset, status);

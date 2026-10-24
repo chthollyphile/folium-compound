@@ -4,9 +4,10 @@
 // The keys are data, not code: they live in this mod's data file (mods-data/<id>, outside the
 // mod folder, so changing them does not invalidate the mod's approval) and are rebound at
 // runtime over rpc. Every action is carried out by the client entry, which is the only side
-// that can touch playback.
+// that can touch playback; a press is handed to it with `api.rpc.send` (Folium 1.7), so nothing
+// here touches a window, evaluates script in the page, or knows which window the client is in.
 
-const { BrowserWindow, globalShortcut } = require('electron');
+const { globalShortcut } = require('electron');
 
 const STORAGE_KEY = 'bindings';
 
@@ -18,47 +19,6 @@ const DEFAULTS = {
     next: 'Ctrl+Alt+Shift+D',
     volumeUp: 'Ctrl+Alt+Shift+W',
     volumeDown: 'Ctrl+Alt+Shift+S',
-};
-
-// The window whose page runs this mod's client. Cached once found.
-let mainWindow = null;
-
-const isAlive = (win) => Boolean(win) && !win.isDestroyed() && !win.webContents.isDestroyed();
-
-const resolveMainWindow = async () => {
-    if (isAlive(mainWindow)) {
-        return mainWindow;
-    }
-
-    const windows = BrowserWindow.getAllWindows().filter(isAlive);
-    for (const win of windows) {
-        try {
-            if (await win.webContents.executeJavaScript('Boolean(window.__foliaHotkey)')) {
-                // Only a confirmed window is cached. Caching windows[0] here would pin the wrong
-                // window for the whole session after one press before the client had started,
-                // and every later press would keep going to it.
-                mainWindow = win;
-                return win;
-            }
-        } catch {
-            // A page still loading rejects; treat it as "not this one, not yet".
-        }
-    }
-
-    // Not found: this press does nothing, and nothing is remembered. The next press probes again.
-    return null;
-};
-
-const dispatch = async (action) => {
-    const win = await resolveMainWindow();
-    if (!win) {
-        return;
-    }
-    try {
-        await win.webContents.executeJavaScript(`window.__foliaHotkey?.${action}?.()`);
-    } catch {
-        // The page was navigating, or the call threw; the next press tries again.
-    }
 };
 
 module.exports = async (api) => {
@@ -106,7 +66,7 @@ module.exports = async (api) => {
             // only guards promise rejections, so nothing may escape.
             const registered = globalShortcut.register(accelerator, () => {
                 Promise.resolve()
-                    .then(() => dispatch(action))
+                    .then(() => api.rpc.send('action', action))
                     .catch((error) => api.log.error(`${accelerator} 处理失败`, error));
             });
 

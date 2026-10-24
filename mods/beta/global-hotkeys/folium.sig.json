@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "global-hotkeys",
-  "modVersion": "1.2.1",
-  "digest": "sha256:ae8dc328a3ed48e7817df7f5c04ce4e2fc03a54ed7b6923a72fb91bd37866c12",
+  "modVersion": "1.3.0",
+  "digest": "sha256:275368d433921eecb4df7ae536ceed2ce55b56269d2b563b7cf889fc6a7c6810",
   "keyId": "folium-beta-2026-1",
-  "signedAt": "2026-10-19T12:40:16.314Z",
-  "signature": "3cwFcUrBAtu3cxUmFcKR8SIM9p4uSCAyN6QW0p2WXN1qcPjnZiIJ/ct/IpQwvyU+VlFDnoPTEre1EblZjXTtBg=="
+  "signedAt": "2026-10-24T05:40:30.661Z",
+  "signature": "Ig0Uo3moerGo6NFN1PT6tARlKdCE/8bUUyNEWljDJyiMAkVcY0hW8kgVj0eHDjxAMi8fZ5ERyOuvdG+HSUc9AA=="
 }

@@ -106,11 +106,11 @@
       "submission": 52,
       "source": "https://github.com/qwquartz/folia-global-hotkeys",
       "path": "",
-      "commit": "0efb98a0b795fa057e887cb34ac85c912f9118a6",
-      "version": "1.2.1",
+      "commit": "ca7fa4cc3bd87c300faca8cef8d1a44ff6054d1b",
+      "version": "1.3.0",
       "addedAt": "2026-10-19",
-      "updatedAt": "2026-10-19",
-      "lastIssue": 53
+      "updatedAt": "2026-10-24",
+      "lastIssue": 80
     },
     "listening-archive": {
       "owners": [
