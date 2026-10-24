@@ -214,7 +214,7 @@ const CSS = `
   .reading.poster .current { line-height:1.7; }
   .reading.poster .near { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
   .reading.poster .near > div { display:inline; }
-  /* the one row under the line: translation or romanization, half size, at most two rows */
+  /* the rows under the line (romanization, translation): half size, at most two lines each */
   .reading.poster .secondary, .reading.poster .romaji { font-size:.5em; font-weight:var(--sub-weight,500); line-height:1.35; margin-top:.3em; letter-spacing:normal;
     display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
 
@@ -459,10 +459,10 @@ function mountReading(container, ctx, folium, params, { poster = false, strip = 
   const paint = () => {
     const theme = ctx.getTheme(), display = ctx.getDisplay(), settings = params.get();
     let shown = hostRows(display);
-    // The poster has one row under the line, as Folia's has: with both on, the translation; and
-    // none while the player's subtitle layer is hidden.
-    if (poster) shown = display.hideTranslationSubtitle === true ? { translation: false, romaji: false }
-      : { translation: shown.translation, romaji: shown.romaji && !shown.translation };
+    // The poster shows no row under the line while the player's subtitle layer is hidden. With both
+    // rows on it shows both, romanization above the translation: Folia's own poster shows only the
+    // translation then, for now (its source says a second row is to come).
+    if (poster && display.hideTranslationSubtitle === true) shown = { translation: false, romaji: false };
     root.style.setProperty('--reading-primary', theme.primaryColor);
     root.style.setProperty('--reading-secondary', theme.secondaryColor);
     root.style.setProperty('--reading-accent', theme.accentColor);
@@ -646,8 +646,10 @@ const { mountReading } = __renderer;
 // Opt-in ("海报歌词" in the settings, off by default). Folia 0.7.12 has no registry for the
 // lyrics drawn on the expanded poster card, so this adapter reaches into the host page: it adds
 // one <style>, one child element and one marker attribute per poster, and watches the page for
-// posters appearing. It is pinned to the host version through the manifest's "folia" range and
-// removes everything it added when disposed.
+// posters appearing. The manifest sets no "folia" range (that would switch the whole mod off on
+// the next host release): if the host changes this markup, the selector finds no poster, nothing is
+// hidden or added, and the host's own poster lyrics stay as they are. It removes everything it
+// added when disposed.
 // The public app.overlay context supplies the same lyric clock and theme as playback.
 const SELECTOR = '.lattice-root .lattice-poster.is-current.is-expanded';
 const MARKER = 'data-lyrics-display-split';
