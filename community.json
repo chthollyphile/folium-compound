@@ -258,11 +258,11 @@
       "submission": 69,
       "source": "https://github.com/Zhangyx0824/folia-mod-vinyl-disc",
       "path": "vinyl-disc",
-      "commit": "8499bb53870949dd7b09727c6ba6ddacd53578c3",
-      "version": "1.7.8",
+      "commit": "e4f1e270df114d5af5b574fc53b756a6ea88fc80",
+      "version": "1.7.10",
       "addedAt": "2026-10-21",
-      "updatedAt": "2026-10-22",
-      "lastIssue": 71
+      "updatedAt": "2026-10-24",
+      "lastIssue": 84
     },
     "visualizer-jump": {
       "owners": [

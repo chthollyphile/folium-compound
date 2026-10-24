@@ -92,21 +92,9 @@ export default function activate(folium) {
         },
     ];
 
-    // The settings live in a settings section, so they show up in the mod's
-    // own row in Settings → Mods (expanded). The visualizer reads the same
-    // values through the section handle; there is no second schema on the
-    // visualizer itself, so there is exactly one source of truth.
-    const section = folium.registries.settingsSections.register({
-        id: 'settings',
-        label: label('黑胶唱片', 'Vinyl'),
-        description: label('选中「黑胶唱片」动画模式时生效；改动点「保存」后应用', 'Applies while the Vinyl lyric mode is selected; press Save to apply changes'),
-        settings: SETTINGS,
-        // We draw the form ourselves: edits stay in a draft until 保存 is
-        // pressed, so the player page does not re-layout (and flicker) on
-        // every keystroke in the mod panel.
-        settingsPanel: (container, panelCtx) => buildSettingsPanel(container, panelCtx, SETTINGS, label),
-    });
-
+    // The settings schema rides on the visualizer itself: the host renders it
+    // in the lyric-style panel next to the mode (like 52Hz), auto-saves every
+    // change and applies it live. The mode reads values via ctx.getSettings().
     folium.registries.visualizers.register({
         id: 'disc',
         label: label('黑胶唱片', 'Vinyl'),
@@ -114,7 +102,8 @@ export default function activate(folium) {
         // We draw the lyric text ourselves, so the host must not draw its own
         // subtitle layer on top; the background stays the host's.
         hostLayers: { background: true, subtitles: false },
-        mount: (container, ctx) => mountVinyl(folium, container, ctx, section.settings),
+        mount: (container, ctx) => mountVinyl(folium, container, ctx),
+        settings: SETTINGS,
     });
 }
 
@@ -124,7 +113,7 @@ export default function activate(folium) {
 // the user's lyric size apply without a canvas text layout.
 // ---------------------------------------------------------------------------
 
-function mountVinyl(folium, container, ctx, settingsAccess) {
+function mountVinyl(folium, container, ctx) {
     container.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
 
     const style = document.createElement('style');
@@ -337,19 +326,20 @@ function mountVinyl(folium, container, ctx, settingsAccess) {
     let coverUrlForColor = null;
 
     const settings = () => {
-        // Values come from the mod's settings section (defaults merged by the
-        // host); ctx.getSettings() is only a fallback for odd hosts.
-        const v = settingsAccess ? settingsAccess.get() : (ctx.getSettings() || {});
+        // Values come from the visualizer's own settings schema; the host
+        // merges defaults, applies the saved values and auto-saves changes
+        // made in the lyric-style panel.
+        const v = ctx.getSettings() || {};
         return {
             discSide: v.discSide === 'left' ? 'left' : 'right',
             discSize: num(v.discSize, 0.62),
             spinSeconds: num(v.spinSeconds, 20),
-            labelRatio: num(v.labelRatio, 0.72),
-            showSpindle: v.showSpindle !== false,
+            labelRatio: num(v.labelRatio, 0.6),
+            showSpindle: v.showSpindle === true,
             showArm: v.showArm !== false,
             sheen: v.sheen !== false,
             halo: v.halo === 'off' || v.halo === 'theme' ? v.halo : 'cover',
-            textScale: num(v.textScale, 1),
+            textScale: num(v.textScale, 1.25),
             showNext: v.showNext !== false,
             textAlign: v.textAlign === 'center' ? 'center' : 'left',
         };
@@ -692,19 +682,16 @@ function mountVinyl(folium, container, ctx, settingsAccess) {
         refreshAll(false);
     });
 
+    // Style-panel settings and play state both arrive here: the host wires the
+    // visualizer's settings access into the stage context, so a change in the
+    // panel notifies this listener (Folium 0.7.21+).
     const offChange = ctx.onChange(() => {
         paused = ctx.isPaused();
         refreshAll(false);
     });
 
-    // Setting changes do not come through ctx.onChange (they are the section's
-    // values, not the visualizer's own), so listen on the section directly.
-    const offSettings = settingsAccess?.onChange
-        ? settingsAccess.onChange(() => refreshAll(false))
-        : () => {};
-
-    // Spectrum: read the analyser inside the app's frame loop (values change
-    // every frame and are never announced). Bars fall back down smoothly.
+    // Karaoke timing only: the lyric clock and the sung colours change every
+    // frame (and are never announced), so they are read here.
     const offFrame = ctx.onFrame(() => {
         // Karaoke: each word's sung colour sweeps in smoothly across the
         // glyph as the word is sung (--wp 0% -> 100%), with a gentle scale
@@ -752,154 +739,12 @@ function mountVinyl(folium, container, ctx, settingsAccess) {
         offResize();
         offChange();
         offTime();
-        offSettings();
         offFrame();
     };
 }
 
 const num = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
 
-// ---------------------------------------------------------------------------
-// Settings panel. Deliberately monochrome — the theme's own ink on the page —
-// so it stays legible on light and dark themes alike. Edits are held in a
-// local draft and only written through on 保存 (or restored with 恢复默认),
-// because applying live would restart the disc animations on every change and
-// read as flicker on the player page behind the panel.
-// ---------------------------------------------------------------------------
-
-function buildSettingsPanel(container, panelCtx, schema, bi) {
-    const el = (tag, cls) => {
-        const node = document.createElement(tag);
-        if (cls) node.className = cls;
-        return node;
-    };
-    const loc = (value) => {
-        if (value == null) return '';
-        if (typeof value === 'string') return value;
-        const zh = panelCtx.locale?.startsWith('zh');
-        return (zh ? value['zh-CN'] : value.en) ?? value['zh-CN'] ?? value.en ?? '';
-    };
-
-    let draft = { ...panelCtx.settings.get() };
-    let savedTimer = null;
-    const text = (zh, en) => loc(bi(zh, en));
-
-    const render = () => {
-        container.textContent = '';
-        const theme = panelCtx.getTheme();
-        const light = isLightBackground(theme);
-        const fg = theme.primaryColor || (light ? '#1a1a1a' : '#f2f2f2');
-        const dim = theme.secondaryColor || (light ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)');
-        const border = light ? 'rgba(0,0,0,0.20)' : 'rgba(255,255,255,0.24)';
-        const field = light ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)';
-
-        const style = el('style');
-        style.textContent = [
-            '.vinyl-set-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:7px 0;border-bottom:1px solid ' + border + ';}',
-            '.vinyl-set-row:last-of-type{border-bottom:none;}',
-            '.vinyl-set-name{font-size:12.5px;font-weight:600;color:' + fg + ';}',
-            '.vinyl-set-desc{font-size:11px;color:' + dim + ';margin-top:2px;max-width:340px;}',
-            '.vinyl-set-control{flex:0 0 auto;display:flex;align-items:center;}',
-            '.vinyl-set-control input[type=number]{width:96px;box-sizing:border-box;padding:4px 7px;border-radius:7px;border:1px solid ' + border + ';background:' + field + ';color:' + fg + ';font:inherit;font-size:12px;outline:none;}',
-            '.vinyl-set-control select{box-sizing:border-box;padding:4px 7px;border-radius:7px;border:1px solid ' + border + ';background:' + field + ';color:' + fg + ';font:inherit;font-size:12px;outline:none;}',
-            '.vinyl-set-control input[type=checkbox]{width:17px;height:17px;accent-color:' + fg + ';}',
-            '.vinyl-set-actions{display:flex;align-items:center;gap:8px;margin-top:11px;}',
-            '.vinyl-btn{font:inherit;font-size:12.5px;font-weight:600;padding:5px 14px;border-radius:8px;cursor:pointer;transition:opacity .15s ease;}',
-            '.vinyl-btn:active{opacity:0.72;}',
-            '.vinyl-btn-primary{border:1px solid ' + fg + ';background:' + fg + ';color:' + (light ? '#ffffff' : '#101010') + ';}',
-            '.vinyl-btn-ghost{border:1px solid ' + border + ';background:transparent;color:' + fg + ';}',
-            '.vinyl-set-status{font-size:11.5px;color:' + dim + ';}',
-        ].join('\n');
-        container.appendChild(style);
-
-        for (const def of schema) {
-            const row = el('div', 'vinyl-set-row');
-            const left = el('div');
-            const name = el('div', 'vinyl-set-name');
-            name.textContent = loc(def.label);
-            left.appendChild(name);
-            const desc = loc(def.description);
-            if (desc) {
-                const descEl = el('div', 'vinyl-set-desc');
-                descEl.textContent = desc;
-                left.appendChild(descEl);
-            }
-            const control = el('div', 'vinyl-set-control');
-
-            if (def.type === 'boolean') {
-                const input = el('input');
-                input.type = 'checkbox';
-                input.checked = draft[def.key] !== false;
-                input.addEventListener('change', () => { draft[def.key] = input.checked; });
-                control.appendChild(input);
-            } else if (def.type === 'number') {
-                const input = el('input');
-                input.type = 'number';
-                if (def.min !== undefined) input.min = String(def.min);
-                if (def.max !== undefined) input.max = String(def.max);
-                if (def.step !== undefined) input.step = String(def.step);
-                input.value = String(num(draft[def.key], def.defaultValue));
-                input.addEventListener('input', () => {
-                    const value = Number(input.value);
-                    if (Number.isFinite(value)) draft[def.key] = value;
-                });
-                control.appendChild(input);
-            } else if (def.type === 'select') {
-                const select = el('select');
-                for (const option of def.options || []) {
-                    const opt = el('option');
-                    opt.value = option.value;
-                    opt.textContent = loc(option.label);
-                    if (draft[def.key] === option.value) opt.selected = true;
-                    select.appendChild(opt);
-                }
-                select.addEventListener('change', () => { draft[def.key] = select.value; });
-                control.appendChild(select);
-            } else {
-                continue;
-            }
-
-            row.append(left, control);
-            container.appendChild(row);
-        }
-
-        const actions = el('div', 'vinyl-set-actions');
-        const save = el('button', 'vinyl-btn vinyl-btn-primary');
-        save.type = 'button';
-        save.textContent = text('保存', 'Save');
-        const reset = el('button', 'vinyl-btn vinyl-btn-ghost');
-        reset.type = 'button';
-        reset.textContent = text('恢复默认', 'Reset');
-        const status = el('span', 'vinyl-set-status');
-
-        save.addEventListener('click', () => {
-            panelCtx.settings.set(draft);
-            draft = { ...panelCtx.settings.get() };
-            status.textContent = text('已保存 ✓', 'Saved ✓');
-            clearTimeout(savedTimer);
-            savedTimer = setTimeout(() => { status.textContent = ''; }, 1800);
-        });
-        reset.addEventListener('click', () => {
-            panelCtx.settings.reset();
-            draft = { ...panelCtx.settings.get() };
-            render();
-            status.textContent = text('已恢复默认', 'Defaults restored');
-            clearTimeout(savedTimer);
-            savedTimer = setTimeout(() => { status.textContent = ''; }, 1800);
-        });
-
-        actions.append(save, reset, status);
-        container.appendChild(actions);
-    };
-
-    render();
-    // Deliberately no re-render on theme change here: rebuilding the form
-    // while the mods list scrolls reads as flicker in the panel. Colors are
-    // picked up the next time the panel is opened.
-    return () => {
-        clearTimeout(savedTimer);
-    };
-}
 
 const hexOr = (value, fallback) =>
     (typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback);
