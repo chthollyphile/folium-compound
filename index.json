@@ -492,20 +492,20 @@
     {
       "id": "soda-music",
       "name": "汽水音乐",
-      "version": "2.3.2",
+      "version": "2.3.7",
       "author": "syh0119",
-      "description": "把本机汽水音乐接入为在线音源：搜索、播放（含无损 FLAC）、原生逐字歌词、无限续播。模组自带音源服务（跑在 main 里，默认 127.0.0.1:4533，随机密钥鉴权），不需要另装程序。需要先安装并登录汽水音乐 PC 客户端。会用自己的子进程加载汽水客户端自带的原生模块，并用 PowerShell 读取该客户端的 Cookies 登录态。",
+      "description": "把本机汽水音乐接入 Folia：搜索、播放（含无损 FLAC）、原生逐字歌词、无限续播。模组自带音源服务（跑在 main 里，默认 127.0.0.1:4533，随机密钥鉴权），书库的「Navidrome」页签连它即可浏览歌单 / 专辑 / 歌手 / 收藏。需要先安装并登录汽水音乐 PC 客户端；会用自己的子进程加载该客户端的原生模块，并读取其 Cookies 登录态。Folia 0.7.22 起已内置汽水音乐（扫码登录、仅标准音质）；本模组更适合已开通汽水 VIP、要听 VIP 歌曲并选择更高音质档位的用户。",
       "origin": "beta",
       "channel": "beta",
       "path": "mods/beta/soda-music",
-      "digest": "sha256:e6baef05d8ced6047187edc2f2b32232126a33b9c872a9ce6ebb4b355aa5a7ad",
+      "digest": "sha256:fb8ab5ce4ee29a85dceb8a81a89e9eeaad2b266364f02f3e23079227d1fdb9b3",
       "keyId": "folium-beta-2026-1",
-      "signedAt": "2026-10-17T10:34:27.828Z",
+      "signedAt": "2026-10-24T05:41:15.782Z",
       "owners": [
         "syh0119"
       ],
       "source": "https://github.com/syh0119/folia-soda-music",
-      "sourceCommit": "acd3e584e124ccc2ffdee5d13243c4ea2e2c52d1"
+      "sourceCommit": "8f33ef05495c1302b1b2e79f5e0154551466c7f5"
     }
   ]
 }
