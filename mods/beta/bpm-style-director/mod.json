@@ -1,0 +1,14 @@
+{
+  "folium": 1,
+  "id": "bpm-style-director",
+  "name": "BPM 歌词样式导演",
+  "version": "1.0.0",
+  "description": "按歌曲 BPM 区间自动选择歌词动画，带可视化规则编辑、BPM 检测、单曲校正和手动接管保护。",
+  "client": "client.mjs",
+  "permissions": [
+    "filesystem.data"
+  ],
+  "folia": ">=0.7.22 <0.7.23",
+  "author": "LingShiQwQ",
+  "preview": "preview.png"
+}

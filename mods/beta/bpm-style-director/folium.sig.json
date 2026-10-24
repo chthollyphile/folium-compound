@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "bpm-style-director",
+  "modVersion": "1.0.0",
+  "digest": "sha256:6009bb7c4ba09ebc0820424e9f82c4e97e96ed69b39396b5ef67c5beeb914da6",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-24T16:54:17.341Z",
+  "signature": "mZ1ZOb62Tyry284OsKGXjalrsp2+6kJkmv5y62zlz8fRgKrZLw7x6ioJFB7ODyWPWnATRJfYQPuCv5d4XIHfBA=="
+}

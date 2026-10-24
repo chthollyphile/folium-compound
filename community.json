@@ -37,6 +37,18 @@
       "updatedAt": "2026-10-24",
       "lastIssue": 87
     },
+    "bpm-style-director": {
+      "owners": [
+        "LingShiQwQ"
+      ],
+      "submission": 88,
+      "source": "https://github.com/LingShiQwQ/folia-bpm-style-director",
+      "path": "bpm-style-director",
+      "commit": "0620874b93087ccfb8e96392b6796c4620e119bc",
+      "version": "1.0.0",
+      "addedAt": "2026-10-24",
+      "updatedAt": "2026-10-24"
+    },
     "cinerama": {
       "owners": [
         "tumuyan"
