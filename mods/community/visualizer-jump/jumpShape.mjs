@@ -20,6 +20,15 @@ export const MIN_UNIT_CELLS = 0.8;
 export const FACE_SPAN_CELLS = 1.35;
 
 /**
+ * 行末那根**空柱子**（圆柱，无字，只用来在间奏里歇脚）的直径（格）。
+ *
+ * 比柱身（`FACE_SPAN_CELLS` 那一档）略宽一点：它是「歇脚的墩子」，不是一句词——
+ * 沿路只有这么长、顶上一枚椭圆、也没有字，一眼就看得出这一句唱完了。
+ * 柱高与这一行的字柱同高：他站上去的高度不变，跳过来跳过去才是同一套动作。
+ */
+export const REST_DIAMETER_CELLS = 1.9;
+
+/**
  * 块长的下限与上限（格）：太短的词别成一根棍，太长的词别把一条路撑出画面。
  *
  * 上限要留够「字盒 = 字宽 ÷ `FACE_FILL_ALONG`」那一档：`FACE_FILL_ALONG` 一调小（字更大），
@@ -28,9 +37,14 @@ export const FACE_SPAN_CELLS = 1.35;
 export const MIN_BLOCK_LEN_CELLS = 0.6;
 export const MAX_BLOCK_LEN_CELLS = 12;
 
-/** 端头墙宽（侧面那档放字的方向）的下限与上限（格）：字少的柱子还有一点厚度，字多也别宽成一堵墙。 */
+/**
+ * 端头墙宽（侧面那档放字那个方向）的下限与上限（格）：字少的柱子还有一点厚度，字多也别宽成一堵墙。
+ *
+ * 上限与块长同一个数：这一档放字的方向就是墙宽，墙宽顶到上限之后字才开始缩小，
+ * 与顶面 / 正面那一档「块长顶到上限」是同一种取舍。
+ */
 export const MIN_WALL_CELLS = 0.8;
-export const MAX_WALL_CELLS = 6;
+export const MAX_WALL_CELLS = MAX_BLOCK_LEN_CELLS;
 
 /**
  * 柱顶面占一格宽（`cell` 像素）的几成：这一面在屏幕上得装得下一块字。
@@ -62,6 +76,14 @@ export const SIDE_PILLAR_MAX_SCALE = 1.30;
 
 /** 侧面那一档柱高相对旋钮值的倍数不超过它：柱身太高的柱子不像跳一跳的方料。 */
 export const SIDE_PILLAR_CAP_CELLS = 2.6;
+
+/**
+ * 侧面那一档沿路的块长（格）：这一档字横写在端头那面墙上，沿路只要一截柱身撑住它。
+ *
+ * **固定不动**——跟着字长的只有墙宽。块长要是也跟着字长，柱子的截面就成了正方形，
+ * 屏幕上是一排越念越大的方柱；固定住，柱子才是一根长方块。
+ */
+export const SIDE_STEM_CELLS = 1.8;
 
 /**
  * 一块字排出来有多长（格）：Σ 每个字的字身系数，只夹在最短 / 最长两个端点上。
@@ -152,20 +174,26 @@ export const resolveFaceShape = (span, glyph = 1, heightCells = 1) => {
 /**
  * 侧面那一档：字横着写在端头那面墙（宽 × 高）上。
  *
- * 墙宽跟着字宽；柱高整屏一个数。块长（也就是这面墙的宽）按顶面那一档同一把尺子给：
- * `字宽 ÷ FACE_FILL_ALONG` —— 字盒是它固定的几成，字号于是与顶面 / 正面一致。
- * 上一版只留一截固定厚度（`STEM_MIN_CELLS`），字被夹在一条窄墙上，比另外几档小一半。
+ * 墙宽（放字的那条边）跟着字宽走；沿路的块长固定成柱身那点厚度（`SIDE_STEM_CELLS`），
+ * 柱子于是还是一根长方块——**不是**跟着字长一起变大的方柱。柱高整屏一个数。
+ * 墙宽按顶面那一档同一把尺子给：`字宽 ÷ FACE_FILL_ALONG`，字盒是它固定的几成，
+ * 字号于是与顶面 / 正面一致。
  */
 export const resolveSideShape = (span, glyph = 1, heightCells = 1) => {
     const aspect = resolveTextAspect(span, glyph);
     const height = Math.max(0.2, Number(heightCells) || 0.2);
-    const wall = clamp(Math.max(MIN_WALL_CELLS, aspect), MIN_WALL_CELLS, MAX_WALL_CELLS);
-    const stem = clamp(wall / FACE_FILL_ALONG, MIN_BLOCK_LEN_CELLS, MAX_BLOCK_LEN_CELLS);
-    const len = stem;
+    const wall = clamp(aspect / FACE_FILL_ALONG, MIN_WALL_CELLS, MAX_WALL_CELLS);
     return {
-        len,
-        depth: len,
-        // 端头那面墙是盒子里的中间一段：墙窄时顶面比柱身宽，宽出来的截只有柱顶那一条。
+        /*
+         * 沿路的块长：一截固定厚度的柱身，不跟着字长变。
+         * 跟着字长的只有墙宽，柱子的截面于是永远是长方形，不会胖成方柱。
+         */
+        len: SIDE_STEM_CELLS,
+        /*
+         * 柱身与柱顶同宽（实心盒子）：端头那面墙就是柱身的一个面，
+         * 顶面横边与墙宽是同一份——不会多出悬空的斜边。
+         */
+        depth: wall,
         faceDepth: wall,
         height,
         reading: 'across',
@@ -194,6 +222,29 @@ export const resolveAboveShape = (span, glyph = 1, heightCells = 1) => {
         height,
         reading: 'along',
     };
+};
+
+/**
+ * 柱顶那块字有多高（像素）：译文那一层拿它当尺子（「译文字号 = 1」就与柱子上的字一样高）。
+ *
+ * 与 `jumpProject.resolveTypeBox` 给字号的方式是同一套：那一档面给字盒的窗（沿路 × 横向），
+ * 字盒按一个方字的长宽比（1:1）铺进去，取「谁先顶满」。所以这里不需要再猜第二把尺子，
+ * 只把同一条算式按方块字的比例写一遍。
+ *
+ * `face` 是面板上那个「文字所在面」，`heightCells` 是这一行的柱高（格）——不按字宽算：
+ * 一屏里的字号本来就是同一个数，与正在唱的是哪个词无关。
+ */
+export const resolvePillarTypePx = (face, heightCells, projection) => {
+    const cell = Math.max(1e-6, Number(projection?.cell) || 1);
+    const height = Math.max(0.2, Number(heightCells) || 0.2);
+    // 侧面那一档的字横写在端头那面墙上：墙宽只装得下「一两个字宽」的预算。
+    const span = face === 'side' ? resolvePillarHeight('side', height) * FACE_FILL_ALONG : 1;
+    const shape = resolveBlockShape(face, span, resolvePillarHeight(face, height), 1);
+    // 这一档面的「字盒之窗」：顶面 / 正面 / 悬浮看块长，侧面看墙宽；两个方向都乘 `TEXT_FILL`。
+    const roomW = (face === 'side' ? shape.faceDepth : shape.len) * TEXT_FILL;
+    const roomH = (face === 'side' ? shape.height : shape.faceDepth) * TEXT_FILL;
+    // 字盒按方字（1:1）铺：两条边取「谁先顶满」，字号就是它。
+    return Math.max(0, Math.min(roomW, roomH) * cell);
 };
 
 /**

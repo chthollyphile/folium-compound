@@ -4,38 +4,70 @@ import {
     attachChunkTimings,
     buildCharTimings,
     resolveChunkCap,
-    resolveGlyphRatio,
     splitJumpChunks,
 } from './jumpSplit.mjs';
+import { resolveUnitMetrics } from './jumpMeasure.mjs';
 import {
     buildLineTimeline,
     MIN_IDLE_SECONDS,
     resolveCameraPath,
-    resolveIdleMotion,
     resolveLastRelease,
     resolveMotionWindow,
     resolvePathWeights,
     resolveRowReveal,
     resolveRunnerState,
+    resolveRestPillar,
     resolveShiftAirborne,
+    resolveShiftLanding,
     resolveTailAirborne,
+    resolveTrailFade,
 } from './jumpTimeline.mjs';
 import { accumulateRowRoad, resolveBoardRows, rowBlockCenter } from './jumpBoard.mjs';
 import {
     boxFaces,
-    createProjection,
+    cylinderFaces,
     placeText,
 } from './jumpProject.mjs';
 import {
     FACE_SPAN_CELLS,
     MIN_UNIT_CELLS,
+    REST_DIAMETER_CELLS,
     TEXT_FILL,
     resolveBlockShape,
     resolvePillarHeight,
+    resolvePillarTypePx,
     resolveTextAspect,
 } from './jumpShape.mjs';
 import { JUMP_DEFAULT_KNOBS, JUMP_SETTINGS_SCHEMA } from './jumpSettings.mjs';
+import {
+    CAMERA_DISTANCE_MAX,
+    CAMERA_DISTANCE_MIN,
+    MAX_CHUNK_CHARS,
+    MAX_CHUNKS_PER_ROW,
+    PILLAR_RATIO,
+    RUNNER_RATIO,
+    resolveJumpFrame,
+} from './jumpFrame.mjs';
 import { resolveJumpPalette } from './jumpPalette.mjs';
+import {
+    TRANSLATION_BAND_SHARE,
+    TRANSLATION_OFFSET_LIMIT,
+    TRANSLATION_ROOM_SHARE,
+    buildTranslationLayout,
+    clearTranslationMeasureCache,
+    measureTranslationInk,
+    measureTranslationWidth,
+    fitTranslationLayout,
+    formatMatrix3d,
+    pickTranslationLine,
+    resolveAlternateText,
+    resolveGlyphRows,
+    resolveTranslationAnchor,
+    resolveTranslationPerspective,
+    resolveTranslationTiltAmount,
+    translationTilt,
+} from './jumpTranslation.mjs';
+import { resolveTranslationReveal, resolveTranslationStart } from './jumpTimeline.mjs';
 
 // mods/visualizer-jump/client.mjs
 // 「跳一跳」：等距场景里，一个小人在一根根带字的长方块上跳。
@@ -55,6 +87,11 @@ import { resolveJumpPalette } from './jumpPalette.mjs';
 //   的大小推出来，同一面上一整行的字于是同一个大小、同一个倾角，位置只由这一面定。
 //   俯角因此是真的在转镜头，不再是一组凑出来的缩放。
 //
+// 投影与缩放分开（jumpFrame）
+//   俯角只改**形状**（地面铺多开、柱与人多高、字的错切），缩放只认「镜头距离」。
+//   取景按 `min(当前俯角, 参照俯角)` 封顶，俯角往下调不再把整屏放大；
+//   想要更大 / 更小的画面只动「镜头距离」，它乘在这份取景上，与俯角正交。
+//
 // 镜头沿路匀速走（paintFrame / jumpTimeline.resolveCameraPath）
 //   镜头大致钉住小人此刻踩着的那一块，但**不跟着他的跳走**：他只在腾空那一截前进，
 //   落地之后站着不动，照他的曲线走就成了「走一截、停一截」（节奏一快，画面在动—停—动地抖）。
@@ -65,6 +102,14 @@ import { resolveJumpPalette } from './jumpPalette.mjs';
 // 块是「字有多长就有多长」的长方块（buildBoard / jumpSplit 的字宽）
 //   块长按字宽给（长词长条、短词短条），随块厚一起放大，厚与高是常量，块之间留「柱子间隙」；
 //   行首行尾各留半个间隙，于是拐点上两块不叠，而两条文字线恰好相交在拐点上。
+//
+// 行末那根歇脚的圆柱（jumpTimeline.resolveRestPillar / jumpProject.cylinderFaces）
+//   两行之间隔得够久（面板上的「歇脚柱」，默认 1.75 秒）时，行末立一根**无字的圆柱**：
+//   唱完最后一个字他跳到它上面站着，下一行开口前一个跨行滞空（`shiftFly`）才起跳，
+//   落在下一行首块上仍是第一个字开口那一刻。
+//   于是间奏里他歇在自己这一行的行末（这一段有意是静的），不会提前站到下一行首块上等着，
+//   那一跳也不会因为空档宽而飘成慢动作。0 = 只要两跳塞得下就立；空档窄到站不住就不立
+//   （连唱照旧直接跨过去）。
 //
 // 亮度（这一版的硬规矩）
 //   块与字的颜色不随时间变，进度只由小人站在第几块上表达；
@@ -101,50 +146,9 @@ import { resolveJumpPalette } from './jumpPalette.mjs';
 const FALLBACK_SIZE = { width: 1280, height: 720 };
 
 /**
- * 一条路最多占画面宽的多少：留边给柱顶的字、小人与侧面那块柱身。
- * 左右各留一份柱宽，柱子被顶到边上时字还转得开。
+ * 「一格多少像素」与「镜头钉在哪」整套算术都在 jumpFrame：那里把**投影**（俯角）
+ * 与**缩放**（镜头距离）分开——俯角只改形状，缩放只认镜头距离。这里只管消费它的结果。
  */
-const LANE_WIDTH_SHARE = 0.82;
-
-/** 块长 / 块厚 / 字盒的长宽比都在 jumpShape：client 只消费形状，不再自己定。 */
-
-/**
- * 一行最多几根柱子：再长就把「每块几个字」往粗里放宽到 `MAX_CHUNK_CHARS`。
- * 一行 3–4 根最像跳一跳（每一跳都看得清），长句只会让柱子变小、不会跳得更快。
- */
-const MAX_CHUNKS_PER_ROW = 5;
-
-/** 「每块几个字」放宽到这么粗就停：再粗就不像跳一跳了，宁可多几根柱子。 */
-const MAX_CHUNK_CHARS = 10;
-
-/**
- * 纵向预算按多长的一行算（格）：取「最多几块」再加两块余量。
- * 一行最多就这么多块，块再长也长不过它——长句多出来的部分往画面外延伸，
- * 不再回头把整屏的柱子压小。「跳一跳」是跟着小人走的近景，路的远端出画是正常的。
- *
- * 这个数是**固定的**（不随正在唱的那一行变）：纵向按它算、横向也按它算，
- * 短句与长句才是同一把尺子，换一行整屏不会缩一下。
- */
-const BUDGET_ROW_CELLS = MAX_CHUNKS_PER_ROW + 2;
-
-/** 柱高（格）= 面板里的「柱子高度」× 这个数；投影里竖直 1 格抬 cosθ/√2 个格宽。 */
-const PILLAR_RATIO = 1;
-
-/** 小人身高（格）÷ 面板里的「小人尺寸」：人也是竖直的，走同一条 `lift`。 */
-const RUNNER_RATIO = 2.6;
-
-/** 一屏之中允许被路占掉的高度份额（剩下的留给边框、柱子与小人）。 */
-const FIT_SHARE = 0.92;
-
-/**
- * 一格最小这么多像素：可视区再矮，格子也不会缩到看不见，
- * 小人的落点也不会跑出画面底边（跑出去就只剩半个身子）。
- * 格子大小只由旋钮与屏幕尺寸定——与正在唱的是哪一行无关，一屏才不会呼吸。
- */
-const CELL_FLOOR_PX = 26;
-
-/** 柱顶的字与边框之间留多少空（占柱宽的比例）：算进最坏情况，画面才不会一屏一屏地变。 */
-const FRAME_PAD_CELLS = 0.7;
 
 /**
  * 镜头的前瞻量（格）：小人不钉在正中，而是往路的**后方**偏这么点，
@@ -153,12 +157,22 @@ const FRAME_PAD_CELLS = 0.7;
 const LOOK_AHEAD_CELLS = 1;
 
 /**
- * 收尾那一截的呼吸幅度：柱子整体再往上顶多少格、小人再抬多少格。
- *
- * 都很小（柱子 4%、人 6%）：这一截要的是「画面没停住」，不是第二套动画。
+ * 起跳那一圈相对落地那一圈的大小与浓淡：蹬开的力道不如磕上去那一记，
+ * 所以环小一点、淡一点，也不溅尘——两圈一眼能分出「落下」与「跳出去」。
  */
-const IDLE_RISE_CELLS = 0.04;
-const IDLE_DRIFT_CELLS = 0.06;
+const TAKEOFF_RING_SCALE = 0.78;
+const TAKEOFF_RING_FADE = 0.7;
+
+/**
+ * 起跳那一圈与**落在同一根柱子上**的那一圈至少隔多久，才两圈都画（秒）。
+ *
+ * 他在这一块上站得比这还短就走时，两圈是同一根柱子上前后脚铺开的，看着是一团，
+ * 也分不出「落下」与「跳出去」——这时候**只画落地那一圈**（磕上去那一记更重）。
+ *
+ * 默认是一圈环自己的寿命（`IMPACT_SECONDS`）：落地那圈散完了起跳那圈才起，两圈永远不叠。
+ * 调小 = 允许两圈叠一点（唱得快的句子里也看得见起跳那圈）；0 = 只要起跳就画，不管多挤。
+ */
+const TAKEOFF_RING_MIN_GAP = IMPACT_SECONDS;
 
 /**
  * 收尾那一刻落在末段里的位置：0…1，越小越靠前。
@@ -168,6 +182,14 @@ const IDLE_DRIFT_CELLS = 0.06;
  * 不是等唱完了才起步。它只影响 `handoverTime` 这个参考时刻，不再拿去拼排版缓存键。
  */
 const HANDOVER_SHARE = 0.22;
+
+/** 译文的行高（倍字号）：比柱顶那块字松一点，中文两行之间才不黏在一起。 */
+const TRANSLATION_LINE_HEIGHT = 1.26;
+
+/** 译文字号收到底的那一档（相对柱顶那块字）：再小就不如不显示。长台词宁可多折一行，
+ * 也不会缩成一行小字（见 jumpTranslation.buildTranslationLayout 的 `minSize`）。
+ */
+const MIN_TRANSLATION_SIZE = 0.55;
 
 /** 新行登场：柱子从落位点下方这么多格处往上滑出来。 */
 const REVEAL_RISE_CELLS = 0.9;
@@ -188,28 +210,14 @@ const REVEAL_BUDGET_SHARE = 0.7;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-/**
- * 一块字的横向长度（格）：Σ 每个字的字身系数（CJK 1 格、拉丁 0.58 格、空白 0.35 格）。
- * 只按字数算会让「because」和「你好」一样长，英文块于是被拉成一条长廊。
- *
- * 不在这里夹上下限：夹过的数再去反推块长，块就会比字短（字伸出柱子）。
- * 上下限由 jumpShape 在算出块长之后统一夹。
- */
-const resolveTextSpan = (text) => Math.max(0, Array.from(text ?? '')
-    .reduce((sum, char) => sum + resolveGlyphRatio(char), 0));
-
-/**
- * 这块字里最高的那个字占多高（格）：汉字 / 假名是整格，拉丁字母矮一档。
- * 字盒的长宽比按它算，英文块的字才不会被拉成一张宽扁的字。
- */
-const resolveGlyphHeight = (text) => {
-    const chars = Array.from(text ?? '').filter((char) => !/\s/u.test(char));
-    if (chars.length === 0) return 1;
-    return Math.max(...chars.map((char) => clamp(resolveGlyphRatio(char), 0.4, 1)));
-};
-
 /** 文字贴在哪个面：顶面 / 正面（沿路的长条面）/ 侧面（端头）/ 悬浮在上方。 */
 const TEXT_FACES = ['top', 'front', 'side', 'above'];
+
+/** 译文那一层显示的到底是哪一条替代文字（见 jumpTranslation.pickTranslationLine）。 */
+const TRANSLATION_MODES = ['translation', 'romanization', 'off'];
+
+/** 译文的排版对齐：整块字贴在它那块竖向空间的哪一头（见 jumpTranslation.resolveTranslationAnchor）。 */
+const TRANSLATION_ALIGNS = ['top', 'center', 'bottom'];
 
 /** 读设置：宿主已并入缺省，但非法值（旧版本存下的、面板外写进来的）按缺省回落。 */
 const readKnobs = (settings) => {
@@ -223,8 +231,17 @@ const readKnobs = (settings) => {
         : JUMP_DEFAULT_KNOBS.textFace;
     return {
         pitch: clamp(readNumber('pitch'), 18, 60),
+        /*
+         * 镜头距离：乘在取景上的缩放（1 = 参照俯角那一版取景）。
+         * 以前缩放是由俯角反解出来的，俯角一小画面就放大；现在它与俯角彻底分开，
+         * 想要更大 / 更小的画面只动这一根（见 jumpFrame.resolveJumpFrame）。
+         */
+        cameraDistance: clamp(readNumber('cameraDistance'), CAMERA_DISTANCE_MIN, CAMERA_DISTANCE_MAX),
         textFace,
-        spacing: clamp(readNumber('spacing'), 0.1, 2),
+        // 上限跟着面板走（`spacing` 的上限是 6）：滑到尽头也不能比面板上写的还小。
+        spacing: clamp(readNumber('spacing'), 0.1, 6),
+        // 空档隔了多久才立行末那根歇脚柱（0 = 只要两跳塞得下就立，见 resolveRestPillar）。
+        restGap: clamp(readNumber('restGap'), 0, 10),
         pillarHeight: clamp(readNumber('pillarHeight'), 0.2, 3),
         pillarSpring: clamp(readNumber('pillarSpring'), 0, 2),
         chunkChars: Math.round(clamp(readNumber('chunkChars'), 1, 4)),
@@ -233,8 +250,26 @@ const readKnobs = (settings) => {
         // 上限跟着面板走（`arc` 的上限是 2.4）：默认值 1.2 别顶在滑块尽头，还留得出更高的一档。
         arc: clamp(readNumber('arc'), 0, 2.4),
         runnerScale: clamp(readNumber('runnerScale'), 0.2, 2),
-        wireframe: clamp(readNumber('wireframe'), 0, 1),
+        // 三根都能滑到 0：0 = 这一面彻底不画（面没了只剩棱线、棱线没了只剩字），见 jumpStage 的 resolveFaceOpacity。
+        pillarOpacity: clamp(readNumber('pillarOpacity'), 0, 1),
+        pillarSideOpacity: clamp(readNumber('pillarSideOpacity'), 0, 1),
+        pillarEdgeOpacity: clamp(readNumber('pillarEdgeOpacity'), 0, 1),
+        // 上下两行相对当前行的浓淡：1 = 一样浓，0 = 只剩正在写的那一行（见 paintFrame 的 rowFade）。
+        otherRowOpacity: clamp(readNumber('otherRowOpacity'), 0, 1),
         trail: clamp(readNumber('trail'), 0, 1),
+        translationMode: TRANSLATION_MODES.includes(source.translationMode)
+            ? source.translationMode
+            : JUMP_DEFAULT_KNOBS.translationMode,
+        translationSize: clamp(readNumber('translationSize'), 0.5, 3),
+        translationRows: Math.round(clamp(readNumber('translationRows'), 1, 5)),
+        translationAlign: TRANSLATION_ALIGNS.includes(source.translationAlign)
+            ? source.translationAlign
+            : JUMP_DEFAULT_KNOBS.translationAlign,
+        // 偏移是「挪几个窗口高」，两端 ±0.8 够把字推出画面（与面板范围一致）。
+        translationOffset: clamp(readNumber('translationOffset'), -TRANSLATION_OFFSET_LIMIT, TRANSLATION_OFFSET_LIMIT),
+        translationOpacity: clamp(readNumber('translationOpacity'), 0.15, 1),
+        translationPerspective: resolveTranslationPerspective(source.translationPerspective),
+        translationGlow: clamp(readNumber('translationGlow'), 0, 1),
     };
 };
 
@@ -271,12 +306,14 @@ const resolveVoicedEnd = (line) => {
  *   - `writeStart`：行首字开口的时刻（换行就发生在这之前一点）；
  *   - `writeEnd`：这一行最晚还能跳的时刻 —— 下一行开口之前（留一点跨行的余量），
  *     并且不超过宿主给的 `renderHints.renderEndTime`（那之后这一句就该让位了）；
- *   - `afterStart` / `afterEnd`：**收尾窗**，最后一个字唱完到下一行开口之间。这一截里
- *     原来画面完全停住（人早落地了、镜头也到站了），现在由它来喂「非唱」的那点动静
- *     （见 paintFrame 的 idle 与 jumpTimeline 的 cameraTimes 末段）。
+ *   - `afterStart` / `afterEnd`：**收尾窗**，最后一个字唱完到下一行开口之间。
+ *     这一截里画面的动静只有落地与起跳那两圈环（见 paintFrame 的 landings），
+ *     环之间本来就是静的——间奏里没有在唱的东西，静着是对的。
  *
- * `afterEnd` 就是下一行开口（没有下一行时是这一段音乐的收尾），跨行那一跳与镜头的
- * 末段都以它为准：小人那一刻落地，镜头那一刻到站。
+ * `afterEnd` 就是下一行开口（没有下一行时是这一段音乐的收尾）：跨行那一跳与镜头的
+ * 末段最晚到这一刻为止。间奏比滞空长时它们先落地 / 到站（唱完 + 一个滞空，见
+ * jumpTimeline.resolveShiftFly），剩下的空档小人站着歇——行末立了空柱子就歇在柱子上，
+ * 没有就站在下一行首块上。
  */
 const buildWriteWindows = (lines) => {
     const enters = lines.map(resolveEnterTime);
@@ -327,7 +364,7 @@ const buildWriteWindows = (lines) => {
  * 世界坐标的尺度留给投影那一步（`buildBoard` 决定一「格」多少像素），
  * 这里只回答「这一行有几块、每块几个字、什么时候落地」。
  */
-const layoutLine = ({ line, folium, knobs, lineIndex, window, cap, nextStart, handover }) => {
+const layoutLine = ({ line, folium, knobs, lineIndex, window, cap, nextStart, handover, entryLand, fontFamily, fontWeight }) => {
     const text = typeof line?.fullText === 'string' ? line.fullText : '';
     if (!text.trim()) return null;
 
@@ -365,10 +402,18 @@ const layoutLine = ({ line, folium, knobs, lineIndex, window, cap, nextStart, ha
         .map((chunk) => {
             const display = chunk.display ?? chunk.text;
             const charCount = Math.max(1, Array.from(display).length);
-            // 横向字宽（格）：这一面那一排字排出来有多长。
-            const span = resolveTextSpan(display);
-            // 这块字里最高的字占多高（格）：字盒的长宽比按它算（拉丁字母比汉字矮一档）。
-            const glyph = resolveGlyphHeight(display);
+            /*
+             * 字宽（以字号为单位）与量它的那把尺子：整块字用宿主给的字体量一次
+             * （jumpMeasure.resolveUnitMetrics），量不到才回落到按字身估。
+             *
+             * 以前这两个数是「CJK 1 格、拉丁 0.58 格」累加出来的，字宽还要再除以
+             * 「拉丁字母只有 0.58 格那么高」——可字盒的高就是字号（`resolveTypeBox` 里
+             * `fontSize` 取字盒高），那个分母取错了：中文恰好对上，英文的宽被凭空放大
+             * 约 1.7 倍，字盒比字宽出一大截，字边缘到柱子边缘于是空出一圈。
+             * 现在宽是量出来的真进宽、分母是恒定的一个字号，空当只由这块字有多宽决定，
+             * 与语种无关。
+             */
+            const { span, glyph } = resolveUnitMetrics(display, fontFamily, fontWeight);
             // 这块柱子的尺寸都由字宽与字盒的长宽比推出来（jumpShape）：面装得下字，柱子跟着字长。
             const shape = resolveBlockShape(knobs.textFace, span, heightCells, glyph);
             return {
@@ -376,7 +421,7 @@ const layoutLine = ({ line, folium, knobs, lineIndex, window, cap, nextStart, ha
                 chars: chunk.chars ?? [],
                 startTime: chunk.startTime,
                 endTime: chunk.endTime,
-                // 字宽（格）：这一块的字排出来有多长。
+                // 字宽（以字号为单位）：这一块的字排出来有多长。
                 span,
                 glyph,
                 len: shape.len,
@@ -388,6 +433,40 @@ const layoutLine = ({ line, folium, knobs, lineIndex, window, cap, nextStart, ha
         });
     // 整行只剩空白（分词只吐了几个空格）时没有柱子可摆，这一行就当空行跳过。
     if (units.length === 0) return null;
+
+    /*
+     * 行末那根**空柱子**（无字的圆柱）：间奏宽到站得住时立在行末（见 resolveRestPillar）。
+     * 唱完最后一个字他跳到它上面歇着，下一行开口前再从它上面起跳——
+     * 于是他不提前站到下一行首块上，那一行的第一个字开口时他才动身。
+     */
+    const lastRelease = resolveLastRelease({
+        end: window.afterStart ?? window.writeEnd,
+        nextStart,
+    });
+    const restPillar = resolveRestPillar({
+        release: lastRelease,
+        nextStart,
+        flySeconds: knobs.flySeconds,
+        restGap: knobs.restGap,
+    });
+    if (restPillar) {
+        units.push({
+            // 没有字：一根光秃秃的圆柱，只在他歇脚的那一截里出现。
+            text: '',
+            chars: [],
+            startTime: restPillar.landTime,
+            endTime: restPillar.liftTime,
+            span: REST_DIAMETER_CELLS,
+            glyph: 1,
+            // 圆：沿路与横向都是直径，柱高与这一行的字柱同高（他就站在同样的高度上）。
+            len: REST_DIAMETER_CELLS,
+            depth: REST_DIAMETER_CELLS,
+            faceDepth: REST_DIAMETER_CELLS,
+            height: heightCells,
+            charCount: 0,
+            rest: true,
+        });
+    }
 
     /*
      * 时间与字共用一条轴：每块**落在**它自己开唱的那一刻（见 jumpTimeline）——
@@ -405,11 +484,17 @@ const layoutLine = ({ line, folium, knobs, lineIndex, window, cap, nextStart, ha
         /*
          * 最后一根柱子什么时候弹回来 = 他跨行那一跳的起步点：**唱完那一刻**（收尾窗的起头）。
          * 之后到下一行开口之间他在路上，柱子则在他离开时弹回来。
+         * 行末有空柱子时，唱完那一刻是他跳上柱子那一刻（柱子由它自己的时刻管）。
          */
-        lastRelease: resolveLastRelease({
-            end: window.afterStart ?? window.writeEnd,
-            nextStart,
-        }),
+        lastRelease,
+        // 行末那根空柱子的落点与起跳时刻（间奏不够宽就是 null）。
+        rest: restPillar,
+        /*
+         * 第 0 根柱子被踩下去的那一刻：他从上一行跨过来**落**在它上面的那一刻。
+         * 连唱时就是这一行开口；间奏里他落得比开口早一截（见 resolveShiftLanding），
+         * 那一沉得跟着他，不能等到开口才凭空沉下去。
+         */
+        entryLand,
         // 末段的到站时刻：下一行开口（跨行那一跳的落点，与 jumpBoard 的相位同一个时刻）。
         nextStart,
         // 末段（镜头从末块走到下一行首块）的内部节奏：让镜头在收尾那一刻就离站。
@@ -455,8 +540,254 @@ const mountJump = (folium, container, ctx) => {
         const moved = next.width !== metrics.width || next.height !== metrics.height;
         metrics = next;
         // 尺寸变了，`cell` 跟着变：方块缓存的键里带着它，旧条目整批作废。
-        if (moved) blockCache.clear();
+        if (moved) {
+            blockCache.clear();
+            // 译文的键里带着屏幕宽：旧的排版再也不命中，别留着占位置（几块而已）。
+            translationCache.clear();
+        }
         return metrics;
+    };
+
+    /*
+     * 屏幕正中那块译文（见 jumpTranslation / jumpStage.paintTranslation）。
+     *
+     * 三件事都在这几行里：它显示哪一条替代文字（`translationRole`，`null` = 不显示）、
+     * 这一块的排版（`translationLayoutOf`，按行缓存），以及逐字密排的那几行
+     * （`translationGlyphRowsOf`，同样按行缓存）。
+     *
+     * 为什么缓存：字号要试好几档、每档都要用真字体量一遍字宽，逐帧做等于每一帧
+     * 排一次版。键里带上字号、行数、屏幕宽、字体与这一句的正文，换一样才重排。
+     */
+    let translationCache = new Map();
+
+    /**
+     * 这会儿画不画译文、画哪一条替代文字（`null` = 不画）。
+     *
+     * 只认自己的旋钮与宿主的「现在该不该有歌词」：不再跟随宿主的字幕开关与内容模式——
+     * 歌词特效自己给了译文，就不该再让底栏那条字幕替它把开关转述一遍。
+     */
+    const resolveTranslationRole = (display) => {
+        if (knobs.translationMode === 'off') return null;
+        // 宿主说「现在不该画歌词」（设置窗口盖住播放页之类）时，译文也一样收起来。
+        if (display && display.showText === false) return null;
+        return knobs.translationMode === 'romanization' ? 'romanization' : 'translation';
+    };
+
+    /**
+     * 这一帧该画哪一块译文：这一行、这一块排版、这一刻的浓淡。
+     * 一条都排不出来（没有译文、旋钮关了、宿主收起了歌词）时返回 `null`。
+     */
+    const translationLayoutOf = (time, size, display) => {
+        const role = resolveTranslationRole(display);
+        if (!role) return null;
+        const index = Number(ctx.getLineIndex?.());
+        const line = pickTranslationLine(ctx.lines ?? [], { time, index, role });
+        if (!line) return null;
+        const text = resolveAlternateText(line, role);
+        if (!text) return null;
+        const lineIndex = (ctx.lines ?? []).indexOf(line);
+        const window = windows[lineIndex] ?? {};
+        const nextStart = windows[lineIndex + 1]?.writeStart;
+        const restPillar = layoutOf(lineIndex)?.timeline?.restPillar ?? null;
+        const start = resolveTranslationStart({
+            start: window.writeStart,
+            nextStart,
+            rest: restPillar,
+        });
+        const opacity = resolveTranslationReveal({ time, start });
+        if (opacity <= 0.004) return null;
+
+        const fontFamily = palette.translationFontFamily;
+        const fontWeight = palette.translationFontWeight;
+        /*
+         * 柱顶那一块字有多高：译文的字号以它为尺子（`translationSize` = 1 就一样高）。
+         *
+         * 尺子取**参照取景**那一版投影（镜头距离 = 1），不用当前这一帧的：「镜头距离」
+         * 是给场景推近拉远用的，译文浮在画面上、不跟着镜头一起缩放。俯角照样管它——
+         * 俯角压平，一格变小，这块字也跟着小一档。
+         */
+        const pillarTypePx = Math.max(
+            10,
+            resolvePillarTypePx(
+                knobs.textFace,
+                resolvePillarHeight(knobs.textFace, knobs.pillarHeight * PILLAR_RATIO),
+                // `boardOf`：整屏几何按签名缓存（每帧重建一遍会把整首歌的路重铺一次）。
+                boardOf(size).referenceProjection,
+            ),
+        );
+        const room = size.width * TRANSLATION_ROOM_SHARE;
+        const targetSize = pillarTypePx * knobs.translationSize;
+        /*
+         * 纵向的余地：排版时整块字按这一段高度折行、缩字号（见 jumpTranslation 的
+         * TRANSLATION_BAND_SHARE）。这只是**折行与缩字号的预算**，不约束摆在哪——
+         * 位置完全由下面的「对齐 + 偏移」给，偏移摆到尽头就是把字推出画面。
+         */
+        const roomHeight = Math.max(targetSize, size.height * TRANSLATION_BAND_SHARE);
+        const perspective = knobs.translationPerspective;
+        const perGlyph = perspective === 'glyph';
+        /*
+         * 变形量：由「镜头」那一组的俯角推出来（见 jumpTranslation.resolveTranslationTiltAmount）。
+         * 俯角大 = 更像俯视 = 这块字更像正对着镜头的一片，变形小；俯角小 = 更像平视 =
+         * 压在远处地上的一条，变形大。以前它是写死的 1，两种透视档位各有固定形状，
+         * 于是拖俯角滑杆时译文纹丝不动。
+         */
+        const tiltAmount = resolveTranslationTiltAmount(knobs.pitch);
+        /*
+         * 逐字那一档的矩阵是**换句时才写进 `span`** 的（一句几十个字，逐帧写太贵），
+         * 而「认出要不要重写」全靠 layout 的 key。透视档位与变形量都必须进 key，
+         * 否则拖俯角、或者从逐字切到整体时，画面里的字格纹丝不动。
+         */
+        const warpTag = `${perspective}:${tiltAmount.toFixed(3)}`;
+        const key = [
+            lineIndex, text, knobs.translationSize, knobs.translationRows,
+            Math.round(size.width), Math.round(size.height), roomHeight.toFixed(1), fontFamily, fontWeight,
+        ].join('|');
+        const cached = translationCache.get(key);
+        const block = cached ?? buildTranslationLayout({
+            text,
+            room,
+            roomHeight,
+            size: targetSize,
+            maxRows: knobs.translationRows,
+            // 再小也不低于柱顶那一块字：译文是给人读的，不该比它注解的字还小。
+            minSize: pillarTypePx * MIN_TRANSLATION_SIZE,
+            fontFamily,
+            fontWeight,
+            lineHeight: TRANSLATION_LINE_HEIGHT,
+        });
+        if (!cached) translationCache.set(key, block);
+        // 缓存只留这一句与上一句：换句之后旧的排版再也用不上了。
+        if (translationCache.size > 4) {
+            const oldest = translationCache.keys().next().value;
+            if (oldest !== undefined && oldest !== key) translationCache.delete(oldest);
+        }
+
+        /*
+         * 逐字那一档按字格排（每个字自己一格，透视才有地方落）；
+         * 字格与「按字号折出来的那几行」同宽——按**最长那一行实际的宽度**再量一次，
+         * 两边的断点才对得上（不会把逗号甩到行头）。
+         */
+        const glyphRows = perGlyph
+            ? translationGlyphRowsOf(key, text, block, fontFamily, fontWeight, Math.min(room, block.width))
+            : null;
+        const rows = { lines: glyphRows ?? block.rows };
+        const fit = fitTranslationLayout({
+            width: perGlyph ? measureTranslationWidth(glyphRows, block.sizePx, fontFamily, fontWeight) : block.width,
+            room,
+            height: block.height,
+            roomHeight,
+        });
+        /*
+         * 锚点：横向正中；纵向由对齐方式定「钉住块的哪一头、零点在窗口哪里」（顶边上沿、
+         * 块心正中、底边下沿），偏移就是把整块挪几个窗口高。偏移 0 = 正好贴在那条线上，
+         * 所以顶对齐 + 0 就是第一行的上边缘贴着窗口上边缘；±0.8 够把字拉出画面。
+         *
+         * `ink` 扣的是行盒比字高出来的那两条空白：块的 CSS 边界是行盒的边界，不扣的话
+         * 贴边总差着几像素（见 jumpTranslation.measureTranslationInk）。
+         */
+        const ink = measureTranslationInk({
+            rows: rows.lines,
+            sizePx: block.sizePx,
+            lineHeight: block.lineHeight,
+            fontFamily,
+            fontWeight,
+        });
+        const anchor = resolveTranslationAnchor({
+            width: size.width,
+            height: size.height,
+            align: knobs.translationAlign,
+            offset: knobs.translationOffset,
+            topInk: ink.top * (fit.scaleY || 1),
+            bottomInk: ink.bottom * (fit.scaleY || 1),
+        });
+        /*
+         * 透视：角度用的是「镜头」那一组的俯角，距离按这一块字自身的高度给——
+         * 压扁于是朝块心收，不会整块往下掉。「整体」把矩阵加在整块上，「逐字」每个字一份，
+         * 「关闭」一份都不给。
+         */
+        const tilt = perspective === 'block'
+            ? formatMatrix3d(translationTilt({
+                pitch: knobs.pitch,
+                strength: 1,
+                height: Math.max(1, block.height),
+                depth: Math.max(240, size.height * 1.1),
+            }))
+            : null;
+        const glowAlpha = knobs.translationGlow;
+        return {
+            key: `${key}|${warpTag}|${opacity > 0 ? 1 : 0}`,
+            rows,
+            perGlyph,
+            /*
+             * 逐字那一档：每个字都按「它是这一行的第几个字 × 这一行往下压了多少」给一份矩阵。
+             * 深度用整块字自身的高度：靠上的字离镜头更远，收得更紧。
+             */
+            glyphTilt: perGlyph ? {
+                pitch: knobs.pitch,
+                depth: Math.max(240, size.height * 1.1),
+                lineHeight: Math.max(1, block.lineHeight),
+                rows: block.rows.length,
+                /*
+                 * 一行一份矩阵：字格立在「这一行」的底边上，所以斜轴与透视零点按行算；
+                 * 压扁的比例再按这一行的底边离镜头多远收一档（`offset` 是它离块底边的高度），
+                 * 越靠上的行收得越紧——整块字于是像一层往里塌的地砖。
+                 */
+                glyphMatrix: (offset) => {
+                    const from = Math.max(0, Number(offset) || 0);
+                    const depth = Math.max(240, size.height * 1.1);
+                    const values = translationTilt({
+                        pitch: knobs.pitch,
+                        strength: 1,
+                        height: Math.max(1, block.lineHeight),
+                        depth,
+                    });
+                    /*
+                     * 行越靠上越扁：变形量 1（参照俯角）时最多再收一成，不至于压到读不出来。
+                     * 这一份也是「变形」的一部分，跟着变形量一起深浅——俯角越大，
+                     * 整块字越接近正对镜头，靠上的行也就越没有那一档额外的压扁。
+                     */
+                    const shrinkFloor = Math.max(0.78, 1 - 0.1 * tiltAmount);
+                    const shrink = Math.max(shrinkFloor, 1 - (from / depth) * 0.9 * tiltAmount);
+                    values[5] *= shrink;
+                    return formatMatrix3d(values);
+                },
+            } : null,
+            sizePx: block.sizePx,
+            lineHeight: block.lineHeight,
+            fontFamily,
+            fontWeight,
+            color: palette.translationText,
+            strokeColor: palette.translationStroke,
+            textShadow: palette.translationShadow,
+            /* 辉光是字周围的一圈光（`text-shadow` 跟着字形走），不是背后垫一块底。 */
+            glow: glowAlpha > 0.02,
+            glowColor: palette.translationGlowColor,
+            glowOpacity: glowAlpha,
+            opacity: opacity * knobs.translationOpacity,
+            anchor,
+            scaleX: fit.scaleX,
+            scaleY: fit.scaleY,
+            /* 整块的透视只在不逐字时加在块上（逐字时每个字自己一份，见 jumpStage）。 */
+            tilt,
+        };
+    };
+
+    /** 逐字密排那几行：与字号、行宽、字体绑定，按句缓存（一行一句地数，几十个字而已）。 */
+    const translationGlyphRowsOf = (key, text, block, fontFamily, fontWeight, room) => {
+        const cacheKey = `glyph|${key}`;
+        const cached = translationCache.get(cacheKey);
+        if (cached) return cached;
+        const rows = resolveGlyphRows(
+            text,
+            block.sizePx,
+            // 逐字那一档按「按字号折出来的那几行里最长的那一行」量：两种排法行数一致。
+            Math.min(room, Math.max(block.width, block.sizePx * 2)),
+            fontFamily,
+            fontWeight,
+            block.rows.length,
+        );
+        translationCache.set(cacheKey, rows);
+        return rows;
     };
 
     /**
@@ -475,12 +806,28 @@ const mountJump = (folium, container, ctx) => {
         // 收尾窗也进键：末段（镜头跨行那一段）的节奏由它给。
         const after = `${window.afterStart ?? '-'}:${window.afterEnd ?? '-'}`;
         /*
+         * 他从上一行跨过来、落在这一行首块上的那一刻：上一行行末没立空柱子时，
+         * 它比这一行开口早一截（唱完 + 一个滞空）；立了空柱子就是开口那一刻。
+         * 上一行唱完那一刻（`afterStart`）进键：它早一秒，这一跳就早一秒。
+         */
+        const prevAfter = windows[index - 1]?.afterStart ?? null;
+        const entryLand = resolveShiftLanding({
+            release: prevAfter,
+            nextStart: window.writeStart,
+            flySeconds: knobs.flySeconds,
+            // 上一行行末立不立歇脚柱由这颗旋钮定（见 resolveRestPillar），它决定落地是哪一刻。
+            restGap: knobs.restGap,
+        });
+        /*
          * `HANDOVER_SHARE` 不进键：它只挪 `handoverTime` 这个参考时刻，
          * 真正被画出来的位置由 `tailSpan` / `gapShift` 决定，与它无关。
+         * `restGap` 进键：它决定这一行行末有没有那根空柱子（多一块、多一跳）。
+         * 字体进键：字宽是拿它量出来的，换主题 / 换字体之后缓存里的那一版就作废了。
          */
         const key = [
             index, line.fullText, window.writeStart, window.writeEnd, after, nextStart,
             knobs.chunkChars, knobs.preferPair ? 1 : 0, knobs.flySeconds, cap,
+            prevAfter ?? '-', knobs.restGap, palette.fontFamily, palette.fontWeight,
         ].join('|');
         const cached = layoutCache.get(index);
         if (cached && cached.key === key) return cached.layout;
@@ -497,6 +844,10 @@ const mountJump = (folium, container, ctx) => {
             cap,
             nextStart,
             handover: HANDOVER_SHARE,
+            entryLand,
+            // 字宽按它量（见 jumpMeasure）：柱顶的字与译文用的是两套字体，各量各的。
+            fontFamily: palette.fontFamily,
+            fontWeight: palette.fontWeight,
         });
         if (layout) layoutCache.set(index, { key, layout });
         else layoutCache.delete(index);
@@ -551,7 +902,24 @@ const mountJump = (folium, container, ctx) => {
      * 都会留下一摞永不回收的多边形。
      */
     const blockCache = new Map();
+    /** 行末那根空柱子：一根圆柱，没有字，同一 (直径, 柱高, 格子, 俯角) 下只有一份几何。 */
+    const cylinderOf = (projection, cells) => {
+        const key = [
+            'round', REST_DIAMETER_CELLS.toFixed(3), cells.toFixed(3),
+            projection.cell.toFixed(2), projection.pitch,
+        ].join('|');
+        const cached = blockCache.get(key);
+        if (cached) return cached;
+        const entry = {
+            box: null,
+            cylinder: cylinderFaces(projection, { diameter: REST_DIAMETER_CELLS, height: cells }),
+            label: null,
+        };
+        blockCache.set(key, entry);
+        return entry;
+    };
     const blockOf = (projection, unit, along, cells) => {
+        if (unit.rest) return cylinderOf(projection, cells);
         const shape = resolveBlockShape(knobs.textFace, unit.span, cells, unit.glyph);
         const aspect = resolveTextAspect(unit.span, unit.glyph);
         const height = shape.height ?? cells;
@@ -606,82 +974,28 @@ const mountJump = (folium, container, ctx) => {
         );
         const depth = widestDepth;
         /*
-         * 柱顶那块面在屏幕上的**横宽**：沿路那条边与横向那条边各投成一条斜线，
-         * 横向各占 1/√2——顶面横宽 = (块长 + 柱身横向) / √2。预算按最坏一根算。
+         * 一格多少像素、投影、小人脚下留多高：整套取景算术在 jumpFrame。
+         *
+         * 那里把两件事拆开了——**俯角只改投影形状**（地面铺多开、柱与人多高），
+         * **缩放只认「镜头距离」**。以前格子是由当前俯角反解出来的，俯角一小、
+         * 纵向预算一收缩，格子就跟着放大，拖那根滑杆看着像变焦。现在取景按
+         * `min(当前俯角, 参照俯角)` 封顶：俯角往下调不再放大画面。
          */
+        const frame = resolveJumpFrame({
+            size,
+            pitch: knobs.pitch,
+            cameraDistance: knobs.cameraDistance,
+            heightCells,
+            widestDepth,
+            widestCross,
+            spacing: knobs.spacing,
+            runnerScale: knobs.runnerScale,
+            arc: knobs.arc,
+            textFace: knobs.textFace,
+        });
+        const { cellPx, projection } = frame;
+        // 柱顶那块面的横向宽度（屏幕格数）：截面用得上，顺手带出去。
         const crossCells = (widestDepth + widestCross) / Math.SQRT2;
-
-        /*
-         * 纵向预算（单位：格宽）按**最坏情况**算一次固定下来：小人在自己那一行上从头顶
-         * 走到脚下，脚下要装得下「这一行走过的路 + 拐点那一截 + 上一行整条」，头顶要装得下
-         * 「这一行剩下的路 + 拐点那一截 + 下一行整条」。锚点钉在柱顶，两端各再留一根柱身
-         * 的高度。取两端之和，画面就不会一会儿顶出去一会儿又空一块（否则每帧都在改柱宽，
-         * 整屏在呼吸）。
-         *
-         * 行长按 `BUDGET_ROW_CELLS` 封顶：再长的行，多出来的部分本来就在画面外，
-         * 把它算进预算只会让看得见的这几根柱子跟着一起变小。
-         *
-         * 一格路在屏幕上抬多少：沿世界轴走一格 = 横向半格宽、纵向抬 sinθ/2 个格宽。
-         */
-        const pitchRad = (knobs.pitch * Math.PI) / 180;
-        const risePerCell = Math.sin(pitchRad) / 2;
-        /*
-         * 纵向预算按**块数上限**算，不按这一行真正排出来多长：短句排得短，格子就被放得更大，
-         * 长句一来格子又缩回去——同一首歌一换行，整屏就呼吸一次。预算是「最坏情况」，
-         * 而最坏就是一行装满上限那么多块，一行最多也就这么长（长句多出来的部分出画）。
-         */
-        const budgetRow = BUDGET_ROW_CELLS;
-        const climbCells = (budgetRow + depth) * risePerCell;
-        const laneCells = (budgetRow + knobs.spacing) * risePerCell;
-        /*
-         * 柱顶那一块在屏幕上占多高：顶面 / 正面的字躺在柱顶上（错切之后最多占一条对角线），
-         * 悬浮的字往上还要一格 + 缝隙；侧面的字是**立起来**的，排在端头那面墙里，
-         * 那面墙的宽是柱身横向、高是柱高，柱子在屏幕上占的高度就是「柱高 + 墙宽」。
-         */
-        const cosPitch = Math.cos(pitchRad);
-        const pillarCells = heightCells * cosPitch / Math.SQRT2;
-        const crownCells = knobs.textFace === 'side'
-            ? pillarCells + widestDepth * cosPitch / Math.SQRT2
-            : TEXT_FILL * FACE_SPAN_CELLS;
-        /*
-         * 头顶还要装下**小人自己**：他站在柱顶上，腾空时再抬一整个跳跃高度。
-         * 两个都是世界里竖直的一段，和柱身一样按 `cosθ/√2` 换成格宽。
-         * 把默认的「小人尺寸 / 跳跃高度」拧大时，格子于是自动让出地方——
-         * 人不会顶出画面（顶出去就只剩一个脑袋），也不会因为拧旋钮整屏缩一下。
-         */
-        const runnerCells = RUNNER_RATIO * knobs.runnerScale * cosPitch / Math.SQRT2;
-        const arcCells = knobs.arc * cosPitch / Math.SQRT2;
-        /*
-         * 「上方」那一档的字浮在柱顶之上：连它一起算进头顶的预算，
-         * 切到那一档时字不会顶出画面，也不会因为切档位整屏缩一下。
-         */
-        const crownTopCells = crownCells
-            + Math.max(TEXT_FILL, runnerCells + arcCells)
-            + FRAME_PAD_CELLS / 2;
-        const belowCells = 2 * climbCells + laneCells + crownCells + FRAME_PAD_CELLS / 2;
-        const aboveCells = 2 * climbCells + laneCells + crownTopCells + FRAME_PAD_CELLS / 2;
-        const frameCells = belowCells + aboveCells;
-        const byHeight = (size.height * FIT_SHARE) / frameCells;
-        /*
-         * 横向：不再拿这首歌真实排出来的长度估——侧面的字长在横向、块长也长在横向，
-         * 而且长句与短句排出来的行长差很多，按真实长度算格子，换一行整屏就缩一次。
-         * 这里按**上限**（`budgetRow` 块 + 拐点那一截 + 柱身）算最坏的横向占位，
-         * 于是短句长句同一把尺子；真有一行超出上限时，它往画面外铺就是了。
-         *
-         * 视野里同时铺着三行，一右一左地折，合起来的横宽差不多是三行接起来那么多
-         * （每行在屏幕上一边走半边，所以除以 √2）。横向份额按这个数给，别按单行给：
-         * 单行算出来只有实际铺开的三分之一，格子被横向挤到下限，整屏缩成一小团。
-         */
-        const rowSpanCells = (3 * budgetRow) / Math.SQRT2;
-        const roadSpread = Math.max(
-            rowSpanCells,
-            (budgetRow + 2 * depth) / Math.SQRT2,
-            (budgetRow + depth) * risePerCell + crossCells,
-        );
-        const byWidth = (size.width * LANE_WIDTH_SHARE) / Math.max(1, roadSpread);
-        // 句子很短时上面的预算会放得很大：压一层上限，别让一块比一行字还高。
-        const cellPx = Math.max(CELL_FLOOR_PX, Math.min(byHeight, byWidth, size.height / 2.8, size.width / 3));
-        const projection = createProjection({ pitch: knobs.pitch, cell: cellPx });
 
         /** 一行每一块的屏幕位置：沿本行的世界轴铺开，块心落在路的中心线上。 */
         const placeRow = (lineIndex) => {
@@ -729,10 +1043,14 @@ const mountJump = (folium, container, ctx) => {
 
         return {
             cellPx, depth, crossCells, heightCells, projection,
+            /*
+             * 参照取景（镜头距离 = 1）那一版投影：给**不跟镜头缩放**的译文层当尺子用。
+             * 场景本身仍然只认 `projection`（乘过距离的那一份）。
+             */
+            referenceProjection: frame.referenceProjection,
             road, placeRow, placeCorner,
             // 小人脚下留给上一行的那块高度：镜头把他钉在离画面底边这么高的地方。
-            // 一格按最小像素算，一格再小也不会把落点挤出画面底边。
-            anchorBelowPx: belowCells * Math.max(cellPx, CELL_FLOOR_PX),
+            anchorBelowPx: frame.anchorBelowPx,
         };
     };
 
@@ -824,7 +1142,7 @@ const mountJump = (folium, container, ctx) => {
     const paintFrame = (timeSec) => {
         const size = readMetrics();
         // 跨行那一跳的窗口全由收尾窗与下一行开口决定（见 jumpBoard.resolveShiftAnchor），
-        // 这里不再传时长：整段空档就是那一跳的窗口。
+        // 这里不再传时长：滞空由 jumpTimeline 按秒给（间奏再长也不会飘成慢动作）。
         const rows = resolveBoardRows({ windows, time: timeSec });
         const listing = sceneRows(rows);
         if (listing.length === 0) {
@@ -854,7 +1172,21 @@ const mountJump = (folium, container, ctx) => {
                 placed.push({ ...item, unit, role, count: layout.units.length, debut, timeline: layout.timeline });
             });
         });
-        const faceOpacity = 0.12 + 0.5 * knobs.wireframe;
+        /*
+         * 柱面与棱线的浓淡 = 各自的透明度旋钮本身（再乘行的主次）。
+         *
+         * 「柱子透明度」「侧面填充透明度」「棱线透明度」三根**就是**屏幕上的那个 alpha：
+         * 100% 时 `fill-opacity` / `stroke-opacity` 都是 1，柱子真的一整面实墙，压在译文上就
+         * 挡住。以前这里还乘了「线框强度」那一份（0.12 ~ 0.62），于是面板写着 100%、
+         * 画面上永远只有六成——「设成完全不透明还是盖不住译文」就是这么来的。
+         * 「线框强度」现在只管线的密度（它本来就是这个意思），不再给浓淡设上限。
+         *
+         * 三根分开是因为它们各自的 base alpha 差得远（正面 0.17、侧面 0.08、棱线 0.42）：
+         * 共用一个系数时，跟着谁走都会让另两样在该实的时候不实、在该淡的时候先没影。
+         */
+        const faceOpacity = knobs.pillarOpacity;
+        const sideOpacity = knobs.pillarSideOpacity;
+        const edgeOpacity = knobs.pillarEdgeOpacity;
         // 新行登场的滑出距离：整块（连它的字）一起从落位点下方这么多像素处升上来。
         const risePx = cellPx * REVEAL_RISE_CELLS;
         // 跳跃高度是世界里竖直的一段：投影里竖直 1 格抬 `lift`。
@@ -863,28 +1195,14 @@ const mountJump = (folium, container, ctx) => {
         // 这一行的时间表：柱子什么时候被踩下去、什么时候弹回来，都由它给（见下面 `sinkPxOf`）。
         const timeline = rows.rowIndex >= 0 ? layoutOf(rows.rowIndex)?.timeline : null;
         /*
-         * 收尾那一截里人站着不动的那一小段（末块落地 → 他起跳跨行），把画面交给「呼吸」：
-         * 柱子再往上顶一点点、末块的落点亮一点点。窗口取 `pillarRest` 与收尾窗的交集——
-         * 他还在空中、或者已经上路的时候不该有这一笔（那两截动的是人自己）。
-         *
-         * 两头（末块落地那一刻 / 起跳那一刻）都归零，`edge` 再让出这一截两头的起跳与落地，
-         * 于是它接得上前后两段，也接得上拖进度与暂停。
+         * 跨行那一跳落地之后、下一行开口之前：他站在**下一行首块**上把间奏等完
+         * （`shiftHold`）。那一截归跨行那一跳管（见下面 `hopper`）：行内只认这一行的块，
+         * 交回去会把已经站在下一行首块上的他拽回这一行的末块。
+         * 行末有空柱子时这一段不存在——他歇在自己行末那根柱子上。
          */
-        const closing = windows[rows.rowIndex] ?? null;
-        const rest = timeline?.pillarRest ?? null;
-        const idle = resolveIdleMotion({
-            begin: closing?.afterStart,
-            end: closing?.afterEnd,
-            rest,
-            edge: knobs.flySeconds,
-            time: timeSec,
-        });
-        /*
-         * 呼吸的幅度都很小：这是「人还在那儿、歌还没唱完」，不是第二套动画。
-         * 空档再宽也只在「他没在动」的那一截里起伏：人一上路它就归零。
-         */
-        const idleRisePx = idle.rise * cellPx * IDLE_RISE_CELLS;
-        const idleDriftPx = idle.drift * projection.lift * IDLE_DRIFT_CELLS;
+        const hold = timeline?.shiftHold ?? null;
+        const waiting = Boolean(hold) && hold.end > hold.begin
+            && timeSec >= hold.begin && timeSec < hold.end;
 
         /*
          * 入场一跳：全曲**第一行**（它前面没有排得出柱子的行）的第一块没有
@@ -933,91 +1251,110 @@ const mountJump = (folium, container, ctx) => {
          * 于是正在写的这一句整条压在上下两行之上，拐角处不会互相盖住。
          * 排序用**落位点**（不含登场偏移）：否则柱子在滑上来的过程中会互相换位、闪。
          */
-        placed
-            .slice()
-            .sort((a, b) => a.screen.y - b.screen.y)
-            .forEach((item, order) => {
-                item.entry = stage.acquirePillar(order);
-                /*
-                 * 刚登场的那一行：柱子从下往上依次滑出来并淡入。
-                 * 序号 0 在本行最下、最后一根在最上，按序号错开就是「从下往上逐渐显示」。
-                 */
-                const reveal = resolveRowReveal({
-                    time: timeSec,
-                    start: item.debut.start,
-                    budget: item.debut.budget,
-                    order: item.unitIndex,
-                    count: item.count,
-                    riseSeconds: REVEAL_SECONDS,
-                    stagger: REVEAL_STAGGER,
-                });
-                /*
-                 * 柱子被踩下去多少（像素）：小人踩上来就沉、跳走就弹回来并小幅振动几下。
-                 * 时刻由这一行自己的时间表给（`pressTime` / `releaseTime`），
-                 * 所以上下两行各自算各自的，且同样只由时间算出来、不累加。
-                 */
-                item.sinkPx = sinkPxOf(item);
-                /*
-                 * 明暗按**屏幕上的左右**给，不按正/侧给：哪一面落在左下随这一行的朝向交替，
-                 * 按正/侧上色会让相邻两行一明一暗地闪。
-                 */
-                const lit = item.role === 'current' ? palette.front : palette.back;
-                const shade = item.role === 'current' ? palette.side : palette.backSide;
-                // 行的主次：正在写的那一行是 1，上下两行淡一档。柱面与文字各用各的一份。
-                const roleFade = item.role === 'current' ? 1 : 0.72;
-                /*
-                 * 每根柱子自己的三个尺寸都由这块字的字宽与长宽比推出来（jumpShape）：
-                 * 面永远装得下这块字，柱子于是跟着字长——顶面 / 正面那档块变长、柱顶变宽，
-                 * 侧面那档端头那面墙变宽，块长只留柱身厚度。
-                 *
-                 * 几何与它的贴面字盒本来就是一套东西（同一个尺寸 / 旋钮 / 这块字的字宽下
-                 * 必然是同一个结果），所以一起由 `blockOf` 按签名缓存：每一帧从这里拿到的是
-                 * **同一个对象**，stage 那一边比一次身份就知道要不要重写那三个面。
-                 */
-                const { box, label } = blockOf(projection, item.unit, item.along, board.heightCells);
-                // 收尾那一截的呼吸只加在正在写的这一行上：整行（含末块的字）一起轻轻往上顶。
-                const breathe = item.role === 'current' ? idleRisePx : 0;
-                stage.paintPillar(item.entry, {
-                    // 沉下去的那一份直接加在落位点上：整根柱子（连它的字）一起沉。
-                    base: {
-                        x: item.screen.x,
-                        y: item.screen.y + (1 - reveal) * risePx + item.sinkPx - breathe,
-                    },
-                    box,
-                    colors: {
-                        edge: palette.edge,
-                        // 正在写的这一行用更实的一块材质，上下两行淡一档：三行不会糊成一条。
-                        top: lit,
-                        front: item.along === 'x' ? lit : shade,
-                        side: item.along === 'x' ? shade : lit,
-                    },
-                    /*
-                     * 柱面与棱线的浓淡只由「线框强度」与行的主次给——**不再连带文字**：
-                     * 以前整根柱子共用一个 `opacity`，字被柱面那份浓度一起乘掉（默认
-                     * 旋钮下只剩四成亮度），字于是永远读不实。
-                     */
-                    faceAlpha: faceOpacity * roleFade,
-                    // 这一行登场时整块（柱面 + 字）一起淡入：只有 `reveal` 参与。
-                    opacity: reveal,
-                    label: {
-                        text: item.unit.text,
-                        // 字盒按面装好（宽、高、字号同比例），这里照抄，不再另外放大缩小。
-                        width: label.width,
-                        height: label.height,
-                        fontSize: label.fontSize,
-                        // 贴面：这个面的 2D 矩阵把整块字错切到面上（顶面/正面/侧面），
-                        // 矩阵的平移项把字盒的**中心**放到面心；
-                        // 「上方」那一档不做变换，屏幕正立浮在柱顶中心的正上方。
-                        transform: label.transform,
-                        color: palette.text,
-                        fontFamily: palette.fontFamily,
-                        fontWeight: palette.fontWeight,
-                        // 字自己的亮度：只跟着行的主次走，不吃「线框强度」。
-                        opacity: roleFade,
-                    },
-                });
+        const painted = placed.slice().sort((a, b) => a.screen.y - b.screen.y);
+        painted.forEach((item, order) => {
+            item.entry = stage.acquirePillar(order);
+            /*
+             * 刚登场的那一行：柱子从下往上依次滑出来并淡入。
+             * 序号 0 在本行最下、最后一根在最上，按序号错开就是「从下往上逐渐显示」。
+             */
+            const reveal = resolveRowReveal({
+                time: timeSec,
+                start: item.debut.start,
+                budget: item.debut.budget,
+                order: item.unitIndex,
+                count: item.count,
+                riseSeconds: REVEAL_SECONDS,
+                stagger: REVEAL_STAGGER,
             });
-        stage.arrange(placed.map((item) => item.entry).filter(Boolean));
+            /*
+             * 柱子被踩下去多少（像素）：小人踩上来就沉、跳走就弹回来并小幅振动几下。
+             * 时刻由这一行自己的时间表给（`pressTime` / `releaseTime`），
+             * 所以上下两行各自算各自的，且同样只由时间算出来、不累加。
+             */
+            item.sinkPx = sinkPxOf(item);
+            /*
+             * 明暗按**屏幕上的左右**给，不按正/侧给：哪一面落在左下随这一行的朝向交替，
+             * 按正/侧上色会让相邻两行一明一暗地闪。
+             */
+            /*
+             * 三行用的是同一套面色：行与行的轻重全交给上面那个 `rowFade`，
+             * 于是「其他行浓淡」调到 100% 时三行真的长得一样。以前上下两行另取一套更淡的
+             * 面色（`palette.back` / `backSide`），那一档藏在调色板里，面板上没有旋钮管它。
+             */
+            const lit = palette.front;
+            const shade = palette.side;
+            /*
+             * 行的主次：正在写的那一行是 1，上下两行按「其他行浓淡」淡一档。
+             * 这一档以前写死——当前行与上下两行永远差着那一截，三根透明度旋钮
+             * 怎么调都调不到「三行一样浓」。柱面、棱线与字共用这一个系数
+             * （字不吃柱面的浓淡，见 stage 的 `label.opacity`）。
+             */
+            const rowFade = item.role === 'current' ? 1 : knobs.otherRowOpacity;
+            /*
+             * 每根柱子自己的三个尺寸都由这块字的字宽与长宽比推出来（jumpShape）：
+             * 面永远装得下这块字，柱子于是跟着字长——顶面 / 正面那档块变长、柱顶变宽，
+             * 侧面那档端头那面墙变宽，块长只留柱身厚度。
+             *
+             * 几何与它的贴面字盒本来就是一套东西（同一个尺寸 / 旋钮 / 这块字的字宽下
+             * 必然是同一个结果），所以一起由 `blockOf` 按签名缓存：每一帧从这里拿到的是
+             * **同一个对象**，stage 那一边比一次身份就知道要不要重写那三个面。
+             * 行末那根空柱子走 `cylinder`：一个椭圆 + 柱身两半，没有字。
+             */
+            const block = blockOf(projection, item.unit, item.along, board.heightCells);
+            stage.paintPillar(item.entry, {
+                // 沉下去的那一份直接加在落位点上：整根柱子（连它的字）一起沉。
+                base: {
+                    x: item.screen.x,
+                    y: item.screen.y + (1 - reveal) * risePx + item.sinkPx,
+                },
+                box: block.box,
+                cylinder: block.cylinder,
+                colors: {
+                    edge: palette.edge,
+                    // 正在写的这一行用更实的一块材质，上下两行淡一档：三行不会糊成一条。
+                    top: lit,
+                    front: item.along === 'x' ? lit : shade,
+                    side: item.along === 'x' ? shade : lit,
+                },
+                /*
+                 * 柱面与棱线的浓淡只由那三根透明度旋钮给，行的主次另走 `rowFade`
+                 * ——**不再连带文字**：以前整根柱子共用一个 `opacity`，字被柱面那份浓度
+                 * 一起乘掉（默认旋钮下只剩四成亮度），字于是永远读不实。
+                 */
+                faceAlpha: faceOpacity,
+                sideAlpha: sideOpacity,
+                edgeAlpha: edgeOpacity,
+                // 行的主次：柱面、棱线、字共用这一个系数（0 = 只剩正在写的那一行）。
+                rowFade,
+                // 这一行登场时整块（柱面 + 字）一起淡入：只有 `reveal` 参与。
+                opacity: reveal,
+                // 行末那根空柱子没有字：`label` 是 null，整块字连盒子一起收起来。
+                label: block.label && {
+                    text: item.unit.text,
+                    // 字盒按面装好（宽、高、字号同比例），这里照抄，不再另外放大缩小。
+                    width: block.label.width,
+                    height: block.label.height,
+                    fontSize: block.label.fontSize,
+                    // 贴面：这个面的 2D 矩阵把整块字错切到面上（顶面/正面/侧面），
+                    // 矩阵的平移项把字盒的**中心**放到面心；
+                    // 「上方」那一档不做变换，屏幕正立浮在柱顶中心的正上方。
+                    transform: block.label.transform,
+                    color: palette.text,
+                    fontFamily: palette.fontFamily,
+                    fontWeight: palette.fontWeight,
+                    // 字自己的亮度：只跟着行的主次走，不吃柱面的浓淡。
+                    opacity: rowFade,
+                },
+            });
+        });
+        /*
+         * 交给舞台的必须**就是上面那一遍排好的顺序**：DOM 顺序即绘制顺序。
+         * 拿未排序的 `placed` 过去，`listing` 的次序（上一行 → 当前行 → 下一行、
+         * 行内 0 → n）就成了绘制次序——屏幕上方那几行（更远）最后画，
+         * 于是远处的柱子盖住近处的柱子；柱子全调成不透明时一眼就能看出来。
+         */
+        stage.arrange(painted.map((item) => item.entry).filter(Boolean));
 
         /*
          * 小人此刻在哪一格都由时间直接推出来，三种状态：
@@ -1049,7 +1386,7 @@ const mountJump = (folium, container, ctx) => {
          * （`prev` 那一行要等真的交出去了才挂上来），第 0 行更是根本没有上一行。
          */
         /*
-         * 窗口以 `gapShift`（唱完那一刻 → 下一行开口）为准，排不出正宽度时才退回 `tailSpan`：
+         * 窗口以 `gapShift`（唱完那一刻 → 落地）为准，排不出正宽度时才退回 `tailSpan`：
          * 末块落地之后他还得站着把最后几个字唱完，那之前脚下就是这一行的末块
          * （柱子被压着、人跟着一起沉）；一落地就判「在路上」的话，末块会在落点那一刻
          * 弹回来，踩下去那一下还没压完就被抬起来。
@@ -1057,6 +1394,11 @@ const mountJump = (folium, container, ctx) => {
          * `writeEnd` 被 `renderEndTime` 夹到与收尾同刻），绝不能退回「站着」：
          * 那正是「收尾窗里人钉在末块上、下一个字直接瞬移过去」的老毛病。
          * 这种时候按 `tailSpan`（末块落点 → 开口）走，宁可早一点上路。
+         *
+         * 落地之后到下一行开口之间（`shiftHold`）**也归这一跳**：他站在下一行首块上把间奏
+         * 等完，位置与落地那一刻相同（`progress` 停在 1）。交回行内那几段的话，行内只认
+         * 这一行的块，会把已经站在下一行首块上的他拽回这一行的末块——间奏里看上去就是
+         * 「跳过去又弹回来」。
          */
         const shiftGap = timeline?.gapShift;
         const tailSpan = timeline?.tailSpan;
@@ -1066,23 +1408,27 @@ const mountJump = (folium, container, ctx) => {
         const shiftAir = resolveShiftAirborne({ ...shiftSpans, time: timeSec });
         const runner = resolveRunnerState({ timeline, time: timeSec });
         const tailFrom = current[current.length - 1];
+        const canCross = Boolean(tailFrom) && next.length > 0;
         // 入场那一跳的窗口：开口之前一个滞空起跳、开口那一刻落回原地。
         const entranceAir = hasEntrance
             ? resolveTailAirborne({ begin: openingAt - entranceLead, end: openingAt, time: timeSec })
             : null;
         const entrancing = Boolean(entranceAir?.airborne) && Boolean(current[0]);
-        const hopper = shiftAir?.airborne && tailFrom && next.length > 0
+        const hopper = shiftAir?.airborne && canCross
             ? { kind: 'shift', from: tailFrom, to: next[0], progress: shiftAir.phase }
-            : entrancing
-                // 原地起跳：两端是同一块，只有抛物线那一下在动。
-                ? { kind: 'entrance', from: current[0], to: current[0], progress: entranceAir.phase }
-                : { kind: 'inline', from: current[runner.from], to: current[runner.to], progress: runner.progress };
+            : waiting && canCross
+                // 已经站在下一行首块上：位置就是落地那一刻，只是不再腾空。
+                ? { kind: 'shift', from: tailFrom, to: next[0], progress: 1 }
+                : entrancing
+                    // 原地起跳：两端是同一块，只有抛物线那一下在动。
+                    ? { kind: 'entrance', from: current[0], to: current[0], progress: entranceAir.phase }
+                    : { kind: 'inline', from: current[runner.from], to: current[runner.to], progress: runner.progress };
         const hopping = hopper.kind === 'shift';
         const fromUnit = hopper.from;
         const toUnit = hopper.to;
         const airProgress = hopper.progress;
-        // 真在空中（腾空那一截）才做挤压：站着的帧不该被压扁。
-        const airborne = hopping || entrancing || runner.airborne;
+        // 真在空中（腾空那一截）才做挤压：站着的帧（含等间奏那一截）不该被压扁。
+        const airborne = Boolean(shiftAir?.airborne) || entrancing || runner.airborne;
 
         /*
          * 镜头：把「小人走到路上第几格」钉到画面的锚点上。
@@ -1103,10 +1449,12 @@ const mountJump = (folium, container, ctx) => {
          * 末段：从**这一行末块**走到**下一行首块**。两条路的夹角可能是九十度，
          * 走直线会把拐点切掉，所以沿折线走（三段权重见 `resolvePathWeights`）。
          *
-         * 它的窗口是 `cameraTail`（镜头到站末块那一刻 → 下一行开口），**不是**小人的
+         * 它的窗口是 `cameraTail`（镜头到站末块那一刻 → 小人落地那一刻），**不是**小人的
          * `tailSpan`：小人站在末块上一直唱到最后一刻才起跳，镜头的到站却在他那段停留的
          * 中点。按自己的窗口走，行内最后一段才与它首尾相接：镜头一到站末块，末段就从同一个
-         * 点、同一个时刻接出去。终点仍是开口那一刻，与小人跨行那一跳的落地严丝合缝。
+         * 点、同一个时刻接出去。终点与小人跨行那一跳的落地严丝合缝——间奏里那一跳只占空档
+         * 的头一截，镜头跟着一起到站，之后停在他身上（不等开口，否则整段间奏镜头都在
+         * 半路上慢慢挪，人却在下一行首块上站着）。
          *
          * 于是「拍到最后一个字到下一行第一个字」这一截里画面一直在走：镜头到站那一刻就
          * 上路，不再先冻住一段、再忽然跳到一个已经走了半程的相位上。
@@ -1125,19 +1473,23 @@ const mountJump = (folium, container, ctx) => {
             })
             : null;
         /*
-         * 末段还在走：这一屏上除了它没有别的镜头可走（行内那几段都已经过去了）。
+         * 末段还在走——或者已经走完、只是这一行还没交出去（间奏里他站在下一行首块上等，
+         * 相位停在 1）。这一屏上除了它没有别的镜头可走（行内那几段都已经过去了），
+         * 交回行内的话镜头会退回这一行的末块，整屏往回跳一下。
          * 起点就是镜头自己到站末块的那一刻，所以到站即可接手——中间不留空档：
          * 以前要等到这一行唱完才接手，那一截里行内那几段的首尾都夹在末块上，画面就停住了。
          */
-        const tailing = Boolean(tailFlight) && tailFlight.phase < 1
-            && timeSec >= (cameraTail?.begin ?? Number.POSITIVE_INFINITY);
+        const tailing = Boolean(tailFlight)
+            && timeSec >= (cameraTail?.begin ?? Number.POSITIVE_INFINITY)
+            && timeSec < (tailSpan?.end ?? Number.POSITIVE_INFINITY);
         const camFrom = hopping || tailing
             ? current[current.length - 1]
             : current[Math.min(camera.index, current.length - 1)];
         const camTo = hopping || tailing
             ? next[0]
             : current[Math.min(camera.index + 1, current.length - 1)];
-        const camProgress = hopping || tailing ? tailFlight.phase : camera.progress;
+        // 末段排不出窗口时（时刻挤到一起的场合）按「已经到站」算：镜头停在他落地的那一块上。
+        const camProgress = hopping || tailing ? (tailFlight?.phase ?? 1) : camera.progress;
         let focus = alongRoad((camFrom ?? fallback)?.top, (camTo ?? fallback)?.top, camProgress);
         if ((hopping || tailing) && camFrom && camTo) {
             /*
@@ -1167,8 +1519,7 @@ const mountJump = (folium, container, ctx) => {
             : (current[0]?.direction ?? lastOfPrevious?.direction ?? 1);
         stage.moveCanvas(
             size.width / 2 - lookDir * board.projection.half * LOOK_AHEAD_CELLS - focus.x,
-            // 收尾那一截的呼吸：画布再往下让一点，柱子于是看着是往上顶的（人跟着一起抬）。
-            size.height - board.anchorBelowPx - focus.y + idleRisePx,
+            size.height - board.anchorBelowPx - focus.y,
         );
 
         if (!fromUnit || !toUnit) {
@@ -1179,8 +1530,7 @@ const mountJump = (folium, container, ctx) => {
                     from: fromUnit,
                     to: toUnit,
                     progress: airProgress,
-                    // 收尾那一截里人还站在末块上：让他随着呼吸再抬一点点，不至于像钉死的图钉。
-                    arc: arcPx + idleDriftPx,
+                    arc: arcPx,
                     // 人踩在柱顶上：柱子沉下去（弹回来）多少，他的脚就跟着走多少，
                     // 否则柱子一沉他就悬在半空、柱子一弹他就被顶穿。
                     sinkFrom: fromUnit.sinkPx ?? 0,
@@ -1214,51 +1564,88 @@ const mountJump = (folium, container, ctx) => {
             opacity: knobs.trail * 0.8,
         }));
         /*
-         * 落地那一瞬：柱顶铺开一圈环、溅几粒尘。
-         * 落点时刻是时间表里现成的那一秒（跨行那一跳就是下一行开口那一刻），
-         * 所以特效同样不累加：拖进度、暂停、导出都不会留下半开的环。
+         * 起跳与落地那一瞬：脚下 / 落点上铺开一圈环（落地再溅几粒尘）。
+         * 时刻都是时间表里现成的那一秒，所以特效同样不累加：
+         * 拖进度、暂停、导出都不会留下半开的环。
          */
         const landings = [];
+        /*
+         * 起跳那一圈：从**脚下这一块**蹬开，于是每一跳的两端（落下来、跳出去）各有一圈。
+         * 它比落地那圈小一点、淡一点、也不带尘；隔 `TAKEOFF_RING_MIN_GAP` 太近就不画，
+         * 免得同一根柱子上前后脚铺开两圈糊成一团。
+         */
+        const takeOffRing = (block, liftTime, landedAt) => {
+            if (!block || !(liftTime - landedAt >= TAKEOFF_RING_MIN_GAP)) return;
+            landings.push({
+                landTime: liftTime,
+                top: block.top,
+                sink: block.sinkPx ?? 0,
+                scale: TAKEOFF_RING_SCALE,
+                fade: TAKEOFF_RING_FADE,
+                dust: false,
+            });
+        };
         (timeline?.hops ?? []).forEach((hop) => {
             const target = current[hop.to];
             // 环贴在**此刻**的柱顶上：柱子正在往下沉，环跟着它一起沉，不然会脱开一截。
             if (target) landings.push({ landTime: hop.landTime, top: target.top, sink: target.sinkPx ?? 0 });
+            takeOffRing(current[hop.from], hop.liftTime, hop.start);
         });
-        const shiftLand = windows[rows.rowIndex]?.writeStart;
         /*
-         * 跨行那一跳的落地（下一个开口那一刻），以及入场那一跳的落地（第一个字开口那一刻）
+         * 跨行那一跳落地之后等间奏的那一截：他站在**下一行首块**上，落地那一刻已经过去了
+         * ——这一帧还在上一行手里（要等开口才交班），环得由它自己铺出来。
+         */
+        if (waiting && next[0]) {
+            landings.push({ landTime: hold.begin, top: next[0].top, sink: next[0].sinkPx ?? 0 });
+        }
+        /*
+         * 跨行那一跳的落地时刻：上一行自己算出来的。上一行行末立了空柱子时它就是这一行
+         * 开口那一刻；没有时是「唱完 + 一个滞空」，空档短的场合同样是开口那一刻，
+         * 而间奏里它比开口早得多——那时人早站上来了，环也已经在前一屏铺过了，
+         * 不能等到开口再铺一次。
+         */
+        const crossedAt = Number.isFinite(lastOfPrevious?.timeline?.shiftLand)
+            ? lastOfPrevious.timeline.shiftLand
+            : windows[rows.rowIndex]?.writeStart;
+        /*
+         * 跨行那一跳的落地，以及入场那一跳的落地（第一个字开口那一刻）
          * ——两处都是「他真的从空中落下来」，所以都铺一圈环。
          * 挤不出入场一跳时（`sinklessOpening`）不铺：那一帧没有落地这回事。
          */
-        if (!sinklessOpening && Number.isFinite(shiftLand) && current[0]
+        if (!sinklessOpening && Number.isFinite(crossedAt) && current[0]
             && ((rows.rowIndex > 0 && !debutRow) || hasEntrance)) {
-            landings.push({ landTime: shiftLand, top: current[0].top, sink: current[0].sinkPx ?? 0 });
+            landings.push({ landTime: crossedAt, top: current[0].top, sink: current[0].sinkPx ?? 0 });
         }
         /*
-         * 收尾那一截：末块的落点再亮一点点（人站在那儿把最后一个字唱完）。
-         * 借冲击环那一层画，但强制定时成「整段都亮」——它的两头同样是归零的
-         * （见 resolveIdleMotion），所以接得上前后两段，也不会在别的时候冒出来。
+         * 跨行那一跳的**起跳**：从行末那根空柱子（没有它时是这一行的末块）上蹬开。
+         * 与上面行内那一跳同一条规矩（同一个 `TAKEOFF_RING_MIN_GAP`）：
+         * 他刚落到那块上就走时只画落地那一圈。
          */
-        const lastOnRow = current[current.length - 1];
-        if (lastOnRow && idle.glow > 0.02) {
-            landings.push({
-                landTime: timeSec,
-                top: lastOnRow.top,
-                sink: lastOnRow.sinkPx ?? 0,
-                // 环停在一小圈上、只是慢慢淡：这是「亮着」，不是「又落地了一次」。
-                burst: { ring: { radius: 0.34, opacity: idle.glow * 0.5 }, dust: [] },
-            });
+        if (Number.isFinite(shiftSpans?.begin)) {
+            takeOffRing(
+                tailFrom,
+                shiftSpans.begin,
+                timeline?.landings?.[timeline.landings.length - 1] ?? Number.NEGATIVE_INFINITY,
+            );
         }
         stage.drawImpact(impactStamps({
             landings,
             time: timeSec,
-            // 环铺到柱顶那么宽就停：再大就把相邻那根的落点也圈进去了。
-            radius: Math.max(8, cellPx * 0.55),
+            /*
+             * 环铺到略大于柱顶就停：再大就把相邻那根的落点也圈进去了，
+             * 太小又只是脚下一圈看不清的印子（柱顶那半格字的宽度是 0.7 格左右）。
+             */
+            radius: Math.max(10, cellPx * 0.8),
             squash: projection.sin,
             color: palette.accent,
             // 跟着「跳跃轨迹」那个旋钮一起淡：想要干净的画面就把两者一起关掉。
             opacity: 0.35 + 0.65 * knobs.trail,
         }));
+        /*
+         * 屏幕正中那块译文：这一句的注解，不跟唱（只换句时淡进来）。它的显示与浓淡
+         * 全由时间算出来，所以拖进度、暂停、导出走的是同一帧。
+         */
+        stage.paintTranslation(translationLayoutOf(timeSec, size, ctx.getDisplay?.()));
         // 宿主关掉歌词文字时只藏柱顶那块字，场景照旧跳（见 jumpStage.setTextVisible）。
         stage.setTextVisible(ctx.getDisplay()?.showText);
     };
@@ -1324,6 +1711,9 @@ const mountJump = (folium, container, ctx) => {
      *
      * 只画「这一行自己落过地」的那几跳；未落地的那一跳交给小人自己表达。
      * 拱线用一串小圆点画，不用「旋转的细长条」：细长条一旦角度算错就会连成一片。
+     *
+     * 已经跳过的那几跳**按过了多久淡下来**（`resolveTrailFade`）：最近那一跳最实，
+     * 往前依次变淡，老远的只剩一层影子——走过的路是看得出来的，但不会一直全亮地挂着。
      */
     const trailSegments = ({ placed, timeline, time, arc, color, opacity }) => {
         if (opacity <= 0.01 || !timeline) return [];
@@ -1332,13 +1722,14 @@ const mountJump = (folium, container, ctx) => {
             const from = placed[hop.from];
             const to = placed[hop.to];
             if (!from || !to || time < hop.landTime) return;
+            const fade = resolveTrailFade({ timeline, time, landTime: hop.landTime });
             const points = [];
             const steps = 8;
             for (let step = 0; step <= steps; step += 1) {
                 const t = step / steps;
                 points.push(runnerFeet({ from, to, progress: t, arc }));
             }
-            segments.push({ kind: 'path', points, color, opacity: opacity * 0.45 });
+            segments.push({ kind: 'path', points, color, opacity: opacity * 0.45 * fade });
             segments.push({
                 kind: 'ellipse',
                 x: to.top.x,
@@ -1346,7 +1737,7 @@ const mountJump = (folium, container, ctx) => {
                 rx: 5,
                 ry: 2.5,
                 color,
-                opacity: opacity * 0.3,
+                opacity: opacity * 0.3 * fade,
             });
         });
         return segments;
@@ -1362,25 +1753,30 @@ const mountJump = (folium, container, ctx) => {
         if (opacity <= 0.02) return [];
         const stamps = [];
         (landings ?? []).forEach((stop) => {
-            // 有的落点是现成的（收尾那一截的「亮着」，见 paintFrame），只借这一层的画法。
-            const burst = stop.burst
-                ?? resolveLandingBurst({ time, landTime: stop.landTime, seconds: IMPACT_SECONDS });
+            const burst = resolveLandingBurst({ time, landTime: stop.landTime, seconds: IMPACT_SECONDS });
             if (!burst || !stop.top) return;
             // 落点跟着柱子沉：环与尘画在**当下**的柱顶上。
             const sink = Number(stop.sink) || 0;
+            /*
+             * 起跳那一圈比落地那圈小、也淡，还不带尘（见 paintFrame 的 `TAKEOFF_*`）；
+             * 落地那圈两个乘数都是 1，也就是原样。
+             */
+            const scale = Number.isFinite(stop.scale) ? stop.scale : 1;
+            const fade = Number.isFinite(stop.fade) ? stop.fade : 1;
+            const ring = radius * scale;
             stamps.push({
                 x: stop.top.x,
                 y: stop.top.y + sink,
-                radius: radius * burst.ring.radius,
+                radius: ring * burst.ring.radius,
                 squash,
                 color,
-                opacity: opacity * burst.ring.opacity,
-                dotSize: Math.max(1.6, radius * 0.09),
+                opacity: opacity * burst.ring.opacity * fade,
+                dotSize: Math.max(1.6, ring * 0.09),
                 // 尘往外飞的方向由 jumpCourse 给（归一化），纵向照柱顶的扁度压一下。
-                dust: burst.dust.map((dot) => ({
-                    x: stop.top.x + dot.x * radius,
-                    y: stop.top.y + sink + dot.y * radius * squash,
-                    opacity: dot.opacity,
+                dust: stop.dust === false ? [] : burst.dust.map((dot) => ({
+                    x: stop.top.x + dot.x * ring,
+                    y: stop.top.y + sink + dot.y * ring * squash,
+                    opacity: dot.opacity * fade,
                 })),
             });
         });
@@ -1433,6 +1829,8 @@ const mountJump = (folium, container, ctx) => {
         if (Object.keys(next).some((key) => next[key] !== knobs[key])) {
             layoutCache.clear();
             blockCache.clear();
+            // 译文的排版也跟着旋钮走（字号、行数、透视都进键）：整表作废，重排一次。
+            translationCache.clear();
             boardEpoch += 1;
         }
         knobs = next;
@@ -1440,6 +1838,7 @@ const mountJump = (folium, container, ctx) => {
             windows = buildWriteWindows(ctx.lines ?? []);
             layoutCache.clear();
             blockCache.clear();
+            translationCache.clear();
             boardEpoch += 1;
         }
         palette = resolveJumpPalette(ctx.getTheme(), folium);
@@ -1472,6 +1871,8 @@ const mountJump = (folium, container, ctx) => {
         resizeObserver?.disconnect();
         layoutCache.clear();
         blockCache.clear();
+        translationCache.clear();
+        clearTranslationMeasureCache();
         stage.dispose();
     };
 };

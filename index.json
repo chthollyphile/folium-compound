@@ -366,20 +366,20 @@
     {
       "id": "visualizer-jump",
       "name": "跳一跳歌词特效",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": "tumuyan",
-      "description": "一个仿跳一跳经典小游戏的歌词特效。",
+      "description": "一个仿跳一跳小游戏的歌词特效。",
       "origin": "community",
       "channel": "release",
       "path": "mods/community/visualizer-jump",
-      "digest": "sha256:99db30884fb8820e48b2247c0f6520bc73d5ccc35e44781089aeea43f3a979b3",
+      "digest": "sha256:a6456918bf550ee63a878c017d79778bef46534c7f91eb4a550f8fa2f19a2dda",
       "keyId": "folium-ci-2026-1",
-      "signedAt": "2026-10-23T05:53:36.222Z",
+      "signedAt": "2026-10-27T02:03:56.913Z",
       "owners": [
         "tumuyan"
       ],
       "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
-      "sourceCommit": "4422273c34ebb96734ead9def53756b8d05c08fd"
+      "sourceCommit": "f77181ca827f1a65c8a7c2ae5298fd1c8a44fe92"
     },
     {
       "id": "wave-light",

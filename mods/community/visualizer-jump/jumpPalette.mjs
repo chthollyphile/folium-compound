@@ -8,20 +8,21 @@
 //
 // 柱面的颜色**由主题推**：以前是写死的 `rgba(223,231,255, α)`（暗主题）/
 // `rgba(43,51,72, α)`（亮主题）——两个都是中性冷灰，暖色主题下柱子仍然是一片冷蓝白，
-// 和整屏的调子是脱节的。现在面色 = 主题文字色掺一点强调色：暗主题下是「浅色带主题
-// 色相」，亮主题下是「深色带主题色相」。浓淡交给 `fill-opacity` / `stroke-opacity`
-// （见 jumpStage），色相则跟着主题走。
+// 和整屏的调子是脱节的。现在面色 = 主题的辅助色（secondaryColor），不再掺字色；
+// 暗主题下是浅色调、亮主题下是辅助色实色。棱线 / 辉光仍用强调色（accentColor）。
+// 浓淡交给 `fill-opacity` / `stroke-opacity`（见 jumpStage），色相则跟着主题走。
 //
-// 五种浓淡的比例沿用原来那五个 alpha（棱线 0.42、正面 0.17、侧面 0.08、次行 0.10 / 0.05）：
+// 三种浓淡的比例沿用原来那三个 alpha（棱线 0.42、正面 0.17、侧面 0.08）：
 // 换掉的只是它们共用的那个色，画面结构不变。
+//
+// 曾经另有一对「次行」的色（0.10 / 0.05），给上下两行用：面色更淡一档。那是把
+// 「正在写的那一行更实」写死在调色板里，于是哪怕把三根透明度旋钮都推到头、把「其他行浓淡」
+// 调到 1，三行看着仍旧不一样。行与行的轻重现在只由那一根旋钮给（见 client 的 roleFade）。
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const mix = (from, to, amount) => from + (to - from) * amount;
 
-/** 面色往强调色掺多少：字色为主，强调色只负责把色相带出来。 */
-const FACE_ACCENT_MIX = 0.3;
-
-/** 棱线再往强调色推一档：它是画面里唯一的高光，色相应该最先被看见。 */
+/** 棱线取字色与强调色各半，作为比纯强调色更亮（暗主题下偏白）的高光。 */
 const EDGE_ACCENT_MIX = 0.5;
 
 const formatRgba = (channels, alpha) => [
@@ -109,7 +110,7 @@ const resolveThemeIsDark = (theme) => {
     return luma === null ? true : luma < 127.5;
 };
 
-/** 主题里那个「字色 / 强调色」：空值（旧存档、宿主没给）按明暗落回一个中性色。 */
+/** 主题里那个「字色」（primaryColor）：空值（旧存档、宿主没给）按明暗落回一个中性色。 */
 const resolveInk = (theme, dark) => {
     const ink = typeof theme?.primaryColor === 'string' ? theme.primaryColor.trim() : '';
     return ink || (dark ? '#f3f5ff' : '#12151c');
@@ -120,16 +121,36 @@ const resolveAccent = (theme) => {
     return accent || '#8fc7ff';
 };
 
+/** 主题里那个「辅助色」：缺省（旧主题 / 宿主没给）回落到强调色，避免崩成空色。 */
+const resolveSecondary = (theme, accent = '#8fc7ff') => {
+    const secondary = typeof theme?.secondaryColor === 'string' ? theme.secondaryColor.trim() : '';
+    return secondary || accent;
+};
+
 /**
  * 一份调色板。形状与旧版一致（client 只消费这几个键），变的只是它们的来源：
- * 面色不再是写死的中性冷灰，而是从主题的 `primaryColor` / `accentColor` 推出来的。
+ * 面色不再是写死的中性冷灰：面（正面 / 侧面 / 顶面）取主题的辅助色（`secondaryColor`），
+ * 棱线取字色与强调色各半（`mixColors(ink, accent, 0.5)`）。
  */
 export const resolveJumpPalette = (theme, folium) => {
     const dark = resolveThemeIsDark(theme);
     const ink = resolveInk(theme, dark);
     const accent = resolveAccent(theme);
-    const face = mixColors(ink, accent, FACE_ACCENT_MIX);
+    // 面的基础色直接用主题的辅助色（secondaryColor），不再掺字色（见文件头说明）。
+    const face = resolveSecondary(theme, accent);
     const edge = mixColors(ink, accent, EDGE_ACCENT_MIX);
+    /*
+     * 译文那一层的颜色：字用主题的字色（一屏里最实的那一档），底下垫的是底色——
+     * 它要压在柱子群正中，不加一点描边/阴影就会和柱顶的字糊成一片。
+     */
+    const paper = typeof theme?.backgroundColor === 'string' && theme.backgroundColor.trim()
+        ? theme.backgroundColor.trim()
+        : (dark ? '#101014' : '#ffffff');
+    const translationFontFamily = typeof folium?.theme?.resolveTranslationFontStack === 'function'
+        ? folium.theme.resolveTranslationFontStack(theme)
+        : (typeof theme?.fontFamily === 'string' && theme.fontFamily.trim()
+            ? `"${theme.fontFamily.trim()}", ${typeof folium?.theme?.resolveFontStack === 'function' ? folium.theme.resolveFontStack(theme) : 'sans-serif'}`
+            : (typeof folium?.theme?.resolveFontStack === 'function' ? folium.theme.resolveFontStack(theme) : 'sans-serif'));
     return {
         dark,
         text: ink,
@@ -137,9 +158,27 @@ export const resolveJumpPalette = (theme, folium) => {
         edge: colorWithAlpha(edge, 0.42),
         front: colorWithAlpha(face, 0.17),
         side: colorWithAlpha(face, 0.08),
-        back: colorWithAlpha(face, 0.1),
-        backSide: colorWithAlpha(face, 0.05),
         fontFamily: folium?.theme?.resolveFontStack(theme),
         fontWeight: folium?.theme?.resolveFontWeight(theme, 600),
+        /*
+         * 译文：字色、描边（取底色：压在柱子上也分得开）、阴影。
+         * 阴影不做成「厚厚一层底色」：那等于给字加了个描边壳，笔画一密就成了空心字。
+         * 一到两像素的软影只负责把字从柱面上抬起来，周围那圈光才是「译文辉光」那一档。
+         */
+        translationText: ink,
+        /*
+         * 描边只在「垫底」调低时才是主角：底色浅、柱子也是浅的，细一圈亮线反而像镂空。
+         * 深色主题下纸是黑的，白字本来就有对比，描边留得更细。
+         */
+        translationStroke: colorWithAlpha(paper, dark ? 0.45 : 0.3),
+        translationShadow: `0 1px 8px ${colorWithAlpha(paper, dark ? 0.55 : 0.6)}, 0 2px 3px ${colorWithAlpha(paper, 0.4)}`,
+        /*
+         * 辉光（「译文辉光」那一档）取强调色：字周围一圈自己亮起来的光，
+         * 深色画面里才像字在发光，而不是背后糊了一块底色。
+         */
+        translationGlowColor: colorWithAlpha(accent, 1),
+        translationFontFamily,
+        translationFontWeight: folium?.theme?.resolveFontWeight(theme, 500),
+        paper,
     };
 };

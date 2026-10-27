@@ -100,9 +100,13 @@ export const resolveLandingBurst = (options = {}) => {
     const seconds = Math.max(0.05, Number(options.seconds) || IMPACT_SECONDS);
     const t = (time - landTime) / seconds;
     if (t < 0 || t > 1) return null;
-    // 铺开：起步快、收尾慢（环被磕出去之后越铺越慢）；淡出：尾巴拖得住，环才不像一闪。
+    /*
+     * 铺开：起步快、收尾慢（环被磕出去之后越铺越慢）；淡出：尾巴拖得住，环才不像一闪。
+     * 起点不是 0.3 而是 0.62：环从「贴着落点」开始铺时头几帧只有几个像素，
+     * 又正好整个人踩在那一点上，于是整圈被小人与影子盖住——看着就像没有环。
+     */
     const spread = 1 - Math.pow(1 - t, 3);
-    const fade = Math.pow(1 - t, 1.6);
+    const fade = Math.pow(1 - t, 1.35);
     const dust = [];
     for (let index = 0; index < IMPACT_DUST; index += 1) {
         const ray = rayAt(index);
@@ -111,7 +115,7 @@ export const resolveLandingBurst = (options = {}) => {
         dust.push({ x: ray.x * reach, y: ray.y * reach, opacity: fade * 0.7 });
     }
     return {
-        ring: { radius: 0.3 + 0.7 * spread, opacity: fade },
+        ring: { radius: 0.62 + 0.38 * spread, opacity: fade },
         dust,
     };
 };

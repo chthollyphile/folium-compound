@@ -11,6 +11,12 @@
 // 二次缩放——面的形状是什么样，画出来就是什么样。
 //
 // 这一层只建节点、写样式，不做几何判断：面的顶点、位置与时刻都由上层算好传进来。
+//
+// 另外还有一层**屏幕正中那块译文**（`paintTranslation`）：它不是柱子，不跟镜头走，
+// 位置只跟容器尺寸与旋钮有关。行数与字号由上层（jumpTranslation）算好，这一层做三件事：
+//   1. 把这一句铺成几行（可选「逐字密排」：每个字自己一格，镜头俯角那档的透视于是逐字生效）；
+//   2. 换句时淡淡地落定（不透明度由时间算出来，见 jumpTimeline.resolveTranslationReveal）；
+//   3. 「垫一层底」时按这块字的包围盒铺一圈柔和的暗/亮底，柱子从字缝里透出来但字读得清。
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -28,9 +34,18 @@ const createPillarNode = () => {
     const front = document.createElementNS(SVG_NS, 'polygon');
     const side = document.createElementNS(SVG_NS, 'polygon');
     const top = document.createElementNS(SVG_NS, 'polygon');
-    [front, side, top].forEach((face) => face.setAttribute('stroke-linejoin', 'round'));
+    /*
+     * 圆柱（行末那根无字的歇脚柱）用同一副壳：一个顶面椭圆 + 柱身的左右两半。
+     * 两者永远只画一套（画圆柱时那三个多边形收起来），所以池子里的节点是通用的。
+     */
+    const disc = document.createElementNS(SVG_NS, 'ellipse');
+    const left = document.createElementNS(SVG_NS, 'path');
+    const right = document.createElementNS(SVG_NS, 'path');
+    [front, side, top, disc, left, right].forEach((face) => face.setAttribute('stroke-linejoin', 'round'));
+    [disc, left, right].forEach((face) => { face.style.display = 'none'; });
     // 侧面在后、正面压过它、顶面最后：三者只在棱上相接，顺序只影响描边压线。
-    svg.append(side, front, top);
+    // 圆柱两半在前、顶面椭圆压在它们上面（柱身的两条竖棱被椭圆盖住，才像一根圆的）。
+    svg.append(side, front, top, left, right, disc);
 
     const label = document.createElement('div');
     label.style.cssText = [
@@ -49,11 +64,173 @@ const createPillarNode = () => {
     ].join(';');
 
     node.append(svg, label);
-    return { node, svg, front, side, top, label };
+    return { node, svg, front, side, top, disc, left, right, label };
 };
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+
+/**
+ * 把一个 `rgba(r, g, b, a)` 拆成「不透明的那一层」+ 它自己的 alpha。
+ *
+ * 面色的 alpha 一直留在颜色里（正面 0.17、侧面 0.08、棱线 0.42），而 SVG 的
+ * `fill-opacity` / `stroke-opacity` 是**另乘**上去的。于是「柱子透明度」拉到 100%
+ * 也只画出一块 17% 的浅色——面板上写着不透明，画面上仍是一层灰，压住的译文字照样清楚，
+ * 这跟「柱子要能遮住译文」是冲突的。
+ *
+ * 所以先把面色自身的 alpha 折进 `fill-opacity` / `stroke-opacity`：`opacity = own × 旋钮`。
+ * 100% 就是 `1`，字面意义上的不透明；80%（默认档）时面仍偏透、译文照样读得出来。
+ * 认不出来的颜色（命名色、`#rgb`）原样返回、alpha 当 1。
+ */
+/**
+ * 旋钮的档位 → 屏幕上真正的 alpha。
+ *
+ * 面色的 alpha（正面 0.17、侧面 0.08）在这种画法里本来就是「这一层有多实」的一部分，
+ * 旋钮只是在这之上再乘一份。所以旋钮 100% 时不能只是「原来的 0.17 × 1」——
+ * 那还是 0.17。这里把旋钮当作**对满值的插值**：
+ *
+ *     alpha = own · t + (1 − own) · t³
+ *
+ * 两段各有分工：线性那段（`own · t`）保住这一面原本的轻重——侧面照旧比正面淡一档，
+ * 三根滑杆推到同一个数时它们也不会糊成一样；三次那段（`(1 − own) · t³`）负责推满，
+ * t = 1 时正好是 1（字面意义上的不透明）。两头都对得上：t = 1 是实心，
+ * **t = 0 就一点不剩**——以前最低 0.05，而那一档仍留着 `own` 那一份底色，滑到底面上还有一层雾，
+ * 想「只留轮廓」「只留字」做不到。
+ */
+const resolveFaceOpacity = (mix, own) => {
+    const t = clamp01(Number(mix) || 0);
+    const base = clamp01(Number.isFinite(own) ? own : 1);
+    return clamp01(base * t + (1 - base) * t * t * t);
+};
+
+const splitAlpha = (color) => {
+    const text = typeof color === 'string' ? color.trim() : '';
+    const match = /^rgba\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)$/.exec(text);
+    if (!match) return { color: text, alpha: 1 };
+    const alpha = clamp01(Number(match[4]));
+    return { color: `rgb(${match[1]}, ${match[2]}, ${match[3]})`, alpha };
+};
 const px = (value) => `${value.toFixed(2)}px`;
+
+/**
+ * 译文那一块字的 `text-shadow`：一条软影 + 一圈辉光。
+ *
+ * 辉光走 `text-shadow` 而不是背后垫一块渐变底：`text-shadow` 跟着字形走，
+ * 光只从笔画周围晕开，柱子从字缝里看得见；垫一块底则是整块矩形，压上去像贴了一张纸。
+ * 两圈半径一近一远（大一半的那个更淡），晕出去才像光，而不是一圈描边。
+ * 半径跟着字号走，字号拧大时光不会显得变小。
+ */
+const buildTranslationShadow = (layout) => {
+    const layers = [];
+    if (layout.textShadow) layers.push(layout.textShadow);
+    const glow = clamp01(layout.glowOpacity ?? 0);
+    if (layout.glow && glow > 0.02 && layout.glowColor) {
+        const size = Math.max(1, Number(layout.sizePx) || 1);
+        /*
+         * 光色本身带 alpha（调色板给的是实色），这里按旋钮乘一份：
+         * 旋钮 0.35 的默认值 → 三圈各 0.35 / 0.24 / 0.14，叠起来是一圈刚好看得见的光。
+         */
+        const tint = (share) => withGlowAlpha(layout.glowColor, glow * share);
+        layers.push(`0 0 ${(size * 0.12).toFixed(1)}px ${tint(1)}`);
+        layers.push(`0 0 ${(size * 0.26).toFixed(1)}px ${tint(0.7)}`);
+        layers.push(`0 0 ${(size * 0.55).toFixed(1)}px ${tint(0.4)}`);
+    }
+    return layers.length > 0 ? layers.join(', ') : 'none';
+};
+
+/** 把 `rgba(r, g, b, a)` 的 alpha 改成给定的值（调色板给的都是 rgba，认不出来就原样返回）。 */
+const withGlowAlpha = (color, alpha) => {
+    const match = /^rgba\(([^)]+)\)$/.exec(String(color ?? ''));
+    if (!match) return color;
+    const parts = match[1].split(',').map((part) => part.trim());
+    if (parts.length < 3) return color;
+    return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${clamp01(alpha).toFixed(3)})`;
+};
+
+/**
+ * 屏幕正中那块译文的壳：一层定位用的 `node` + 一块居中、可整体透视的 `body`。
+ *
+ * 辉光不是垫在字后面的一个节点，而是 `body` 上的 `text-shadow`（见 buildTranslationShadow）：
+ * 光跟着字形走，柱子从字缝里看得见。
+ *
+ * 为什么一层的字要拆成「每字一格」（见 writeTranslationRows）：浏览器只对**矩阵**做
+ * 真透视，对一整段 `white-space:pre` 的文字不做——那样整块字是一张平面的图，
+ * 只能一起压扁。每个字自己一格（`inline-block`）之后，字仍然按行排，透视却逐字生效：
+ * 靠上的字被压得更扁、更往里收，整块才像铺在地上的一行行字。
+ */
+const createTranslationLayer = () => {
+    const node = document.createElement('div');
+    node.style.cssText = [
+        'position:absolute', 'left:0', 'top:0', 'width:100%', 'height:100%',
+        'pointer-events:none', 'visibility:hidden', 'will-change:opacity',
+    ].join(';');
+    /*
+     * `body` 的原点放在锚点上，块的尺寸由字自己撑开。`translate(-50%, Y%)` 里的那个 `Y`
+     * 由对齐方式给（顶对齐 `0%`、居中 `-50%`、底对齐 `-100%`，见 jumpTranslation 的
+     * resolveTranslationAnchor）：`Y` 就是「块的哪一头钉在锚点上」。
+     *
+     * 透视矩阵加在这一层，所以它是这块字的**唯一**坐标参考；`transform-origin` 也跟着
+     * 对齐方式换（顶对齐从顶边压、底对齐从底边压），压扁才是从字所在的那一头朝中心收，
+     * 而不是一律从底边往里塌。
+     */
+    const body = document.createElement('div');
+    body.style.cssText = [
+        'position:absolute', 'left:0', 'top:0', 'width:max-content', 'max-width:none',
+        'transform-origin:50% 100%', 'text-align:center', 'white-space:nowrap',
+        'transform-style:flat', 'will-change:transform',
+    ].join(';');
+    node.append(body);
+    return { node, body, state: { key: null, look: null, transform: null, alpha: null, shown: false } };
+};
+
+/**
+ * 把这一句的字码进那块译文：一句一换（`key` 变了才走这里），所以每行一个 `div`、
+ * 每个字一个 `span` 是可以接受的开销——译文一次只露一句，几十个字。
+ *
+ * 逐字那一档（`perGlyph`）顺手给每个字算好它自己的透视矩阵：它们是**这一句的**属性，
+ * 换句才变，所以写在这里而不是每帧写（逐帧写等于每帧几十次 `style.transform`）。
+ */
+const writeTranslationRows = (translation, rows, layout) => {
+    const glyphs = Boolean(layout?.perGlyph);
+    const tilt = layout?.glyphTilt ?? null;
+    const lineCount = Math.max(1, rows.length);
+    // 空行不占位：逐字那一档若是被行数上限截掉几行，剩下的行之间才不留空档。
+    const nodes = rows
+        .map((row, rowIndex) => ({ row, rowIndex }))
+        .filter(({ row }) => (Array.isArray(row) ? row.length > 0 : Boolean(row)))
+        .map(({ row, rowIndex }) => {
+            const line = document.createElement('div');
+            line.style.cssText = 'display:block;white-space:nowrap;';
+            /*
+             * 不逐字那一档（或者这一行是字符串）就整行一段文字：一块平面，同一个矩阵一起变换。
+             * 逐字那一档才铺出一个个字格（见下面）。
+             */
+            if (!glyphs || typeof row === 'string') {
+                line.textContent = Array.isArray(row) ? row.join('') : row;
+                return line;
+            }
+            /*
+             * 这一行在整块里离底边多远：靠上的行离镜头更远，收得更多。
+             * `tilt.height` 是整块的高度，所以 `offset` 在 0（最下面一行）到
+             * 「块高 − 行高」（最上面一行）之间。
+             */
+            const offset = Math.max(0, (lineCount - 1 - rowIndex)) * (Number(tilt?.lineHeight) || 0);
+            // 一行一个字格：每个字吃的是**这一行**自己的矩阵（靠上的行收得更紧）。
+            const matrix = layout.glyphTilt?.glyphMatrix?.(offset) ?? null;
+            row.forEach((char) => {
+                const span = document.createElement('span');
+                span.textContent = char;
+                /*
+                 * 每个字自己一格、自己一个透视原点：矩阵于是在字这一级生效（见上面的说明）。
+                 * 空格不加格子：它由 `white-space:pre` 撑开，加了反而会多出一段行内盒的高度。
+                 */
+                span.style.cssText = 'display:inline-block;transform-origin:50% 100%;white-space:pre;';
+                if (matrix) span.style.transform = matrix;
+                line.append(span);
+            });
+            return line;
+        });
+    translation.body.replaceChildren(...nodes);
+};
 
 /**
  * 挤压时横向补多少：竖直压掉（或拉出）的那一份乘这个系数再补到横向上。
@@ -95,7 +272,18 @@ export const createJumpStage = (container) => {
     impact.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;';
     // 轨迹层夹在画布最底下：拱线不该压在柱子正面。
     canvas.append(trail, scene);
-    root.append(canvas);
+
+    /*
+     * 译文层挂在 `root` 上、`canvas` 之外：它不跟镜头平移，位置只跟容器尺寸与旋钮有关。
+     * 里面的节点都在一个居中的「块」里（`translation.body`），透视与缩放大权交给那一层
+     * 的 `transform`——换句只是换字，矩阵可以原地改。
+     *
+     * 它挂在 `canvas` **之前**，于是柱子、小人、轨迹都压在它上面：译文是浮在画面中部的注解，
+     * 柱子从它前面经过，而不是被它盖住。远景那几根柱子先画、近景后画，整片台阶于是像一页
+     * 摊开的字墙立在译文前面。
+     */
+    const translation = createTranslationLayer();
+    root.append(translation.node, canvas);
     container.append(root);
 
     const pillars = [];
@@ -144,10 +332,16 @@ export const createJumpStage = (container) => {
             entry.node.style.display = hidden ? 'none' : '';
         });
         ordered.forEach((entry) => scene.append(entry.node));
-        // 落地特效压在柱子上面、小人下面：每次重排之后把它挂回这儿。
+        /*
+         * 落地 / 起跳的那一圈环夹在小人的**影子之上、身子之下**：
+         * 环本来就铺在他落下的那一点上，而影子是一团压在那一点上的暗底
+         * （`radial-gradient`，0.38 的浓度）。挂在影子下面时，刚落地那几帧环还小，
+         * 正好整圈藏进影子那块暗斑里——「落地环看不见了」就是这么来的。
+         */
+        if (runner) scene.append(runner.shadow);
         scene.append(impact);
-        // 小人永远压在最上面：每次重排之后把它挂回最后（影子在它下面一档）。
-        if (runner) scene.append(runner.shadow, runner.node);
+        // 小人的身子永远压在最上面。
+        if (runner) scene.append(runner.node);
         return ordered;
     };
 
@@ -167,20 +361,27 @@ export const createJumpStage = (container) => {
      * （坐标以盒底中心为原点，像素）。`label.transform` 是贴面的矩阵（或「上方」那一档的
      * 平移），由 jumpProject.placeText 算好——这一层不再自己摆字。
      *
-     * `faceAlpha` 是柱面与棱线自己的浓淡（「线框强度」× 行的主次），`opacity` 只管这一行
-     * 登场时整块的淡入——两者分开是因为字不能跟着柱面一起被压暗（见 `label.opacity`）。
+     * `faceAlpha` 是**正面 / 顶面**的浓淡（就是「柱子透明度」那一根），`sideAlpha` 是
+     * **侧面填充**的浓淡（「侧面填充透明度」），`edgeAlpha` 是棱线，各管各的。
+     * `rowFade` 是行与行的主次（「其他行浓淡」）：它乘在这三样**算出来的 alpha** 上，
+     * 而不是再去参与插值——旋钮写多少，其他行就是当前行的几成，面板上说得清。
+     * `opacity` 只管这一行登场时整块的淡入——与 `rowFade` 分开是因为字不能跟着柱面一起被压暗
+     * （见 `label.opacity`），侧面也不能跟着正面的浓度走（见下面的 `paintFace`）。
      */
     const paintPillar = (entry, options) => {
-        const { base, box, colors, opacity, faceAlpha, label } = options;
-        const bbox = box.bbox;
+        const { base, box, cylinder, colors, opacity, faceAlpha, sideAlpha, edgeAlpha, rowFade, label } = options;
+        // 方料与圆柱共用这一根壳：两套几何自带同一个 `bbox`，画哪一套由 `cylinder` 说。
+        const shape = cylinder ?? box;
+        const bbox = shape?.bbox ?? { x: 0, y: 0, width: 1, height: 1 };
         const state = entry.state ?? (entry.state = {});
 
         /*
-         * 几何（三个面的顶点、外接框）是上层缓存出来的**同一个对象**：身份没变就什么都不用写。
-         * 一屏里柱子纹丝不动的那些帧（也就是大多数帧）于是连一次 `setAttribute` 都没有。
+         * 几何（三个面的顶点 / 椭圆与柱身的两半、外接框）是上层缓存出来的**同一个对象**：
+         * 身份没变就什么都不用写。一屏里柱子纹丝不动的那些帧（也就是大多数帧）
+         * 于是连一次 `setAttribute` 都没有。
          */
-        if (state.box !== box) {
-            state.box = box;
+        if (state.shape !== shape) {
+            state.shape = shape;
 
             // viewBox 与像素尺寸 1:1：面算出来是什么形状，画出来就是什么形状。
             entry.svg.setAttribute(
@@ -192,12 +393,29 @@ export const createJumpStage = (container) => {
             entry.svg.style.width = px(bbox.width);
             entry.svg.style.height = px(bbox.height);
 
+            const show = (node, on) => { node.style.display = on ? '' : 'none'; };
             const writePoints = (node, points) => {
                 node.setAttribute('points', points.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' '));
             };
-            writePoints(entry.side, box.faces.side);
-            writePoints(entry.front, box.faces.front);
-            writePoints(entry.top, box.faces.top);
+            show(entry.side, !cylinder);
+            show(entry.front, !cylinder);
+            show(entry.top, !cylinder);
+            show(entry.left, Boolean(cylinder));
+            show(entry.right, Boolean(cylinder));
+            show(entry.disc, Boolean(cylinder));
+            if (cylinder) {
+                const disc = cylinder.disc;
+                entry.disc.setAttribute('cx', disc.cx.toFixed(2));
+                entry.disc.setAttribute('cy', disc.cy.toFixed(2));
+                entry.disc.setAttribute('rx', disc.rx.toFixed(2));
+                entry.disc.setAttribute('ry', disc.ry.toFixed(2));
+                entry.left.setAttribute('d', cylinder.halves.left);
+                entry.right.setAttribute('d', cylinder.halves.right);
+            } else {
+                writePoints(entry.side, box.faces.side);
+                writePoints(entry.front, box.faces.front);
+                writePoints(entry.top, box.faces.top);
+            }
         }
 
         /*
@@ -207,7 +425,7 @@ export const createJumpStage = (container) => {
          * 也会换掉整个 Text 节点，把这一块字重新排一遍。
          */
         const look = [
-            colors.top, colors.front, colors.side, colors.edge, faceAlpha,
+            colors.top, colors.front, colors.side, colors.edge, faceAlpha, sideAlpha, edgeAlpha, rowFade,
             label?.text ?? '', label?.width, label?.height, label?.fontSize, label?.transform,
             label?.color, label?.fontFamily, label?.fontWeight, label?.opacity,
         ].join('|');
@@ -217,31 +435,71 @@ export const createJumpStage = (container) => {
              * 浓淡走 `fill-opacity` / `stroke-opacity`，不再整根柱子共用一个 `opacity`：
              * 那样字会被柱面那份浓度一起乘掉（`label` 是 `node` 的子节点）。
              * 五种面各自的 base alpha（棱线 0.42、正面 0.17、侧面 0.08…）留在颜色里，
-             * 这里只叠「线框强度 × 行的主次」这一份。
+             * 这里只叠旋钮给出的那几份。
+             *
+             * 正面 / 顶面与**侧面**各拿一份浓度：侧面本来就比正面淡（base 0.08 vs 0.17），
+             * 再一起调淡就彻底无痕——柱子看着断成「一片正面的墙 + 一条没有侧壁的边」。
+             * 所以侧面单独一档（「侧面填充透明度」），棱线也自己一档，三者互不连坐。
              */
             const faceMix = String(clamp01(faceAlpha ?? 1));
-            const paintFace = (node, fill) => {
-                node.setAttribute('fill', fill);
-                node.setAttribute('fill-opacity', faceMix);
-                node.setAttribute('stroke', colors.edge);
-                node.setAttribute('stroke-opacity', faceMix);
+            const sideMix = String(clamp01(sideAlpha ?? faceAlpha ?? 1));
+            /*
+             * 棱线自己一档：面调淡时全靠描边勾出柱子的轮廓，所以它比面留得多一点，
+             * 但也不许被正面那份浓度绑住（那正是「调到 100% 也看不出柱子遮住译文」的一半原因：
+             * 面实了线也跟着实，柱子整体仍是一片几乎看不见的雾）。
+             * 描边自己的 alpha 留在颜色里（`colors.edge` 带 0.42），这里只叠旋钮那一份。
+             */
+            const edgeMix = String(clamp01(edgeAlpha ?? 1));
+            /*
+             * 行的主次乘在**最终 alpha** 上，不乘进插值系数：那种乘法只在「插值」这一段
+             * 生效，旋钮写 30% 时画面里仍留着 `own·t³` 那一份底色，看着还是三成多。
+             * 乘在结果上，旋钮写多少就是几成。
+             */
+            const fade = clamp01(rowFade ?? 1);
+            const paintFace = (node, fill, mix) => {
+                const face = splitAlpha(fill);
+                const edge = splitAlpha(colors.edge);
+                node.setAttribute('fill', face.color);
+                node.setAttribute('fill-opacity', String(clamp01(resolveFaceOpacity(mix, face.alpha) * fade)));
+                node.setAttribute('stroke', edge.color);
+                node.setAttribute('stroke-opacity', String(clamp01(resolveFaceOpacity(edgeMix, edge.alpha) * fade)));
                 node.setAttribute('stroke-width', '1.2');
             };
-            paintFace(entry.side, colors.side);
-            paintFace(entry.front, colors.front);
-            paintFace(entry.top, colors.top);
+            if (cylinder) {
+                /*
+                 * 圆柱：柱顶一枚椭圆；柱身的左右两半就是方料上「正面 / 侧面」那两块墙
+                 * （方料的交线在屏幕最下那个点上，圆柱就从那里分成两半），
+                 * 明暗于是与同一行的方块一致。
+                 */
+                paintFace(entry.left, colors.front, faceMix);
+                paintFace(entry.right, colors.side, sideMix);
+                paintFace(entry.disc, colors.top, faceMix);
+            } else {
+                paintFace(entry.side, colors.side, sideMix);
+                paintFace(entry.front, colors.front, faceMix);
+                paintFace(entry.top, colors.top, faceMix);
+            }
 
-            entry.label.textContent = label?.text ?? '';
-            // 本地盒子：`width × height` 像素，再被 `transform` 错切到面上。
-            entry.label.style.width = px(label.width);
-            entry.label.style.height = px(label.height);
-            entry.label.style.fontSize = px(label.fontSize);
-            entry.label.style.color = label.color;
-            entry.label.style.fontFamily = label.fontFamily;
-            entry.label.style.fontWeight = String(label.fontWeight);
-            entry.label.style.transform = label.transform;
-            // 字的亮度自己一份：只跟行的主次走，不吃柱面的浓淡（它再乘上节点的登场淡入）。
-            entry.label.style.opacity = String(clamp01(label?.opacity ?? 1));
+            /*
+             * 行末那根空柱子没有字：`label` 是 null，整块字连盒子一起收起来
+             * （留着的话它会把上一次的字留在这根柱子上）。
+             */
+            if (label) {
+                entry.label.style.display = '';
+                entry.label.textContent = label.text ?? '';
+                // 本地盒子：`width × height` 像素，再被 `transform` 错切到面上。
+                entry.label.style.width = px(label.width);
+                entry.label.style.height = px(label.height);
+                entry.label.style.fontSize = px(label.fontSize);
+                entry.label.style.color = label.color;
+                entry.label.style.fontFamily = label.fontFamily;
+                entry.label.style.fontWeight = String(label.fontWeight);
+                entry.label.style.transform = label.transform;
+                // 字的亮度自己一份：只跟行的主次走，不吃柱面的浓淡（它再乘上节点的登场淡入）。
+                entry.label.style.opacity = String(clamp01(label?.opacity ?? 1));
+            } else {
+                entry.label.style.display = 'none';
+            }
         }
 
         // 下面两样是逐帧真的会变的：柱子在沉 / 在升，以及这一行登场的淡入。
@@ -506,8 +764,9 @@ export const createJumpStage = (container) => {
             ring.style.cssText = [
                 'position:absolute', 'left:0', 'top:0', 'box-sizing:border-box',
                 `width:${px(rx * 2)}`, `height:${px(ry * 2)}`,
-                `border:1.6px solid ${color}`, 'border-radius:50%',
-                `opacity:${(alpha * 0.85).toFixed(3)}`,
+                // 2px：柱顶那块面本身是半透明的，1.6px 的细线压在上面几乎化掉。
+                `border:2px solid ${color}`, 'border-radius:50%',
+                `opacity:${alpha.toFixed(3)}`,
                 `transform:translate3d(${px(stamp.x - rx)}, ${px(stamp.y - ry)}, 0)`,
             ].join(';');
             nodes.push(ring);
@@ -531,6 +790,95 @@ export const createJumpStage = (container) => {
          */
         if (nodes.length === 0 && impact.childElementCount === 0) return;
         impact.replaceChildren(...nodes);
+    };
+
+    /**
+     * 屏幕正中那块译文。`layout` 是上层算好的一整块（行、字号、贴哪、透视、浓淡）：
+     *
+     * ```js
+     * { key, rows, sizePx, lineHeight, fontFamily, fontWeight, color, glow, glowColor,
+     *   glowOpacity, opacity, tilt, textShadow, anchor: { x, y }, scaleX, scaleY }
+     * ```
+     *
+     * `rows` 是「一行的字符串」或「一行的字数组」（数组就逐字密排，透视逐字生效）。
+     * 一切都由上层算好：这一层只管把字码到节点上、把矩阵写进 `transform`。
+     */
+    const paintTranslation = (layout) => {
+        if (!layout) {
+            hideTranslation();
+            return;
+        }
+        const state = translation.state;
+        const key = String(layout.key ?? '');
+        const rows = Array.isArray(layout.rows) ? layout.rows
+            : (Array.isArray(layout.rows?.lines) ? layout.rows.lines : []);
+        if (state.key !== key) {
+            state.key = key;
+            writeTranslationRows(translation, rows, layout);
+        }
+        /*
+         * 长相与位置分开写：字型、颜色、辉光只跟主题与旋钮走，换句时才有一次；
+         * 位置（锚点、缩放、透视、浓淡）每帧都可能变（淡入那零点几秒 + 窗口尺寸）。
+         */
+        const look = [
+            layout.sizePx, layout.lineHeight, layout.fontFamily, layout.fontWeight,
+            layout.color, layout.textShadow, layout.strokeColor,
+            layout.glow ? 1 : 0, layout.glowColor ?? '', layout.glowOpacity ?? '',
+            layout.scaleX, layout.scaleY,
+        ].join('|');
+        if (state.look !== look) {
+            state.look = look;
+            translation.body.style.fontSize = px(layout.sizePx);
+            translation.body.style.lineHeight = px(layout.lineHeight);
+            translation.body.style.fontFamily = layout.fontFamily ?? 'sans-serif';
+            translation.body.style.fontWeight = String(layout.fontWeight ?? 500);
+            translation.body.style.color = layout.color ?? '#ffffff';
+            /*
+             * 描边：主题底色的细边，压在柱子群正中时字才分得开（`text-shadow` 盖不住笔画之间）。
+             * 写属性名而不是 `setProperty`：极简 DOM 桩里没有那一个方法，逐帧抛异常会把整屏冻住。
+             */
+            translation.body.style.webkitTextStroke = layout.strokeColor ? `1px ${layout.strokeColor}` : '0';
+            translation.body.style.textShadow = buildTranslationShadow(layout);
+        }
+        /*
+         * 块的哪一头钉在锚点上：顶对齐钉顶边（`0%`）、居中钉块心（`-50%`）、
+         * 底对齐钉底边（`-100%`）。所以换个对齐方式只是换这个百分比，锚点本身仍在同一段范围里。
+         */
+        const anchorPercent = Number.isFinite(layout.anchor?.anchorPercent) ? layout.anchor.anchorPercent : -100;
+        const transformOrigin = `50% ${anchorPercent === 0 ? '0%' : anchorPercent === -50 ? '50%' : '100%'}`;
+        if (state.origin !== transformOrigin) {
+            state.origin = transformOrigin;
+            translation.body.style.transformOrigin = transformOrigin;
+        }
+        const transform = [
+            `translate3d(${px(layout.anchor?.x ?? 0)}, ${px(layout.anchor?.y ?? 0)}, 0)`,
+            `translate(-50%, ${anchorPercent}%)`,
+            `scale(${(Number(layout.scaleX) || 1).toFixed(4)}, ${(Number(layout.scaleY) || 1).toFixed(4)})`,
+            layout.tilt ?? '',
+        ].join(' ');
+        if (state.transform !== transform) {
+            state.transform = transform;
+            translation.body.style.transform = transform;
+        }
+        const alpha = clamp01(layout.opacity ?? 1).toFixed(3);
+        if (state.alpha !== alpha) {
+            state.alpha = alpha;
+            translation.node.style.opacity = alpha;
+        }
+        if (state.shown !== true) {
+            state.shown = true;
+            translation.node.style.visibility = '';
+        }
+    };
+
+    /** 这一帧没有译文可画（间奏、前奏、整行没有译文）：整层收起来，一个节点都不留。 */
+    const hideTranslation = () => {
+        const state = translation.state;
+        if (state.shown === false) return;
+        state.shown = false;
+        translation.node.style.visibility = 'hidden';
+        state.key = null;
+        state.look = null;
     };
 
     /*
@@ -559,6 +907,7 @@ export const createJumpStage = (container) => {
         paintRunner,
         drawTrail,
         drawImpact,
+        paintTranslation,
         setTextVisible,
         dispose: () => {
             root.remove();
@@ -567,6 +916,8 @@ export const createJumpStage = (container) => {
             trailRings.length = 0;
             arrangeKey = null;
             runner = null;
+            translation.state.key = null;
+            translation.state.look = null;
         },
     };
 };

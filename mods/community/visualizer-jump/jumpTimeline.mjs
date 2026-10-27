@@ -5,7 +5,12 @@
 // 第一个音，也是小人的落地、冲击环的起点与柱子开始下沉的那一刻；他在那根柱子上一直站到
 // 下一次起跳（起跳是从下一个字的开唱往回推一个滞空），于是他脚下的永远是正在唱的那一块。
 // 这一行没有逐字时间时，才把几个块**均分**在这一行的时长里。
-// 柱子不再按时间去「立起来」、也没有整行淡出：画面一直在呼吸就分不清进度。
+// 柱子不再按时间去「立起来」、也没有整行淡出：画面一直在动就分不清进度。
+//
+// 间奏（换行处那一截空档）里**画面有意静止**：没有在唱的东西，硬凑动静反而像卡住了。
+//   以前这一截交给「呼吸」——柱子轻轻上下顶一下、末块的落点亮一点（旧的 `resolveIdleMotion`），
+//   那一层已经去掉；现在那一截只有**落地与起跳那两圈环**（见 `gapShift` / `shiftHold`），
+//   环之间什么也没有。于是判断「他还在不在路上」的 `airborne` 只喂给环，不再灌给画面。
 //
 // 一条规矩：**所有位置都由时间算出来**，不累加。拖动进度、暂停、导出走的是同一条链。
 
@@ -19,8 +24,8 @@ export const MIN_IDLE_SECONDS = 0.16;
  *
  * 它就是**这一行唱完那一刻**（`end`，收尾窗的起头）。
  *
- * 别改成「下一行开口」：那一跳的窗口铺满整段空档（唱完那一刻起跳、下一行开口落地，
- * 见 jumpBoard.resolveShiftAnchor），起步点晚一秒，收尾窗里他就会被判成「还没走」、
+ * 别改成「下一行开口」：那一跳从这一刻起跳（见 `resolveShiftLanding`），起步点晚一秒，
+ * 收尾窗里他就会被判成「还没走」、
  * 一直钉在末块上——画面在动、人却不动，等下一个字才「瞬移」到下一行去，
  * 跨行那一跳整个消失（看着就是行末直接闪到新行的第二个字）。
  *
@@ -77,7 +82,7 @@ export const resolvePathWeights = (phase, share = 0.5) => {
  * 空档里的相位：`{ phase, airborne }` —— 走到几成，以及「此刻还该画成在空中吗」。
  *
  * `airborne` 只覆盖两头之内那一截：越过起点和越过终点都已经落地，那是正常的站立姿势。
- * 收尾窗里的「呼吸」和被压住的柱子都靠它避开：人一旦上路，柱子就得弹回来。
+ * 落地与起跳那两圈环、以及被压住的柱子都靠它避开：人一旦上路，柱子就得弹回来。
  */
 const phaseAtGap = (gap, time) => {
     const rest = { phase: 0, airborne: false };
@@ -88,10 +93,130 @@ const phaseAtGap = (gap, time) => {
 };
 
 /**
+ * 跨行那一跳的滞空（秒）：**也是几秒，不是「占空档几成」**。
+ *
+ * 空档铺满整段间奏在连唱时是对的，但间奏可以是好几秒、甚至几十秒：那一跳若照空档的宽度
+ * 走，空档越长人就飘得越慢——同一行里那几跳却始终是同一个速度（见 `flySeconds`），
+ * 于是「换行那一下忽然变成慢动作」。所以这一跳同样按秒给，只是路更长，放大一档。
+ */
+export const resolveShiftFly = (options = {}) => {
+    const fly = Number.isFinite(options.flySeconds) ? options.flySeconds : 0.45;
+    return Math.max(MIN_SHIFT_FLY_SECONDS, Math.min(MAX_SHIFT_FLY_SECONDS, fly * SHIFT_FLY_SCALE));
+};
+
+/**
+ * 他落在**下一行首块**上的那一刻（那一根柱子被踩下去的那一刻，见 `entryLand`）。
+ *
+ * 行末立了空柱子时就是下一行开口那一刻：他从柱子上起跳、开口那一刻落地，
+ * 于是那一沉与这一行第一个音同时发生。没有那根柱子时是唱完 + 一个滞空，
+ * **但不晚于下一行开口**（空档比滞空还窄时，落地就落在开口那一刻）。
+ *
+ * 排不出这一跳（没有下一行、或者时刻排得奇怪）返回 `null`：那时他留在末块上。
+ */
+export const resolveShiftLanding = (options = {}) => {
+    const release = Number.isFinite(options.release) ? options.release : null;
+    const nextStart = Number.isFinite(options.nextStart) ? options.nextStart : null;
+    if (release === null || nextStart === null || !(nextStart > release)) return null;
+    const target = Math.max(release, nextStart);
+    if (resolveRestPillar({ ...options, release, nextStart })) return target;
+    return Math.min(release + resolveShiftFly(options), target);
+};
+
+/** 这一行的译文要淡多久才落定（秒）：换句时的一下，不逐字跟唱。 */
+export const TRANSLATION_FADE_SECONDS = 0.22;
+
+/**
+ * 这一行译文的**上台时刻**（秒）：译文不该在这一行开口之前就亮着——
+ * 那样上一句还在唱，屏幕正中已经是下一句的译文了。
+ *
+ * 行末立了歇脚柱（间奏够宽）时，它是小人落到那根柱子上、这一行唱完的那一刻
+ * （`rest.landTime`）：镜头已经在往下一句走，这时换译文正好与「这一行过完了」对上。
+ * 没有歇脚柱时就是下一行开口（`nextStart`）——连唱时那一句本来也就唱到那里。
+ * 两个都不成立（整首最后一行、或者时刻排得奇怪）时才退回这一行开口。
+ *
+ * 只由时刻算出来、不累加：拖进度、暂停、导出看到的都是同一段淡入。
+ */
+export const resolveTranslationStart = (options = {}) => {
+    const start = Number.isFinite(options.start) ? options.start : null;
+    const nextStart = Number.isFinite(options.nextStart) ? options.nextStart : null;
+    const restLand = Number.isFinite(options.rest?.landTime) ? options.rest.landTime : null;
+    if (restLand !== null && (nextStart === null || restLand < nextStart)) return restLand;
+    return start ?? nextStart ?? 0;
+};
+
+/**
+ * 译文此刻的不透明度（0…1）：上台那一刻淡进来，0 = 还没轮到它。
+ *
+ * 台词本身是**静态**的（不做逐字跟唱），只有换句时这一下淡入，
+ * 于是它与柱顶那半透的下一行分得开：字是实的，而那一行还不是「现在」。
+ */
+export const resolveTranslationReveal = (options = {}) => {
+    const time = Number.isFinite(options.time) ? options.time : null;
+    const start = Number.isFinite(options.start) ? options.start : null;
+    if (time === null || start === null) return 1;
+    const fade = Math.max(0.01, Number.isFinite(options.fadeSeconds)
+        ? options.fadeSeconds
+        : TRANSLATION_FADE_SECONDS);
+    if (time <= start) return 0;
+    const t = Math.min(1, (time - start) / fade);
+    // 缓出：一出来就是这句话，只是轻轻地落定，不像弹窗那样从零跳出来。
+    return 1 - Math.pow(1 - t, 2.2);
+};
+
+/**
+ * 「歇脚柱」那颗旋钮的缺省值（秒）：两行之间隔了这么久才在行末立那根空柱子。
+ *
+ * 与 `jumpSettings` 的 `restGap` 默认值是同一个数——两边各写一遍就会漂移成
+ * 「面板显示一个数、画面用的是另一个数」。
+ */
+export const DEFAULT_REST_GAP_SECONDS = 1.75;
+
+/** 镜头到站那根空柱子最多再走这么久：它要停在柱子上把间奏等完，不是慢慢挪过去。 */
+export const CAMERA_REST_SETTLE = 0.35;
+
+/**
+ * 行末那根空柱子（**无字的圆柱**，只用来在间奏里歇脚）：`{ landTime, liftTime }`，
+ * 空档不够宽返回 `null`。
+ *
+ * `restGap`（秒，面板上的「歇脚柱」）是**空档**的门槛：两行之间隔了这么久才立这根柱子，
+ * 于是
+ *   1. 唱完最后一个字，他从这一行的末块跳到它上面；
+ *   2. 整段间奏他站在它上面——这一段是静的，只有起跳与落地那两圈环；
+ *   3. 下一行开口前 `shiftFly` 秒起跳，落在下一行首块上仍是开口那一刻。
+ *
+ * 有了它就没有「提前站到下一行首块上等」这回事了：他歇在**自己这一行**的行末，
+ * 下一行一开口才动身。空档窄一点就照旧（见 `shiftHold`）。
+ *
+ * 门槛不会低于「跳上去 + 跳走」那两跳（`shiftFly × 2`）：再窄就没有站的时间，
+ * 那一跳直接跨到下一行首块上。`restGap` 为 0 就是「只要两跳塞得下就立」。
+ *
+ * 调用方把这一刻排进这一行的 `landTimes` 末尾（它就是最后一块），并把返回值交给
+ * `buildLineTimeline` 的 `rest`。
+ */
+export const resolveRestPillar = (options = {}) => {
+    const release = Number.isFinite(options.release) ? options.release : null;
+    const nextStart = Number.isFinite(options.nextStart) ? options.nextStart : null;
+    if (release === null || nextStart === null) return null;
+    const target = Math.max(release, nextStart);
+    if (!(target > release)) return null;
+    /*
+     * 跳上去与跳走是同一套跳法：两跳都用跨行那一档的滞空（`shiftFly`）。
+     * 若跳走那一下按行内的秒数给，跨行那一跳就成了「空档长 → 飞得短」，
+     * 换行的速度仍旧由空档宽度决定，只是从连续变化变成临界处的一次台阶。
+     */
+    const fly = resolveShiftFly(options);
+    const gap = Number.isFinite(options.restGap) ? Math.max(0, options.restGap) : DEFAULT_REST_GAP_SECONDS;
+    if (!(target - release > Math.max(gap, fly * 2))) return null;
+    return { landTime: release + fly, liftTime: target - fly };
+};
+
+/**
  * 跨行那一跳：这一行的空档里他走到几成。没给时间窗（或时间落在窗口外）返回 `null`。
  *
- * 窗口就是**整段空档**（唱完那一刻起跳、下一行开口落地，见 jumpBoard.resolveShiftAnchor），
- * 与小人的起跳 / 落地严格同一个时刻，于是「镜头在路上」和「小人在空中」永远对得上。
+ * 窗口是「起跳 → 落地」（见 `resolveShiftLanding`）：行末有空柱子时是「从柱子上面起跳 →
+ * 开口那一刻落地」，没有时是「唱完那一刻起跳 → 飞一个滞空落地」。
+ * 它与小人的起跳 / 落地严格同一个时刻，于是「镜头在路上」和「小人在空中」永远对得上。
+ * 剩下的空档他站着等：或站在行末那根柱子上（`restPillar`），或站在下一行首块上（`shiftHold`）。
  */
 export const resolveShiftAirborne = (options = {}) => {
     const gap = resolveGap(options);
@@ -126,7 +251,8 @@ export const resolveTailAirborne = (options = {}) => {
  *   - 没有逐字时间时，最后一块**唱完 = 唱到它**：字时刻是按这一行均分估出来的，
  *     估出来的收尾比真实唱完晚一截，照它算的话镜头会等在那里、画面还是不动。
  *
- * 收尾窗止于下一行开口（跨行那一跳的落点），并且不窄于 `MIN_IDLE_SECONDS`：
+ * 收尾窗止于下一行开口，并且不窄于 `MIN_IDLE_SECONDS`（跨行那一跳**最晚**落在这一刻，
+ * 见 `resolveShiftLanding`）：
  * 连唱时它很短，间奏里它很长，两种都要有东西在动（见 resolveLineMotion 与 cameraTimes）。
  *
  * `motionEnd` 是这一段音乐的收尾（调用方按歌词原文给，见 client 的 buildWriteWindows）：
@@ -173,10 +299,21 @@ export const resolveMotionWindow = (options = {}) => {
 export const MIN_FLY_SHARE = 0.15;
 export const MAX_FLY_SHARE = 0.95;
 
+/**
+ * 跨行那一跳的滞空（秒）：行内那几跳的滞空放大这么多倍。
+ *
+ * 它要绕过拐角、路也比行内一跳长（末块 → 拐点 → 下一行行首），同样的秒数看着会更急。
+ */
+export const SHIFT_FLY_SCALE = 1.5;
+export const MIN_SHIFT_FLY_SECONDS = 0.14;
+export const MAX_SHIFT_FLY_SECONDS = 1.5;
+
 export const buildLineTimeline = (options = {}) => {
     const { startTime, endTime } = options;
     // 滞空是**几秒**，不是「占这一跳几成」：同一首歌里唱得快、唱得慢，跳这一下本身一样快。
     const flySeconds = Math.max(0.05, Math.min(3, Number.isFinite(options.flySeconds) ? options.flySeconds : 0.45));
+    // 跨行那一跳的滞空同样按秒给（见 resolveShiftFly）：间奏再长也不该飘成慢动作。
+    const shiftFly = resolveShiftFly({ flySeconds: options.flySeconds });
     const count = options.count;
     const start = Number.isFinite(startTime) ? startTime : 0;
     const end = Number.isFinite(endTime) && endTime > start ? endTime : start + 2;
@@ -189,6 +326,15 @@ export const buildLineTimeline = (options = {}) => {
      * 但这个词块要是还没唱到，就不能提前站过去——站过去就是剧透，进度也就和歌词脱钩了。
      */
     const minGap = Math.max(0.06, Math.min(0.3, steps * 0.35));
+    /*
+     * 行末那根空柱子（见 resolveRestPillar）：排在最后一块，它的落点在**收尾窗**里
+     * （这一行唱完之后），所以不受这一行的时长与块间隔那两条夹。
+     */
+    const restAt = Number.isFinite(options.rest?.landTime) ? options.rest : null;
+    const restIndex = restAt && total > 1 ? total - 1 : -1;
+    const restLift = restIndex >= 0
+        ? (Number.isFinite(options.rest?.liftTime) ? options.rest.liftTime : null)
+        : null;
 
     const landings = [];
     let previous = start;
@@ -196,7 +342,9 @@ export const buildLineTimeline = (options = {}) => {
         const due = Number.isFinite(options.landTimes?.[index]) ? options.landTimes[index] : start + steps * index;
         const landing = index === 0
             ? Math.min(start, due)
-            : Math.max(due, Math.min(previous + minGap, end));
+            : index === restIndex
+                ? due
+                : Math.max(due, Math.min(previous + minGap, end));
         landings.push(Math.max(previous, landing));
         previous = landings[index];
     }
@@ -246,6 +394,18 @@ export const buildLineTimeline = (options = {}) => {
     const tailRelease = Number.isFinite(tailEnd) && tailEnd > lastLanding + 1e-6;
     const handoverTime = tailRelease ? lastLanding + (tailEnd - lastLanding) * handover : null;
     /*
+     * 跨行那一跳的**落地**时刻（落在下一行首块上）：
+     *   - 行末有那根空柱子：他从柱子上面起跳（开口前 `flySeconds` 秒），
+     *     开口那一刻落地——他不用提前站过去等，间奏是在自己这一行的行末歇着；
+     *   - 没有那根柱子：唱完那一刻起跳、飞 `shiftFly` 秒落地，但不晚于开口。
+     *     间奏比这一跳长时，剩下的空档他**站在下一行首块上**等（见 `shiftHold`），
+     *     不是继续飘过去：空档铺满整段间奏的话，空档越长人飘得越慢，
+     *     而同一行里那几跳始终是同一个速度——换行那一下就成了慢动作。
+     */
+    const shiftLanding = restIndex >= 0
+        ? tailEnd
+        : (tailRelease ? Math.min(lastRelease + shiftFly, tailEnd) : lastLanding);
+    /*
      * 每一次起跳：窗口是「上一块落地 → 这一块开唱」，而**落地就落在这一块开唱的那一秒**。
      *
      * 以前是反过来的：他在这一块**自己**开唱的那一刻起跳、滞空结束就落了地——于是
@@ -264,6 +424,12 @@ export const buildLineTimeline = (options = {}) => {
         const hopStart = landings[index];
         const hopEnd = landings[index + 1];
         const fly = (hopEnd - hopStart) * (flyShares[index] ?? MAX_FLY_SHARE);
+        /*
+         * 跳到行末那根空柱子上的那一跳：**唱完那一刻**就起跳（那一刻之前他站在末块上
+         * 把最后一个字唱完），飞 `shiftFly` 秒落到柱子上——它是「歇脚」，不是一句词，
+         * 所以不按「这一块开唱那一刻往回推一个滞空」那一条算。
+         */
+        const toRest = index + 1 === restIndex;
         hops.push({
             index,
             from: index,
@@ -271,7 +437,7 @@ export const buildLineTimeline = (options = {}) => {
             // 窗口的头：上一块的落地。这一跳之前他站在上一块上把它的词唱完。
             start: hopStart,
             // 起跳：往回一个滞空。出发之前他一直站在上一块上，跟着那块自己的词。
-            liftTime: hopEnd - fly,
+            liftTime: toRest ? lastRelease : hopEnd - fly,
             // 落地：这一块自己的开唱那一刻。
             landTime: hopEnd,
             end: hopEnd,
@@ -280,9 +446,12 @@ export const buildLineTimeline = (options = {}) => {
     /*
      * 他从每一根柱子上迈步的时刻：出了这一跳，最后一根就是跨行那一跳的起步点
      * （由 `lastRelease` 给；缺省按这一行唱完算）。它同时也是「他站在这一根上多久」的止点。
+     * 行末那根空柱子是例外：他从它上面起跳去下一行，那一刻是开口前 `flySeconds`。
      */
     const leaveTimes = landings.map((landing, index) => (
-        index < hops.length ? hops[index].liftTime : lastRelease
+        index === restIndex && restLift !== null
+            ? restLift
+            : (index < hops.length ? hops[index].liftTime : lastRelease)
     ));
     /*
      * 镜头自己的到站时刻：他在第 k 根上站到 `leaveTimes[k]`，镜头按**这段停留的中点**到站。
@@ -299,14 +468,25 @@ export const buildLineTimeline = (options = {}) => {
      * 画面一刻不停；顺推的话行的开口处会平白呆站半截。
      */
     const cameraTimes = landings.map((landing, index) => (
-        index === 0 ? landing : landing + Math.max(0, leaveTimes[index] - landing) / 2
+        index === 0
+            ? landing
+            : index === restIndex
+                /*
+                 * 空柱子那一站：**停在柱子上把间奏等完**。停留的中点在这里是几十秒之后，
+                 * 照它走的话镜头会用几十秒慢慢挪过去——所以夹一个上限，到站之后就站住。
+                 */
+                ? landing + Math.min(Math.max(0, leaveTimes[index] - landing) / 2, CAMERA_REST_SETTLE)
+                : landing + Math.max(0, leaveTimes[index] - landing) / 2
     ));
     /*
      * 镜头到站**末块**的那一刻：末段的窗口就按它起步（见返回的 `cameraTail`）。
      * 到站之后镜头立刻开始往下一行首块走，不留「已经到站、这一行却还没唱完」的空档。
+     *
+     * 行末有空柱子时不把开口那一刻排进来：那一截里镜头是**停在柱子上**的（末段只在
+     * 起跳前那一小段上路），排进来的话镜头会从到站那一刻起一路慢慢挪向下一行首块。
      */
     const cameraStop = cameraTimes.length > 0 ? cameraTimes[cameraTimes.length - 1] : start;
-    if (tailRelease) cameraTimes.push(tailEnd);
+    if (tailRelease && restIndex < 0) cameraTimes.push(tailEnd);
     // 时刻排得挤到一起时兜一下：段与段之间至少留一点宽度，`resolveCameraPath` 才不会除零。
     for (let index = 1; index < cameraTimes.length; index += 1) {
         if (cameraTimes[index] <= cameraTimes[index - 1]) cameraTimes[index] = cameraTimes[index - 1] + 1e-3;
@@ -323,23 +503,40 @@ export const buildLineTimeline = (options = {}) => {
      * 按镜头自己的到站时刻起步，这三段就首尾相接了：行内最后一段在这儿交班，末段从同一个
      * 点出发，终点仍是下一行开口那一刻。
      */
-    // 没有下一行时（整首的最后一句）就没有末段可接：镜头停在末块上，别留下一个指向虚处的窗口。
-    const cameraTail = tailRelease && Number.isFinite(options.nextStart) && tailEnd > cameraStop
-        ? { begin: cameraStop, end: tailEnd }
+    /*
+     * 没有下一行时（整首的最后一句）就没有末段可接：镜头停在末块上，别留下一个指向虚处的窗口。
+     *
+     * 到站时刻跟着小人走（`shiftLanding`，不是 `tailEnd`）：间奏里那一跳只占空档的头一截，
+     * 镜头要是照整段空档走，剩下的时间它会继续往下一行首块挪——人已经站在那儿了，
+     * 镜头却还在半路上，画面就整个人跑偏。到站之后镜头停在他身上，间奏就这么静着。
+     *
+     * 行末有空柱子时反过来：镜头先停在柱子上（`cameraTimes` 的末项，见上），
+     * 到**起跳前 `shiftFly` 秒**才上路，与「比他早半截离站」那一套一致
+     * ——照旧从到站那一刻起走的话，整段间奏镜头都在慢慢挪。
+     */
+    const tailBegin = restIndex >= 0 && restLift !== null
+        ? Math.max(cameraStop + 1e-3, restLift - shiftFly)
+        : cameraStop;
+    const cameraTail = tailRelease && Number.isFinite(options.nextStart) && shiftLanding > tailBegin
+        ? { begin: tailBegin, end: shiftLanding }
         : null;
     /*
      * 每根柱子自己的两个时刻（柱子被踩下去 / 弹回来，见 jumpCourse.resolvePillarSpring）：
      *   - `pressTime`：小人**落**在它上面的那一刻 —— 就是这一块自己开唱的那一刻
-     *     （第 0 根是这一行开口：他从上一行跨过来就落在它上面）；
+     *     （第 0 根是这一行开口：他从上一行跨过来就落在它上面；间奏长时他落得更早，
+     *     `entryLand` 就是那一刻）；
      *   - `releaseTime`：他**跳走**的那一刻 —— 这一跳的起跳（`leaveTimes`），
      *     最后一根是跨行那一跳的起步点，由 `lastRelease` 给；缺省按这一行唱完算。
      *
      * 于是柱子被踩沉下去的那一秒正好是这句话的第一个音：听觉与画面落在同一处。
      */
+    const entryLand = Number.isFinite(options.entryLand) ? options.entryLand : null;
     const pillars = landings.map((landing, index) => ({
         index,
         riseTime: index === 0 ? start : landing - minGap,
-        pressTime: index === 0 ? start : (hops[index - 1]?.landTime ?? start),
+        pressTime: index === 0
+            ? (entryLand !== null ? Math.min(entryLand, start) : start)
+            : (hops[index - 1]?.landTime ?? start),
         releaseTime: leaveTimes[index],
     }));
     return {
@@ -368,17 +565,41 @@ export const buildLineTimeline = (options = {}) => {
             end: tailRelease ? tailEnd : lastLanding,
         },
         /*
-         * 末段**镜头**自己的窗口（`cameraStop → tailEnd`）：与小人那一开窗不同起点，
+         * 末段**镜头**自己的窗口（`cameraStop → 落地`）：与小人那一开窗不同起点，
          * 见上面 `cameraTail` 那一处说明。调用方画末段一律按它取相位。
          */
         cameraTail,
         /*
-         * 空档里**人站着不动**的那一截：`pillarRest` 到 `gapShift` 之间。
-         * 收尾窗的「呼吸」只该长在这里——末块上人还在唱的时候，或者他已经在路上之后，
-         * 画面该由人自己动，不是柱子跟着一顶一顶。
+         * 行末那根空柱子（无字的圆柱）：他落在它上面的那一刻、从它上面起跳的那一刻。
+         * 没有它（间奏窄）就是 `null`，那一跳直接跨到下一行首块上。
          */
-        pillarRest: { begin: lastLanding, end: lastRelease },
-        gapShift: tailRelease ? { begin: lastRelease, end: tailEnd } : null,
+        restPillar: restIndex >= 0 && restLift !== null
+            ? { index: restIndex, landTime: landings[restIndex], liftTime: restLift }
+            : null,
+        /*
+         * 跨行那一跳**在路上**的那一截：
+         *   - 有空柱子：从柱子上面起跳（开口前 `flySeconds`）→ 开口那一刻落在下一行首块；
+         *   - 没有：唱完那一刻起跳、飞一个滞空落地（不晚于开口）。
+         */
+        gapShift: tailRelease
+            ? (restIndex >= 0 && restLift !== null
+                ? { begin: restLift, end: tailEnd }
+                : { begin: lastRelease, end: shiftLanding })
+            : null,
+        /*
+         * 他落在**下一行首块**上的那一刻：行末有空柱子时就是下一行开口那一刻
+         * （那一沉于是与这一行第一个音同时）；没有时是唱完 + 一个滞空（比开口早一截）。
+         */
+        shiftLand: tailRelease ? shiftLanding : null,
+        /*
+         * 落地之后、下一行开口之前：他站在下一行首块上把间奏**等**完。
+         *
+         * 连唱时它是零宽（落地就是开口）。这一段不能交回行内那几段：
+         * 行内只认这一行的块，会把已经站在下一行首块上的他拽回这一行的末块
+         * ——间奏里看上去就是「跳过去又弹回来」。
+         */
+        // 行末有空柱子时这一段不存在：间奏他歇在那根柱子上，而不是提前站到下一行首块上。
+        shiftHold: tailRelease && restIndex < 0 ? { begin: shiftLanding, end: tailEnd } : null,
     };
 };
 
@@ -495,60 +716,6 @@ export const resolveCameraPath = (options = {}) => {
     return { index: Math.max(0, last - 1), progress: 1, path: 'gap' };
 };
 
-/**
- * 一段「没在唱」的时刻里，该给画布灌多少东西：返回 `{ rise, drift, glow }`，都是 0…1。
- *
- * 唱完最后一个字到下一行开口之间，柱子、字和末块的落点原本什么都不动——整屏于是停住，
- * 等下一个字才「啪」地跳一下。这一层就是给那一截用的：柱子再往上顶一点点、
- * 末块的落点亮一点点，两头（唱完那一刻 / 下一行开口那一刻）都归零，
- * 所以它接得上前后两段，也接得上拖动进度与暂停。
- *
- * `rest` 是这一截里**人不会在动**的那一段（`timeline.pillarRest` / `timeline.gapShift`）：
- * 它才是呼吸的正主。空档太长时两头都留出跳跃的窗口，中间才起伏（见 buildLineTimeline）。
- *
- * `lead` 是两头的淡入淡出宽度（占这一段的几成，短空隙里会被压扁，不会因此冲不到顶）；
- * 整段的形状是 `sin²`：起落都平，中间满，一眼看得出「这一段在呼吸」而不是「抖了一下」。
- */
-export const resolveIdleMotion = (options = {}) => {
-    const time = Number.isFinite(options.time) ? options.time : 0;
-    const quiet = { rise: 0, drift: 0, glow: 0 };
-    /*
-     * 他站着不动的那一截（`rest`：末块落地 → 起跳跨行）：呼吸只在它中间更里面那一段起伏。
-     * 人在空中、或者已经上路的那几截里动的是他自己，画面不该跟着一顶一顶。
-     */
-    const away = options.rest ?? null;
-    let inRest = false;
-    if (away
-        && time > (Number.isFinite(away.begin) ? away.begin : Number.NEGATIVE_INFINITY)
-        && time < (Number.isFinite(away.end) ? away.end : Number.POSITIVE_INFINITY)) inRest = true;
-    // 给了 `rest` 却不在那一截里：人正在空中 / 已经在路上，画面交给他的动作。
-    if (away && !inRest) return quiet;
-    const begin = Number.isFinite(options.begin) ? options.begin : null;
-    const end = Number.isFinite(options.end) ? options.end : null;
-    if (begin === null || end === null || !(end > begin) || time <= begin || time >= end) return quiet;
-    /*
-     * 还有两个「他本来就在动」的边缘：这一截自己的起跳 / 落地（`edge`），
-     * 以及 `rest` 的两头（末块落地那一刻、起跳那一刻）——两头都归零，接得上前后两段。
-     */
-    const span = end - begin;
-    const edge = Math.max(0, Math.min(span / 3, Number.isFinite(options.edge) ? options.edge : 0));
-    const liveBegin = Math.max(
-        begin + edge,
-        Number.isFinite(away?.begin) ? away.begin : Number.NEGATIVE_INFINITY,
-    );
-    const liveEnd = Math.min(
-        end - edge,
-        Number.isFinite(away?.end) ? away.end : Number.POSITIVE_INFINITY,
-    );
-    if (!(liveEnd > liveBegin)) return quiet;
-    const lead = Math.min(0.42, Math.max(0.06, Number.isFinite(options.lead) ? options.lead : 0.3));
-    const fade = Math.min(lead * (liveEnd - liveBegin), (liveEnd - liveBegin) / 2);
-    const rise = Math.max(0, Math.min(1, (time - liveBegin) / Math.max(1e-6, fade)));
-    const fall = Math.max(0, Math.min(1, (liveEnd - time) / Math.max(1e-6, fade)));
-    const shape = Math.pow(Math.sin(Math.PI * Math.min(rise, fall) / 2), 2);
-    return { rise: shape, drift: shape, glow: shape };
-};
-
 /** 第 index 根柱子此刻的起立进度：0 还没出现，1 已经立稳（起立时略冲过头再落定）。 */
 export const resolvePillarRise = (options = {}) => {
     const { timeline, index, time } = options;
@@ -570,6 +737,38 @@ export const resolveLitChars = (options = {}) => {
         if (Number.isFinite(char?.start) && time >= char.start) lit += 1;
     });
     return lit;
+};
+
+/**
+ * 一跳的轨迹要淡多久才到底：**按这一行的块间隔**算（`gap × TRAIL_FADE_BLOCKS` 秒），不写死几秒。
+ *
+ * 写死几秒的话，慢歌里早跳过的那一跳还全亮地挂着（看着像忘了擦），快歌里整条路一瞬间就
+ * 空了；跟着这一行的节奏走，任何速度下画面上都是同一条尾巴：最近几跳最亮，再往前是残影。
+ */
+export const TRAIL_FADE_BLOCKS = 4;
+/** 淡到底那个秒数的上下限：再密也留住一两跳，再疏也不挂上十几秒。 */
+export const MIN_TRAIL_FADE_SECONDS = 0.8;
+export const MAX_TRAIL_FADE_SECONDS = 6;
+/** 淡到最后留几分：最老那一跳还剩一层影子，走过的路不会整段凭空消失。 */
+export const TRAIL_FADE_FLOOR = 0.22;
+
+/**
+ * 一跳的轨迹此刻还剩几分亮（0…1）：落地那一刻最实，之后随时间线性淡到 `TRAIL_FADE_FLOOR`。
+ *
+ * 与别处同一条规矩：只由时刻算出来、不累加——拖进度、暂停、导出看到的都是同一帧。
+ * 还没落地返回 1：那一跳这一帧还没画出来（见 client 的 trailSegments），淡不淡轮不到它。
+ */
+export const resolveTrailFade = (options = {}) => {
+    const time = Number.isFinite(options.time) ? options.time : null;
+    const landTime = Number.isFinite(options.landTime) ? options.landTime : null;
+    if (time === null || landTime === null || !(time > landTime)) return 1;
+    const gap = Number.isFinite(options.timeline?.gap) ? options.timeline.gap : 0;
+    const span = Math.min(
+        MAX_TRAIL_FADE_SECONDS,
+        Math.max(MIN_TRAIL_FADE_SECONDS, gap * TRAIL_FADE_BLOCKS),
+    );
+    const age = clamp01((time - landTime) / span);
+    return TRAIL_FADE_FLOOR + (1 - TRAIL_FADE_FLOOR) * (1 - age);
 };
 
 /** 整行唱完之后淡出的进度 0..1（旧一行是压暗，不是突然消失）。 */

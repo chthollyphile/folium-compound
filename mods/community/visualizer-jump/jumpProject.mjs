@@ -167,6 +167,51 @@ export const boxFaces = (projection, options = {}) => {
 };
 
 /**
+ * 一根**圆柱**在屏幕上的样子：柱顶一个椭圆 + 柱身的两半（行末那根无字的歇脚柱用它）。
+ *
+ * 与 `boxFaces` 同一套坐标（以柱底中心为原点，屏幕 y 向下为正）、同一个投影。
+ * 方位固定 45°、正交：世界里一个直径 `diameter` 的圆，投到屏幕上正好是一个
+ * **轴对齐的椭圆** —— 横半轴 `cell·d·√2/4`、纵半轴再乘 `sin`（正因为它是轴对齐的，
+ * 柱身的左右两端就是椭圆的左右两端，柱身只需从这两点往下走 `height` 格）。
+ *
+ * 柱身在最下面那个点分成左右两半：那一处正是方料上「正面 / 侧面」两块墙的交线，
+ * 明暗（见 client 的 `lit` / `shade`）于是与同一行的方块是同一套。
+ */
+export const cylinderFaces = (projection, options = {}) => {
+    const diameter = Math.max(0.1, Number(options.diameter) || 1);
+    const height = Math.max(0, Number(options.height) || 0);
+    const rx = (projection.cell * diameter * Math.SQRT2) / 4;
+    const ry = rx * projection.sin;
+    // 柱顶中心（柱底中心在原点）：世界里 +Z 往上，屏幕 y 向下为正，所以是负的。
+    const lift = projection.lift * height;
+    const cy = -lift;
+    const f = (value) => value.toFixed(2);
+    /*
+     * 两半柱身：左半从椭圆最左 → 柱底最左 → 底弧（鼓向下）→ 中缝 → 顶弧回到最左。
+     * 弧的 sweep：屏幕 y 向下时「θ 增大」是顺时针（SVG 的 sweep = 1），
+     * 于是底弧从最左走到最下是 θ 减小（sweep = 0），顶弧从最下走回最左是 θ 增大（sweep = 1）。
+     */
+    const arc = (x, y, sweep) => `A ${f(rx)} ${f(ry)} 0 0 ${sweep} ${f(x)} ${f(y)}`;
+    const half = (side) => {
+        const edge = side * rx;
+        const down = side < 0 ? 0 : 1;
+        return [
+            `M ${f(edge)} ${f(cy)}`,
+            `L ${f(edge)} 0`,
+            arc(0, ry, down),
+            `L 0 ${f(cy + ry)}`,
+            arc(edge, cy, 1 - down),
+            'Z',
+        ].join(' ');
+    };
+    return {
+        bbox: { x: -rx, y: cy - ry, width: 2 * rx, height: lift + 2 * ry },
+        disc: { cx: 0, cy, rx, ry },
+        halves: { left: half(-1), right: half(1) },
+    };
+};
+
+/**
  * 一块字贴面上的**唯一**量法：先把这块字的长宽比按格数缩到面里，再换成本地像素。
  *
  * 两件事一起做，是因为它们本来就只能一起定：

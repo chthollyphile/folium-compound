@@ -9,7 +9,7 @@
 //   3. 标点不吃掉一次起跳，黏在前一块上（行首标点例外，它自己占一块）。
 //
 // 拉丁词不拆：「because」切成「bec / ause」就没有词了。一个词要么整根柱子扛下来
-// （柱子按字宽自动变长，见 client 的 resolveGlyphRatio），要么只在连字符、撇号处折断。
+// （柱子按字宽自动变长，字宽由 jumpMeasure 用宿主给的字体量出来），要么只在连字符、撇号处折断。
 //
 // 块里有两个字符串：`text` 是原样切下来的那一截（带首尾空白，逐字时刻按它的字数对齐），
 // `display` 是去掉首尾空白的那一份——柱子上的字、块长与字盒都按它算。
@@ -264,19 +264,4 @@ export const resolveChunkCap = (options = {}) => {
     const cap = Math.max(2, Math.round(Number(options.maxChunks) || 12));
     // 一行再长也不让跳数爆掉：块数上限，保证一行里每次都还看得清人。
     return count === 0 ? cap : Math.min(cap, Math.max(2, count));
-};
-
-/**
- * 字身系数的粗估：CJK 一个字正好一格，拉丁字母与数字约半格，空白最窄。
- * 柱子边长按它算，所以英文块不会把柱子拉成一条长廊。
- */
-export const resolveGlyphRatio = (text) => {
-    const chars = Array.from(text ?? '');
-    if (chars.length === 0) return 1;
-    const total = chars.reduce((sum, char) => {
-        if (/\s/u.test(char)) return sum + 0.35;
-        if (WIDE_CHAR.test(char)) return sum + 1;
-        return sum + 0.58;
-    }, 0);
-    return total / chars.length;
 };
