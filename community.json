@@ -105,10 +105,11 @@
       "submission": 6,
       "source": "https://github.com/hoangmaituan882-hue/enhanced-remote-widget",
       "path": "enhanced-remote-widget",
-      "commit": "7f0c86526be25f744c60f081bebbaf26f243c823",
-      "version": "1.15.3",
+      "commit": "ec5469c74170595fb6aa68cf30ebc10a891b0a23",
+      "version": "1.15.5",
       "addedAt": "2026-10-06",
-      "updatedAt": "2026-10-06"
+      "updatedAt": "2026-10-27",
+      "lastIssue": 96
     },
     "folia-lx-music-mod": {
       "owners": [

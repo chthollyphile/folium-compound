@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "enhanced-remote-widget",
-  "modVersion": "1.15.3",
-  "digest": "sha256:c7d50e2d6b0e51f30be9a488d01c9d87c839c4b49ea65fefaa5dbb351aeb5605",
+  "modVersion": "1.15.5",
+  "digest": "sha256:72db62a83f906460b91e2b879e74cd92574a988010123dbc9f7e8a2c45381a1e",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-10-06T07:50:33.737Z",
-  "signature": "B4Aj1c1F4rMj+w6km31n+xRpMzSeruaCBCi/c01wIsjHa5fh8ZK4PZBzyiHHUoqmNJ4ADwmxCXLaXzdcGKbsAA=="
+  "signedAt": "2026-10-27T02:00:50.303Z",
+  "signature": "ryqT8b2rJK2iUZmGvFhplyfiIGDxjFS3/w1Nj+PvFqUkp6/5Lqo7fsccWu+6YWipssBGnKfhqGTTcHnGItd2Dw=="
 }
