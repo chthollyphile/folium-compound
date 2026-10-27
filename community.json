@@ -73,6 +73,18 @@
       "addedAt": "2026-10-20",
       "updatedAt": "2026-10-20"
     },
+    "daily-30": {
+      "owners": [
+        "Mei-Nagano"
+      ],
+      "submission": 89,
+      "source": "https://github.com/Mei-Nagano/folia-daily-30",
+      "path": "daily-30",
+      "commit": "1125f1af90e67770106d6cf47c1fa65eb6b8045d",
+      "version": "1.0.1",
+      "addedAt": "2026-10-27",
+      "updatedAt": "2026-10-27"
+    },
     "desktop-lyric": {
       "owners": [
         "aming2778"

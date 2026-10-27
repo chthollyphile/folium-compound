@@ -418,6 +418,24 @@
       "sourceCommit": "0620874b93087ccfb8e96392b6796c4620e119bc"
     },
     {
+      "id": "daily-30",
+      "name": "每日推荐",
+      "version": "1.0.1",
+      "author": "Mei-Nagano",
+      "description": "每天自动记录网易云音乐「每日推荐」，可以按日期回看、搜索并播放。",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/daily-30",
+      "digest": "sha256:f18d9096c31119991b70600b3620729ed3e45fb1a0179d0035ce00142337c466",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-10-27T01:57:34.856Z",
+      "owners": [
+        "Mei-Nagano"
+      ],
+      "source": "https://github.com/Mei-Nagano/folia-daily-30",
+      "sourceCommit": "1125f1af90e67770106d6cf47c1fa65eb6b8045d"
+    },
+    {
       "id": "desktop-lyric",
       "name": "桌面歌词",
       "version": "1.0.5",

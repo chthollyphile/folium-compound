@@ -1,0 +1,21 @@
+{
+  "folium": 1,
+  "id": "daily-30",
+  "name": "每日推荐",
+  "version": "1.0.1",
+  "author": "Mei-Nagano",
+  "description": "每天自动记录网易云音乐「每日推荐」，可以按日期回看、搜索并播放。",
+  "main": "index.cjs",
+  "client": "client.mjs",
+  "preview": "preview.jpg",
+  "permissions": [
+    "filesystem.data",
+    "playback.control",
+    "playback.queue",
+    "platform.netease.read"
+  ],
+  "experimental": [
+    "platform.raw"
+  ],
+  "folia": ">=0.7.22 <0.8.0"
+}
