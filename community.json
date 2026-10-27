@@ -313,6 +313,18 @@
       "addedAt": "2026-10-22",
       "updatedAt": "2026-10-23",
       "lastIssue": 74
+    },
+    "wave-light": {
+      "owners": [
+        "Zhangyx0824"
+      ],
+      "submission": 93,
+      "source": "https://github.com/Zhangyx0824/folia-mod-wave-light",
+      "path": "wave-light",
+      "commit": "ad7358b3fa7af98e98d18da2753054ea9d84e2d5",
+      "version": "1.5.1",
+      "addedAt": "2026-10-27",
+      "updatedAt": "2026-10-27"
     }
   }
 }

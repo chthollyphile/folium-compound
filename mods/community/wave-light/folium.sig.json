@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "wave-light",
+  "modVersion": "1.5.1",
+  "digest": "sha256:58000c3306bf396971a40b402e95b43ece6675266f884b9f2ee011157717a85c",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-27T02:02:17.300Z",
+  "signature": "Lb9VEjV6bgtEhQWU1STaOET9TqHoWQpeb73SfBuJzOMzZ74/aiX5Iujd/OIPIXHtO+wEu/zfxviLmqk7av50Bg=="
+}
