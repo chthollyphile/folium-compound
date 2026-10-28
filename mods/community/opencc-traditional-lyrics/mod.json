@@ -1,0 +1,11 @@
+{
+    "folium": 1,
+    "id": "opencc-traditional-lyrics",
+    "name": "OpenCC 繁體字幕",
+    "version": "1.0.0",
+    "description": "離線將簡體歌詞與中文譯文轉為繁體，保留逐字時間軸。",
+    "client": "client.mjs",
+    "preview": "preview.png",
+    "permissions": [],
+    "folia": ">=0.7.22 <0.8.0"
+}

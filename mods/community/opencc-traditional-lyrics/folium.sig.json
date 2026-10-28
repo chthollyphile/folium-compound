@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "opencc-traditional-lyrics",
+  "modVersion": "1.0.0",
+  "digest": "sha256:520438106ba4cf07eda7b64127bd37fc099df24b96c6259af27bb76a62396374",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-28T17:04:19.147Z",
+  "signature": "2jl499pTwJgeVw9eNmJSDBXDr6Ri9ethJyPIO0rCF8O2a556bEvXTc34Y8xxqmqFCr5DZ1rQVj1wLvkAD1/xDQ=="
+}
