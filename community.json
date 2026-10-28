@@ -156,10 +156,11 @@
       "submission": 61,
       "source": "https://github.com/imicola/folia-listening-archive",
       "path": "dist/listening-archive",
-      "commit": "fbdfbd45e9f17446ba99c45069ba3cd860f65e0d",
-      "version": "1.2.4",
+      "commit": "fff207bd06cf9dce6bdddf4adab2a7cbfb16a8de",
+      "version": "1.3.3",
       "addedAt": "2026-10-21",
-      "updatedAt": "2026-10-21"
+      "updatedAt": "2026-10-28",
+      "lastIssue": 85
     },
     "lx-favorites-sync": {
       "owners": [
