@@ -31,11 +31,11 @@
       "submission": 5,
       "source": "https://github.com/Rizumu85/folia-bilingual-ruby-lyrics",
       "path": "bilingual-ruby-lyrics",
-      "commit": "4be15f2e15a53bce84a2efeaf2c101f3267a3d2e",
-      "version": "1.3.2",
+      "commit": "beadc28ca362387d51ce1a504d2587d0a0ec9b89",
+      "version": "1.5.0",
       "addedAt": "2026-10-05",
-      "updatedAt": "2026-10-24",
-      "lastIssue": 87
+      "updatedAt": "2026-10-28",
+      "lastIssue": 100
     },
     "bpm-style-director": {
       "owners": [
