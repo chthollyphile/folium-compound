@@ -1,0 +1,11 @@
+{
+  "folium": 1,
+  "id": "halo-lyric",
+  "name": "Halo PixelBar 歌词",
+  "version": "1.0.1",
+  "author": "dsh",
+  "description": "把 Folia 当前歌词行推到花再 Halo PixelBar 点阵屏，支持进度跟随、五种换行动画与延迟补偿。需要配套 HaloBridge 桥接程序（Windows + Python 3.9+），并关闭 EDIFIER TempoHub。",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": ["net.fetch"]
+}

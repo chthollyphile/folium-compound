@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "halo-lyric",
+  "modVersion": "1.0.1",
+  "digest": "sha256:039ab0c29c2ec768af722b11bd71a9df3f4d4055922de1741c2f72ca44fdb301",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-28T17:07:04.547Z",
+  "signature": "OQII1m1n7/FYpgYTUdX6/H82gbWngHphJinQV0E/5UnNbEpOC9oLwJc4bLj9ljCDOk/S5/hlhUgXdAeXqWlIDw=="
+}

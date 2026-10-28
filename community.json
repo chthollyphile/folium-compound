@@ -137,6 +137,18 @@
       "updatedAt": "2026-10-24",
       "lastIssue": 80
     },
+    "halo-lyric": {
+      "owners": [
+        "lux987"
+      ],
+      "submission": 102,
+      "source": "https://github.com/lux987/halo-lyric",
+      "path": "mod",
+      "commit": "4e8cb39a5f07b46c187e500b99a20e416a2750f2",
+      "version": "1.0.1",
+      "addedAt": "2026-10-28",
+      "updatedAt": "2026-10-28"
+    },
     "listening-archive": {
       "owners": [
         "imicola"
