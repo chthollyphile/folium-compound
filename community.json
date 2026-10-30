@@ -325,6 +325,18 @@
       "updatedAt": "2026-10-19",
       "lastIssue": 51
     },
+    "taskbar-lyrics-compact": {
+      "owners": [
+        "Miucak"
+      ],
+      "submission": 107,
+      "source": "https://github.com/Miucak/taskbar-lyrics-compact",
+      "path": "taskbar-lyrics-compact",
+      "commit": "a60831437d8042e348700e338f58eb7d50c6d9fa",
+      "version": "1.2.1",
+      "addedAt": "2026-10-30",
+      "updatedAt": "2026-10-30"
+    },
     "vinyl-disc": {
       "owners": [
         "Zhangyx0824"

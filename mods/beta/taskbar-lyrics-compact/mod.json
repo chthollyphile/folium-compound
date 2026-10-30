@@ -1,0 +1,16 @@
+{
+  "folium": 1,
+  "id": "taskbar-lyrics-compact",
+  "name": "任务栏嵌入歌词（紧凑版）",
+  "version": "1.2.1",
+  "author": "Miucak，基于 moneker 的 Taskbar Lyrics / Codex compact fork",
+  "description": "将 Folia 歌词、封面和播放控制嵌入 Windows 任务栏左侧空余区域。自动根据任务栏图标位置限制宽度，支持透明贴靠、宽度调整、实时逐字歌词、悬停播放控制与可拖动播放进度条。",
+  "main": "index.cjs",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": [
+    "runtime.playback",
+    "playback.control"
+  ],
+  "folia": ">=0.7.21 <0.8.0"
+}
