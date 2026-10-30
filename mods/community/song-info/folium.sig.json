@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "song-info",
+  "modVersion": "2.5.3",
+  "digest": "sha256:273ed030c9b2a80e139f28ca300dc21f82ee1206e0e9ed458375c049b686dcd2",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-30T10:11:17.023Z",
+  "signature": "/OlPa3WsO8GdEADjpcUR9pHNOcOnvms+3T8rta8P0zsNoCyrPPrsA+OyO3Gmnh+xrumja1HYJ6usc8yo6RMNAA=="
+}

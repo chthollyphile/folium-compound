@@ -287,6 +287,18 @@
       "updatedAt": "2026-10-24",
       "lastIssue": 79
     },
+    "song-info": {
+      "owners": [
+        "HuashuRed"
+      ],
+      "submission": 49,
+      "source": "https://github.com/HuashuRed/folia-song-info",
+      "path": "",
+      "commit": "e572ab4be17900033aec18ae3fd6c2e1285430c9",
+      "version": "2.5.3",
+      "addedAt": "2026-10-30",
+      "updatedAt": "2026-10-30"
+    },
     "spectrum-visualizer": {
       "owners": [
         "ACUNGER0321"
