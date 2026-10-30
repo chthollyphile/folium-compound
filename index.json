@@ -472,6 +472,24 @@
       "sourceCommit": "7f3850a82304c76e49cffbaeb168ec12ddcd5d28"
     },
     {
+      "id": "antialias-ssaa-msaa",
+      "name": "超采样与多重采样抗锯齿",
+      "version": "1.1.9",
+      "author": "ACUNGER",
+      "description": "给 canvas / WebGL 歌词画布补抗锯齿：2× 超采样（管字形与贴图）与 MSAA（只抗几何边）可同时开启；两项默认关着，由用户按需开。改完设置自动重载渲染，不用再切歌词动画。带分档像素预算、视频导出保护、状态诊断与启用日志。",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/antialias-ssaa-msaa",
+      "digest": "sha256:68b74cbcbed8b6428ee214aae950a307006bce7fa46fb42253a55577fd4f431c",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-10-30T11:42:51.511Z",
+      "owners": [
+        "ACUNGER0321"
+      ],
+      "source": "https://github.com/ACUNGER0321/antialias-SSAA-MSAA-folia",
+      "sourceCommit": "1269cd1e6e13ea5a96ba142cefac8bf0bc234839"
+    },
+    {
       "id": "bpm-style-director",
       "name": "BPM 歌词样式导演",
       "version": "1.0.0",

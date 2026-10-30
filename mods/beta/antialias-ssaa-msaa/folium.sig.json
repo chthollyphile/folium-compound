@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "antialias-ssaa-msaa",
+  "modVersion": "1.1.9",
+  "digest": "sha256:68b74cbcbed8b6428ee214aae950a307006bce7fa46fb42253a55577fd4f431c",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-30T11:42:51.511Z",
+  "signature": "+YKuxLLeDMn0ZWDlDF1Vy36doreuWPb6kp8msh0ZU1QJk8Q3hilQ6Pmy690gnwubTpPqzZ/arHnHFPYjdyHCDg=="
+}

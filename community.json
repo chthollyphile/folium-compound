@@ -12,6 +12,18 @@
       "addedAt": "2026-10-24",
       "updatedAt": "2026-10-24"
     },
+    "antialias-ssaa-msaa": {
+      "owners": [
+        "ACUNGER0321"
+      ],
+      "submission": 97,
+      "source": "https://github.com/ACUNGER0321/antialias-SSAA-MSAA-folia",
+      "path": "antialias-SSAA&MSAA (Super-SamplingAnti-Aliasing & MultisampleAnti-aliasing)",
+      "commit": "1269cd1e6e13ea5a96ba142cefac8bf0bc234839",
+      "version": "1.1.9",
+      "addedAt": "2026-10-30",
+      "updatedAt": "2026-10-30"
+    },
     "auto-skip": {
       "owners": [
         "kifoii"
