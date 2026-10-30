@@ -330,20 +330,20 @@
     {
       "id": "opencc-traditional-lyrics",
       "name": "OpenCC 繁體字幕",
-      "version": "1.0.0",
+      "version": "1.1.1",
       "author": null,
-      "description": "離線將簡體歌詞與中文譯文轉為繁體，保留逐字時間軸。",
+      "description": "離線簡轉繁、自動尋找並補齊中文字幕，字幕載入失敗時嘗試其他來源。",
       "origin": "community",
       "channel": "release",
       "path": "mods/community/opencc-traditional-lyrics",
-      "digest": "sha256:520438106ba4cf07eda7b64127bd37fc099df24b96c6259af27bb76a62396374",
+      "digest": "sha256:feed6c206fc4a1a83bae31932ac106ce16b348c5cbe9d54f9dec8f24406f654b",
       "keyId": "folium-ci-2026-1",
-      "signedAt": "2026-10-28T17:04:19.147Z",
+      "signedAt": "2026-10-30T10:13:04.346Z",
       "owners": [
         "Fringetw"
       ],
       "source": "https://github.com/Fringetw/folia-traditional-chinese",
-      "sourceCommit": "9653bd5825da2efd88b93ffa73447b24d1c103e6"
+      "sourceCommit": "749cbfc781702f3e85fe6beadd5609c3b023eacf"
     },
     {
       "id": "song-info",
