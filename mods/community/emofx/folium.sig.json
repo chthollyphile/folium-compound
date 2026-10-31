@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "emofx",
+  "modVersion": "0.4.1",
+  "digest": "sha256:30e73d17ac9e3b5ef14f1175ecc8bbc7618f407e75758ed40a1cb7acc5cd325a",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-10-31T08:05:54.525Z",
+  "signature": "1sKsnQCBjq8Zi02jlDcy7rIWiFbO0lt/9pCH17C5HWB0LHP0jU6GPNJGsaAEd++1t94qoLxQ39rDBvYZ1NfYDg=="
+}

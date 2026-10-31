@@ -1,0 +1,12 @@
+{
+  "folium": 1,
+  "id": "emofx",
+  "name": "AI 情绪调音",
+  "version": "0.4.1",
+  "author": "ibsibxi",
+  "description": "按当前歌曲的低/中/高频形判定情绪，配流派查表得到 10 段 EQ 曲线，实时显示，并通过 folium.equalizer 写入宿主的图形均衡器。",
+  "client": "client.mjs",
+  "preview": "preview.jpg",
+  "permissions": ["stageLayers", "equalizer.control"],
+  "folia": ">=0.7.22"
+}

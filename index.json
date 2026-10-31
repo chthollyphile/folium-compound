@@ -166,6 +166,24 @@
       "sourceCommit": "c93bc6f6d75f0ea9d18f1847b6f46092b208ae3a"
     },
     {
+      "id": "emofx",
+      "name": "AI 情绪调音",
+      "version": "0.4.1",
+      "author": "ibsibxi",
+      "description": "按当前歌曲的低/中/高频形判定情绪，配流派查表得到 10 段 EQ 曲线，实时显示，并通过 folium.equalizer 写入宿主的图形均衡器。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/emofx",
+      "digest": "sha256:30e73d17ac9e3b5ef14f1175ecc8bbc7618f407e75758ed40a1cb7acc5cd325a",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-10-31T08:05:54.525Z",
+      "owners": [
+        "ibsibxi"
+      ],
+      "source": "https://github.com/ibsibxi/folia-emofx",
+      "sourceCommit": "aea3d53906adc725b923b98d605a7f6ff455962d"
+    },
+    {
       "id": "enhanced-remote-widget",
       "name": "增强版悬浮小组件",
       "version": "1.15.5",

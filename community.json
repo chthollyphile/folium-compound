@@ -110,6 +110,18 @@
       "updatedAt": "2026-10-23",
       "lastIssue": 72
     },
+    "emofx": {
+      "owners": [
+        "ibsibxi"
+      ],
+      "submission": 77,
+      "source": "https://github.com/ibsibxi/folia-emofx",
+      "path": "mod/emofx",
+      "commit": "aea3d53906adc725b923b98d605a7f6ff455962d",
+      "version": "0.4.1",
+      "addedAt": "2026-10-31",
+      "updatedAt": "2026-10-31"
+    },
     "enhanced-remote-widget": {
       "owners": [
         "hoangmaituan882-hue"
