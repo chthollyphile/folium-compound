@@ -616,6 +616,24 @@
       "sourceCommit": "9114626157ab942830ef2ab77f112adea05c3286"
     },
     {
+      "id": "lyric-ai-director-plus",
+      "name": "AI 歌词动画导演 Plus",
+      "version": "1.0.3",
+      "author": "wittyfunn（基于 duoduo1232/lyric-ai-director，MIT）",
+      "description": "让 AI 先读懂整首歌的情绪、意象和起伏，再在本地按模式画像打分选出候选，最后由 AI 定下最贴合的歌词动画模式和参数，只在歌词空隙里切换。支持任何兼容 OpenAI 接口的 AI（OpenAI、DeepSeek、通义千问、智谱、Kimi、豆包、硅基流动、OpenRouter、Gemini，或本机的 Ollama、LM Studio）。记住每首歌、提前准备队列里的下一首；打开 Folia 的智能动感后会一起安排鼓点效果；从你的手动修改和 👍 / 👎 里学习口味。只把歌名、歌手、专辑、歌词和播放器主题名发给你配置的接口，用量实时可见。",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/lyric-ai-director-plus",
+      "digest": "sha256:704173da56a3b152f03f082fa1e9b2d3e3483ccc6ca20f192e3e49df07dff477",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-10-31T08:06:18.226Z",
+      "owners": [
+        "wittyfunn"
+      ],
+      "source": "https://github.com/wittyfunn/lyric-ai-director-plus",
+      "sourceCommit": "061d6eba23b17cdf4579f1e34380bc4a578c5473"
+    },
+    {
       "id": "lyric-style-switcher",
       "name": "智能歌词样式切换",
       "version": "1.2.1",

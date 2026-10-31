@@ -223,6 +223,18 @@
       "addedAt": "2026-10-12",
       "updatedAt": "2026-10-12"
     },
+    "lyric-ai-director-plus": {
+      "owners": [
+        "wittyfunn"
+      ],
+      "submission": 103,
+      "source": "https://github.com/wittyfunn/lyric-ai-director-plus",
+      "path": "lyric-ai-director-plus",
+      "commit": "061d6eba23b17cdf4579f1e34380bc4a578c5473",
+      "version": "1.0.3",
+      "addedAt": "2026-10-31",
+      "updatedAt": "2026-10-31"
+    },
     "lyric-split-translation": {
       "owners": [
         "tumuyan"

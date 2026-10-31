@@ -1,0 +1,12 @@
+{
+  "folium": 1,
+  "id": "lyric-ai-director-plus",
+  "name": "AI 歌词动画导演 Plus",
+  "version": "1.0.3",
+  "author": "wittyfunn（基于 duoduo1232/lyric-ai-director，MIT）",
+  "description": "让 AI 先读懂整首歌的情绪、意象和起伏，再在本地按模式画像打分选出候选，最后由 AI 定下最贴合的歌词动画模式和参数，只在歌词空隙里切换。支持任何兼容 OpenAI 接口的 AI（OpenAI、DeepSeek、通义千问、智谱、Kimi、豆包、硅基流动、OpenRouter、Gemini，或本机的 Ollama、LM Studio）。记住每首歌、提前准备队列里的下一首；打开 Folia 的智能动感后会一起安排鼓点效果；从你的手动修改和 👍 / 👎 里学习口味。只把歌名、歌手、专辑、歌词和播放器主题名发给你配置的接口，用量实时可见。",
+  "client": "client.mjs",
+  "preview": "preview.jpg",
+  "permissions": ["filesystem.data", "net.fetch"],
+  "folia": ">=0.7.22 <0.8.0"
+}
