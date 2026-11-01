@@ -205,11 +205,11 @@
       "submission": 14,
       "source": "https://github.com/xiaomo521314/lx-favorites-sync",
       "path": "lx-favorites-sync",
-      "commit": "2084a8cf8070ede3878229f0035ca60455306acb",
-      "version": "1.7.2",
+      "commit": "c84c1c6e7a2a81a22adf7693c533cb81c4fc104e",
+      "version": "1.7.3",
       "addedAt": "2026-10-12",
-      "updatedAt": "2026-10-12",
-      "lastIssue": 23
+      "updatedAt": "2026-11-01",
+      "lastIssue": 109
     },
     "lyric-ai-director": {
       "owners": [

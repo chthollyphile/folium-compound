@@ -6,7 +6,7 @@
 // - 只读查询 LX Music 的数据库（"我喜欢"列表、下载记录、下载目录）
 // - 把模组自己的数据写进 Folia 官方给每个模组的专属目录：
 //     <userData>/mods-data/lx-favorites-sync/
-//   设置与同步状态这类小数据走 api.storage.data（mod-data.json，上限 1 MB），
+//   设置与同步状态这类小数据走 api.storage（mod-data.json，上限 1 MB），
 //   日志与备份这类大文件放在上面的专属目录里。
 // - 不再向 userData 根目录散写文件；旧版本（<=1.6.3）遗留文件会做一次性迁移。
 
@@ -532,7 +532,7 @@ const readBackupList = () => {
 
 module.exports = (api) => {
   modDataDirectory = path.join(getUserDataDirectory(), 'mods-data', api.manifest.id);
-  const storage = api.storage.data;
+  const storage = api.storage;
   const legacyRoot = getUserDataDirectory();
 
   // 一次性搬迁旧版本散落在 userData 根目录的文件：

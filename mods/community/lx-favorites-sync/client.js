@@ -575,6 +575,17 @@ const isLightColor = (value) => {
   return (red * 299 + green * 587 + blue * 114) / 1000 > 160;
 };
 
+// Windows 的默认滚动条不跟随 Folia 主题；用标准 scrollbar-color/width
+// 让模组内的滚动区域（同步历史、本地缺失列表）融入深浅色主题。
+const applyThemedScrollbar = (element, lightTheme = false) => {
+  element.style.setProperty('scrollbar-width', 'thin');
+  element.style.setProperty(
+    'scrollbar-color',
+    `color-mix(in srgb, currentColor ${lightTheme ? 20 : 28}%, transparent) `
+      + `color-mix(in srgb, currentColor ${lightTheme ? 6 : 8}%, transparent)`
+  );
+};
+
 const makeFavoriteRecord = (existing, songIds) => {
   const now = Date.now();
   if (existing) {
@@ -719,7 +730,7 @@ const mountSyncSettingsPanel = (folium, container, ctx, hooks = {}) => {
   let menuOpen = false;
   let menuElement = null;
   const paintButton = () => {
-    button.textContent = `${findOption(ctx.params.get().mode).label} ▾`;
+    button.textContent = `${findOption(ctx.settings.get().mode).label} ▾`;
     button.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
   };
   const closeMenu = () => {
@@ -736,7 +747,7 @@ const mountSyncSettingsPanel = (folium, container, ctx, hooks = {}) => {
     menu.setAttribute('role', 'listbox');
     menu.style.cssText = 'position:absolute;top:calc(100% + 5px);left:0;min-width:100%;z-index:1000;display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:9px;box-sizing:border-box;white-space:nowrap;background:var(--folium-bg,#1b1b1f);border:1px solid color-mix(in srgb, currentColor 28%, transparent);box-shadow:0 8px 22px rgba(0,0,0,0.3);';
     options.forEach((option) => {
-      const isActive = option.value === normalizeSyncMode(ctx.params.get().mode);
+      const isActive = option.value === normalizeSyncMode(ctx.settings.get().mode);
       const item = document.createElement('div');
       item.setAttribute('role', 'option');
       item.setAttribute('aria-selected', isActive ? 'true' : 'false');
@@ -752,7 +763,7 @@ const mountSyncSettingsPanel = (folium, container, ctx, hooks = {}) => {
       });
       item.addEventListener('click', () => {
         try {
-          ctx.params.set({ mode: option.value });
+          ctx.settings.set({ mode: option.value });
         } catch (error) {
           folium.log.warn('切换同步模式失败', error);
         }
@@ -823,8 +834,8 @@ const mountSyncSettingsPanel = (folium, container, ctx, hooks = {}) => {
   document.addEventListener('keydown', onDocumentKeyDown);
   window.addEventListener('lx-favorites-sync-updated', onSyncUpdated);
   window.addEventListener('lx-favorites-sync-finished', onSyncUpdated);
-  const offParams = typeof ctx?.params?.subscribe === 'function'
-    ? ctx.params.subscribe(() => paintButton())
+  const offSettings = typeof ctx?.settings?.onChange === 'function'
+    ? ctx.settings.onChange(() => paintButton())
     : () => undefined;
   paintButton();
 
@@ -838,6 +849,7 @@ const mountSyncSettingsPanel = (folium, container, ctx, hooks = {}) => {
 
   const historyBody = document.createElement('div');
   historyBody.style.cssText = 'display:none;flex-direction:column;gap:6px;max-height:250px;overflow:auto;padding-right:2px;';
+  applyThemedScrollbar(historyBody, lightTheme);
 
   let historyOpen = false;
   let historyEntries = null;
@@ -1034,7 +1046,7 @@ const mountSyncSettingsPanel = (folium, container, ctx, hooks = {}) => {
     window.removeEventListener('lx-favorites-sync-finished', onSyncUpdated);
     pendingArmTimers.forEach((timer) => window.clearTimeout(timer));
     pendingArmTimers.clear();
-    offParams();
+    offSettings();
     closeMenu();
   };
 };
@@ -1464,6 +1476,7 @@ const mountMissingPanel = (container, ctx) => {
 
     const list = document.createElement('div');
     list.style.cssText = 'display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow:auto;padding-right:4px;';
+    applyThemedScrollbar(list, isLightColor(theme.backgroundColor));
     sortedItems.forEach((item, index) => {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:baseline;gap:8px;font-size:13px;line-height:1.45;padding:6px 8px;border-radius:8px;background:color-mix(in srgb, currentColor 8%, transparent);';
@@ -1535,7 +1548,7 @@ const mountMissingPanel = (container, ctx) => {
   };
   document.addEventListener('pointerdown', onDocumentPointerDown, true);
   document.addEventListener('keydown', onDocumentKeyDown);
-  const unsubscribe = ctx?.subscribe?.(() => safeRender());
+  const offChange = ctx?.onChange?.(() => safeRender());
   safeRender();
 
   return () => {
@@ -1544,7 +1557,7 @@ const mountMissingPanel = (container, ctx) => {
     document.removeEventListener('keydown', onDocumentKeyDown);
     window.removeEventListener('lx-favorites-sync-updated', onUpdated);
     window.removeEventListener('lx-favorites-sync-finished', onFinished);
-    unsubscribe?.();
+    offChange?.();
   };
 };
 
@@ -1554,7 +1567,7 @@ export default function activate(folium) {
   let activeSync = null;
   let activeRestore = null;
   let mirrorRemovalArmedUntil = 0;
-  let offModeParams = null;
+  let offModeSettings = null;
   let startupTimer = null;
   let command = null;
   let modeSection = null;
@@ -1776,9 +1789,9 @@ export default function activate(folium) {
         })
       });
 
-      currentSyncMode = normalizeSyncMode(modeSection.params.get().mode);
-      offModeParams = modeSection.params.subscribe(() => {
-        const nextMode = normalizeSyncMode(modeSection.params.get().mode);
+      currentSyncMode = normalizeSyncMode(modeSection.settings.get().mode);
+      offModeSettings = modeSection.settings.onChange(() => {
+        const nextMode = normalizeSyncMode(modeSection.settings.get().mode);
         if (nextMode === currentSyncMode) {
           return;
         }
@@ -1805,7 +1818,7 @@ export default function activate(folium) {
             const fileMode = normalizeSyncMode(fileSettings.mode);
             if (fileMode !== currentSyncMode) {
               currentSyncMode = fileMode;
-              modeSection.params.set({ mode: fileMode });
+              modeSection.settings.set({ mode: fileMode });
             }
           }
         } catch {
@@ -1920,11 +1933,11 @@ export default function activate(folium) {
     }
   });
 
-  // 播放器进度条旁的「一键同步」按钮（参照 lyrics-list 的 controlButtons 用法）。
+  // 播放器进度条旁的「一键同步」按钮（Folium 1.6+ 的 progressButtons）。
   // 单击立即同步；悬停提示里附带上次同步结果。老版本 Folium 没有这个注册表时自动跳过。
-  if (folium.registries.controlButtons && typeof folium.registries.controlButtons.register === 'function') {
+  if (folium.registries.progressButtons && typeof folium.registries.progressButtons.register === 'function') {
     try {
-      controlButton = folium.registries.controlButtons.register({
+      controlButton = folium.registries.progressButtons.register({
         id: 'sync-now',
         slot: 'progress.trailing',
         order: 540,
@@ -1971,7 +1984,7 @@ export default function activate(folium) {
           button.addEventListener('click', onClick);
           container.appendChild(button);
           paint();
-          const offColors = typeof ctx.subscribe === 'function' ? ctx.subscribe(paint) : () => undefined;
+          const offColors = typeof ctx.onChange === 'function' ? ctx.onChange(paint) : () => undefined;
           const onSyncFinished = () => refreshTitle();
           window.addEventListener('lx-favorites-sync-finished', onSyncFinished);
           return () => {
@@ -2007,7 +2020,7 @@ export default function activate(folium) {
       missingRequestHandler = null;
     }
     try {
-      offModeParams?.();
+      offModeSettings?.();
       command?.unregister();
       modeSection?.unregister();
       restoreCommand?.unregister();
