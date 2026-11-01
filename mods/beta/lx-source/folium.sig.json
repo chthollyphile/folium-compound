@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "lx-source",
+  "modVersion": "0.1.1",
+  "digest": "sha256:9340100d2075b797bd5cfff83c5f399dd309663e497a5a50e1d5e750eebc03a1",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-11-01T11:24:10.132Z",
+  "signature": "zWx7I8Mpa4Xr48rlytnBC7czHRr7inXg4zT3Lw9v1don0oJDi+2Sx5xJSFMumoaOQ8ct7U4x6IM7gD33QFVQCA=="
+}

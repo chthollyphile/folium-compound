@@ -1,0 +1,14 @@
+{
+    "folium": 1,
+    "id": "lx-source",
+    "name": "LX 音源适配 / LX Source Adapter",
+    "version": "0.1.1",
+    "author": "PaysonX",
+    "preview": "preview.png",
+    "description": "用户确认导入 LX 脚本后解析播放地址；通过 folium.omni 使用用户在 Folia 登录的平台账号读取搜索和歌词。不内置音源脚本或链接。User-confirmed LX scripts; catalog and lyrics use your signed-in platform account.",
+    "client": "client.mjs",
+    "permissions": ["net.fetch", "filesystem.data"],
+    "experimental": ["omni.providers"],
+    "folia": ">=0.7.22 <0.8.0"
+}
+

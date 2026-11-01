@@ -616,6 +616,24 @@
       "sourceCommit": "9114626157ab942830ef2ab77f112adea05c3286"
     },
     {
+      "id": "lx-source",
+      "name": "LX 音源适配 / LX Source Adapter",
+      "version": "0.1.1",
+      "author": "PaysonX",
+      "description": "用户确认导入 LX 脚本后解析播放地址；通过 folium.omni 使用用户在 Folia 登录的平台账号读取搜索和歌词。不内置音源脚本或链接。User-confirmed LX scripts; catalog and lyrics use your signed-in platform account.",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/lx-source",
+      "digest": "sha256:9340100d2075b797bd5cfff83c5f399dd309663e497a5a50e1d5e750eebc03a1",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-11-01T11:24:10.132Z",
+      "owners": [
+        "paysonx"
+      ],
+      "source": "https://github.com/paysonx/folium-lx-source",
+      "sourceCommit": "dff475d6005bc631b17544d1f86d08d16368d970"
+    },
+    {
       "id": "lyric-ai-director-plus",
       "name": "AI 歌词动画导演 Plus",
       "version": "1.0.3",

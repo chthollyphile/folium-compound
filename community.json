@@ -211,6 +211,18 @@
       "updatedAt": "2026-11-01",
       "lastIssue": 109
     },
+    "lx-source": {
+      "owners": [
+        "paysonx"
+      ],
+      "submission": 110,
+      "source": "https://github.com/paysonx/folium-lx-source",
+      "path": "mods/lxSource",
+      "commit": "dff475d6005bc631b17544d1f86d08d16368d970",
+      "version": "0.1.1",
+      "addedAt": "2026-11-01",
+      "updatedAt": "2026-11-01"
+    },
     "lyric-ai-director": {
       "owners": [
         "duoduo1232"
