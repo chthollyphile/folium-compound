@@ -10,14 +10,14 @@
 // the issue may have been edited since authorization), imports exactly the
 // staged files into the channel the maintainer's command named, signs with
 // that channel's key (the only one the workflow hands this step), commits and
-// pushes main once, then reports on the issue and closes it.
+// pushes main, then reports on the issue and closes it. Jobs for other issues
+// may push main meanwhile; a rejected push is redone on top of the new main.
 
-import { execFileSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { REPO_ROOT } from '../lib/repo.mjs';
 import { createGitHub } from './lib/github.mjs';
 import { evaluateIssue } from './lib/evaluate.mjs';
-import { importAndSign, loadSigningKey } from './lib/signflow.mjs';
+import { importSignAndPush, loadSigningKey } from './lib/signflow.mjs';
 import { CHANNEL_TEXT, COMMENT_MARKERS, LABELS, compareVersions, signChannelRefusal } from './lib/submission.mjs';
 
 const { values } = parseArgs({ options: { issue: { type: 'string' }, commit: { type: 'string' }, channel: { type: 'string' } } });
@@ -51,7 +51,7 @@ try {
         await fail(`签名后仍在「${CHANNEL_TEXT[channel].name}」，这是普通更新，版本号必须高于 ${evaluation.previousVersion}。`);
     }
     try {
-        result = importAndSign({
+        result = importSignAndPush({
             repoDir: REPO_ROOT,
             stagedDir: evaluation.stagedDir,
             modId: evaluation.modId,
@@ -68,12 +68,6 @@ try {
     }
 } finally {
     evaluation.cleanup();
-}
-
-try {
-    execFileSync('git', ['push', 'origin', 'HEAD:main'], { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-} catch (error) {
-    await fail(`推送 main 失败（可能有人同时推送了 main，重新评论一次即可）：${String(error.stderr ?? error.message).trim()}`);
 }
 
 const { record, commit } = result;
