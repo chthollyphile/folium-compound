@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "opencc-traditional-lyrics",
-  "modVersion": "1.1.1",
-  "digest": "sha256:feed6c206fc4a1a83bae31932ac106ce16b348c5cbe9d54f9dec8f24406f654b",
+  "modVersion": "1.1.6",
+  "digest": "sha256:8df0d4ae07de701d547e374faf79e797397eaca2ba16e25d6c503431aa9ff90a",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-10-30T10:13:04.346Z",
-  "signature": "neREE+qpVHYMCmUqmKeMCNGS/nwSkQxAnrVtOxvzcZs8aATbMTOsUWfd7H5SuIySVRqVNfUBX+WfrWgLta1lDg=="
+  "signedAt": "2026-11-04T17:00:24.794Z",
+  "signature": "iUMhjp5xZ/TFqkRdm7IytHPZiknTH4HMhastu8sgqVsXL4Klp6wpV1kxMxEP3yG4K39Spo7Px+UT4xgKzQw5Cw=="
 }

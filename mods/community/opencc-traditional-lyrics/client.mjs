@@ -7,6 +7,9 @@ const { getConverter, transformLines } = await import(converterUrl.href);
 const selectorUrl = new URL('./selectChinese.mjs', import.meta.url);
 selectorUrl.search = new URL(import.meta.url).search;
 const { createChineseSelector } = await import(selectorUrl.href);
+const diagnosticsUiUrl = new URL('./diagnosticsUi.mjs', import.meta.url);
+diagnosticsUiUrl.search = new URL(import.meta.url).search;
+const { mountDiagnostics, copyReport, downloadReport } = await import(diagnosticsUiUrl.href);
 
 const label = (tw, cn, en) => ({ 'zh-TW': tw, 'zh-CN': cn, en });
 
@@ -19,7 +22,7 @@ export default function activate(folium) {
     }
     const section = folium.registries.settingsSections.register({
         id: 'conversion',
-        label: label('OpenCC 繁體字幕', 'OpenCC 繁体字幕', 'OpenCC Traditional Lyrics'),
+        label: label('OpenCC 繁體字幕 v1.1.6', 'OpenCC 繁体字幕 v1.1.6', 'OpenCC Traditional Lyrics v1.1.6'),
         settings: [
             { key: 'enabled', type: 'boolean', defaultValue: true,
                 label: label('啟用簡轉繁', '启用简转繁', 'Enable conversion') },
@@ -86,6 +89,13 @@ export default function activate(folium) {
     });
     try {
         if (canSearch) {
+            const diagnostics = folium.registries.settingsSections.register({
+                id: 'diagnostics', label: label('完整診斷報告', '完整诊断报告', 'Full diagnostic report'),
+                settings: [{ key: 'reportVisible', type: 'boolean', defaultValue: true,
+                    label: label('顯示完整報告', '显示完整报告', 'Show full report') }],
+                settingsPanel: mountDiagnostics(selector),
+            });
+            sourceDisposers.push(() => diagnostics.unregister());
             sourceDisposers.push(folium.events.on('lyrics.loaded', (event) => selector.loaded(event.song, event.lines)));
             sourceDisposers.push(folium.events.on('playback.songChanged', (event) => selector.songChanged(event.song)));
             sourceDisposers.push(folium.events.on('account.changed', () => selector.accountChanged()));
@@ -93,6 +103,11 @@ export default function activate(folium) {
                 ['retry-chinese', label('重新尋找中文字幕', '重新寻找中文字幕', 'Find Chinese subtitles again'), () => selector.retry()],
                 ['restore-lyrics', label('還原這首歌的原字幕', '还原这首歌的原字幕', 'Restore this song’s original lyrics'), () => selector.restore()],
                 ['subtitle-status', label('查看字幕來源與中文覆蓋率', '查看字幕来源与中文覆盖率', 'Show subtitle sources and Chinese coverage'), () => selector.showStatus()],
+                ['diagnostic-report', label('查看完整診斷報告', '查看完整诊断报告', 'Show full diagnostic report'), () => selector.reportText()],
+                ['copy-diagnostic-report', label('複製完整診斷報告', '复制完整诊断报告', 'Copy full diagnostic report'), async () =>
+                    await copyReport(selector.reportText()) ? '已複製完整診斷報告。' : '無法自動複製；請在模組設定的「完整診斷報告」選取文字手動複製。'],
+                ['download-diagnostic-report', label('下載完整診斷報告', '下载完整诊断报告', 'Download full diagnostic report'), () =>
+                    downloadReport(selector.getReport()) ? '已送出診斷報告下載。' : '下載不可用；請在模組設定複製完整報告。'],
             ]) sourceCommands.push(folium.registries.commands.register({ id, label: labels,
                 keywords: ['OpenCC', '字幕', '中文', 'lyrics', 'Chinese'], run }));
         }

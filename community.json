@@ -316,11 +316,11 @@
       "submission": 98,
       "source": "https://github.com/Fringetw/folia-traditional-chinese",
       "path": "mods/opencc-traditional-lyrics",
-      "commit": "749cbfc781702f3e85fe6beadd5609c3b023eacf",
-      "version": "1.1.1",
+      "commit": "87980c8e6c1ac66bb46acfab51b44f1367baff23",
+      "version": "1.1.6",
       "addedAt": "2026-10-28",
-      "updatedAt": "2026-10-30",
-      "lastIssue": 104
+      "updatedAt": "2026-11-04",
+      "lastIssue": 117
     },
     "remote-window-edge": {
       "owners": [
