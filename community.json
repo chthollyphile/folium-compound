@@ -348,6 +348,18 @@
       "updatedAt": "2026-10-24",
       "lastIssue": 79
     },
+    "song-comments": {
+      "owners": [
+        "Zhangyx0824"
+      ],
+      "submission": 119,
+      "source": "https://github.com/Zhangyx0824/folia-mod-song-comments",
+      "path": "song-comments",
+      "commit": "944e64a9ce7f2d3a4309fd03a0fd05c79bb72065",
+      "version": "1.0.2",
+      "addedAt": "2026-11-04",
+      "updatedAt": "2026-11-04"
+    },
     "song-info": {
       "owners": [
         "HuashuRed"

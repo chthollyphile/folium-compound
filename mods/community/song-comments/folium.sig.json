@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "song-comments",
+  "modVersion": "1.0.2",
+  "digest": "sha256:0f88ac7d947b9eb95d527d30e874de9e46b4304945d90abef5f2fc1674fddf40",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-04T17:01:09.377Z",
+  "signature": "+7uVsLY+uEscIJCtIzZZewXy7bjTjA+NNEc7WkbDBBy7I9C2jTm8BnYK0yOlKvJxfqH/EAaGqErR8mCwLhgiBQ=="
+}

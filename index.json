@@ -364,6 +364,24 @@
       "sourceCommit": "87980c8e6c1ac66bb46acfab51b44f1367baff23"
     },
     {
+      "id": "song-comments",
+      "name": "歌曲评论",
+      "version": "1.0.2",
+      "author": "pomepii",
+      "description": "播放页进度条右侧的评论按钮，点开后播放器侧栏出现「评论」页签，显示当前歌曲在网易云音乐的评论。\n【功能】热门 / 最新两个视图切换、自动分页加载、长评论展开、相对时间与点赞数、空态与失败态分别提示。网易云来源的曲目直接用曲目 ID 查询；本地文件、QQ 音乐、Spotify 等没有网易云 ID 的曲目，按「歌名 + 歌手」在网易云检索一次并取最接近的曲目（可在设置里关闭），匹配结果会显示在面板顶部并可手动重试。\n【设置】每页条数、非网易云曲目是否按歌名匹配、是否显示头像。\n【权限】platform.netease.read（读取网易云评论与检索结果，走 Folium 实验性 platform.raw，使用你在 Folia 里登录的网易云账号的会话）。模组只读：不点赞、不发表、不修改任何数据。\n【隐私与风险】查询时会把当前曲目的歌名与歌手名发送给网易云（按歌名匹配开启时）；评论内容与头像由网易云提供，版权归原作者，本模组仅作展示。platform.raw 属于实验性接口，宿主小版本更新后行为可能变化，届时本模组会显示为不可用而不是崩溃。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/song-comments",
+      "digest": "sha256:0f88ac7d947b9eb95d527d30e874de9e46b4304945d90abef5f2fc1674fddf40",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-04T17:01:09.377Z",
+      "owners": [
+        "Zhangyx0824"
+      ],
+      "source": "https://github.com/Zhangyx0824/folia-mod-song-comments",
+      "sourceCommit": "944e64a9ce7f2d3a4309fd03a0fd05c79bb72065"
+    },
+    {
       "id": "song-info",
       "name": "歌曲资料",
       "version": "2.5.3",
