@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "bilingual-ruby-lyrics",
-  "modVersion": "1.5.0",
-  "digest": "sha256:29a7abacb087a6493ee4f1c249c8a9502cea3bd72f5ca54b44e99fde67d4d94e",
+  "modVersion": "1.6.1",
+  "digest": "sha256:5523e6f3b3ebfafd6aba9025ff550d052f5debeaf3a30be184b8889f7c8584f1",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-10-28T17:05:38.081Z",
-  "signature": "fHctCQq2FLINd5YZ6NEIO+rfLoR/+4a+42nm6XH5k49oMVgt7gJ3jHs53LpZa/RVNMVsrgZyDmEj9iKjI43FDw=="
+  "signedAt": "2026-11-04T16:28:26.135Z",
+  "signature": "/VbEu6iccH2n0WB6L6FnVo9g74dnr8IiADwEzy1yU5Z+S2cY78ivSgr1J2QMGzLDUp6T+qUn6+3bVwHRnMa7Dw=="
 }

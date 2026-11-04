@@ -114,20 +114,20 @@
     {
       "id": "bilingual-ruby-lyrics",
       "name": "双语 · 注音歌词",
-      "version": "1.5.0",
+      "version": "1.6.1",
       "author": "Rizum",
       "description": "把同一时间点的原文和译文配成一对显示，并读取音乐文件（MP3、FLAC、M4A、OGG、WAV 等）内嵌的 TimeTag/NicoKara Ruby 歌词（[MM:SS:CC] + @RubyN），在歌词上方显示逐字注音，例如日语汉字的振假名、韩语的罗马音；还会按注音拼出整句罗马音（俄语等西里尔字母歌词按字母转写），交给 Folia 的罗马音字幕。",
       "origin": "community",
       "channel": "release",
       "path": "mods/community/bilingual-ruby-lyrics",
-      "digest": "sha256:29a7abacb087a6493ee4f1c249c8a9502cea3bd72f5ca54b44e99fde67d4d94e",
+      "digest": "sha256:5523e6f3b3ebfafd6aba9025ff550d052f5debeaf3a30be184b8889f7c8584f1",
       "keyId": "folium-ci-2026-1",
-      "signedAt": "2026-10-28T17:05:38.081Z",
+      "signedAt": "2026-11-04T16:28:26.135Z",
       "owners": [
         "Rizumu85"
       ],
       "source": "https://github.com/Rizumu85/folia-bilingual-ruby-lyrics",
-      "sourceCommit": "beadc28ca362387d51ce1a504d2587d0a0ec9b89"
+      "sourceCommit": "5254772b0e22da0a90d53529d8ebad714d9ea911"
     },
     {
       "id": "cinerama",
