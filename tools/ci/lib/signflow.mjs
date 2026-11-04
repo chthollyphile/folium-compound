@@ -130,6 +130,37 @@ export const importAndSign = ({ repoDir, stagedDir, modId, kind, channel = 'rele
     }
 };
 
+// Waits without returning to the event loop: the signing job has nothing else to do meanwhile.
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const pushBackoff = (attempt) => sleepSync(2000 * attempt + Math.floor(Math.random() * 3000));
+
+/*
+ * importAndSign, then push to `remote`'s main. Signing jobs for different
+ * issues run side by side (sign.yml's concurrency group is per issue), so
+ * another job may push main first and this push is rejected. The commit is
+ * then dropped, the working tree reset to the new main, and the mod imported
+ * and signed again on top of it: community.json and index.json are rebuilt
+ * from what main holds now, never merged by hand. Gives up after `attempts`
+ * pushes. Returns importAndSign's result plus the number of attempts.
+ */
+export const importSignAndPush = (options, { remote = 'origin', attempts = 5, pause = pushBackoff } = {}) => {
+    const { repoDir } = options;
+    for (let attempt = 1; ; attempt++) {
+        const result = importAndSign(options);
+        try {
+            git(repoDir, ['push', remote, 'HEAD:main']);
+            return { ...result, attempts: attempt };
+        } catch (error) {
+            if (attempt >= attempts) {
+                throw new Error(`推送 main 失败（已尝试 ${attempts} 次）：${String(error.stderr ?? error.message).trim()}`);
+            }
+        }
+        git(repoDir, ['fetch', '-q', remote, 'main']);
+        git(repoDir, ['reset', '-q', '--hard', 'FETCH_HEAD']);
+        pause(attempt);
+    }
+};
+
 /*
  * Re-signs every mod on main whose signature does not verify: a maintainer
  * edited or added a mod directly, moved it between community/ and beta/, or a

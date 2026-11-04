@@ -43,7 +43,7 @@ import {
 } from '../tools/ci/lib/source.mjs';
 import { evaluateIssue } from '../tools/ci/lib/evaluate.mjs';
 import { makePng } from './fixtures.mjs';
-import { importAndSign, loadSigningKey, resignRepository } from '../tools/ci/lib/signflow.mjs';
+import { importAndSign, importSignAndPush, loadSigningKey, resignRepository } from '../tools/ci/lib/signflow.mjs';
 
 const TEST_KEY_ID = 'folium-test-vector';
 const TEST_PUBLIC = { kty: 'OKP', crv: 'Ed25519', x: 'eFPb57OC44VB-NMjj74WnUVLARt7gz38aBcXpykspvE' };
@@ -569,6 +569,67 @@ test('beta submissions land in mods/beta with the beta key; an update can promot
     assert.equal(git(base, 'status', '--porcelain'), '');
     const index = JSON.parse(fs.readFileSync(path.join(base, 'index.json'), 'utf8'));
     assert.deepEqual(index.mods.map((mod) => [mod.path, mod.channel]), [['mods/community/cool-mod', 'release']]);
+});
+
+test('a push rejected because another signing job pushed main first is redone on top of the new main', async () => {
+    const source = sourceRepo();
+    source.release('1.0.0');
+    const remote = tempDir('folium-remote-');
+    git(remote, 'init', '-q', '--bare', '-b', 'main');
+    const seed = baseRepo();
+    git(seed, 'push', '-q', remote, 'main');
+
+    // Two signing jobs check out the same main.
+    const clone = () => {
+        const dir = tempDir('folium-job-');
+        git(dir, 'clone', '-q', remote, '.');
+        return dir;
+    };
+    const first = clone();
+    const second = clone();
+
+    // The first job signs another mod and pushes.
+    const other = sourceRepo();
+    writeModDir(path.join(other.dir, 'dist', 'cool-mod'), 'other-mod', { version: '2.0.0' });
+    git(other.dir, 'add', '-A');
+    git(other.dir, 'commit', '-q', '-m', 'other');
+    git(other.dir, 'tag', '-a', 'v1.0.0', '-m', 'v1.0.0');
+    const otherSubmission = await evaluate(issueFor('submission', submissionBody({ modId: 'other-mod' })), first, other);
+    assert.deepEqual(otherSubmission.errors, []);
+    const pushedFirst = importSignAndPush({ repoDir: first, stagedDir: otherSubmission.stagedDir, modId: 'other-mod', kind: 'submission', author: 'dev', issueNumber: 10, source: otherSubmission.source, key: KEY, runTests: false }, { pause: () => {} });
+    otherSubmission.cleanup();
+    assert.equal(pushedFirst.attempts, 1);
+
+    // The second job, still on the old main, is rejected once and signs again on top.
+    const submission = await evaluate(issueFor('submission', submissionBody()), second, source);
+    assert.deepEqual(submission.errors, []);
+    const pauses = [];
+    const pushed = importSignAndPush({ repoDir: second, stagedDir: submission.stagedDir, modId: 'cool-mod', kind: 'submission', author: 'dev', issueNumber: 11, source: submission.source, key: KEY, runTests: false }, { pause: (attempt) => pauses.push(attempt) });
+    submission.cleanup();
+    assert.equal(pushed.attempts, 2);
+    assert.deepEqual(pauses, [1]);
+    assert.equal(git(remote, 'rev-parse', 'main'), pushed.commit);
+    assert.equal(git(remote, 'rev-parse', 'main~1'), pushedFirst.commit, 'the first job\'s commit is kept underneath');
+
+    const result = tempDir('folium-check-');
+    git(result, 'clone', '-q', remote, '.');
+    assert.deepEqual(Object.keys(readCommunityRegistry(result).mods).sort(), ['cool-mod', 'other-mod']);
+    const index = JSON.parse(fs.readFileSync(path.join(result, 'index.json'), 'utf8'));
+    assert.deepEqual(index.mods.map((mod) => mod.id).sort(), ['cool-mod', 'other-mod']);
+    for (const id of ['cool-mod', 'other-mod']) assert.equal(verifyMod(path.join(result, 'mods', 'community', id), KEYS).status, 'verified');
+});
+
+test('a signing job gives up after its last rejected push', async () => {
+    const source = sourceRepo();
+    source.release('1.0.0');
+    const base = baseRepo();
+    const submission = await evaluate(issueFor('submission', submissionBody()), base, source);
+    // No such remote: every push fails.
+    assert.throws(
+        () => importSignAndPush({ repoDir: base, stagedDir: submission.stagedDir, modId: 'cool-mod', kind: 'submission', author: 'dev', issueNumber: 11, source: submission.source, key: KEY, runTests: false }, { remote: path.join(tempDir('folium-none-'), 'missing.git'), attempts: 1, pause: () => {} }),
+        /推送 main 失败（已尝试 1 次）/,
+    );
+    submission.cleanup();
 });
 
 test('the CI key must be an active trusted key', () => {

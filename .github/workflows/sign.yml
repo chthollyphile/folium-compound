@@ -2,7 +2,7 @@
 # A maintainer comments `/sign <commit>` (release) or `/sign <commit> beta`
 # on a reviewed submission or update issue: import that commit's mod files from
 # the author's repository into the channel the command names, sign them with
-# that channel's CI key and push main once. A release command on an issue that
+# that channel's CI key and push main. A release command on an issue that
 # asks for beta is refused, here and again in the signing job, so editing the
 # issue cannot turn a beta review into a release signature.
 #
@@ -54,8 +54,12 @@ jobs:
     permissions:
       contents: write
       issues: write
+    # One group per issue: a group keeps only one waiting run and cancels the
+    # older one, so a shared group lost /sign commands sent close together.
+    # Jobs for different issues run side by side and race to push main;
+    # sign-issue.mjs redoes a rejected push on top of the new main.
     concurrency:
-      group: signing
+      group: signing-${{ github.event.issue.number }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
