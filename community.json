@@ -1,5 +1,17 @@
 {
   "mods": {
+    "ai-eq": {
+      "owners": [
+        "cbylq23"
+      ],
+      "submission": 113,
+      "source": "https://github.com/cbylq23/ai-eq",
+      "path": "ai-eq",
+      "commit": "389b9783770d82457f7741eb8ab20d3a0729a766",
+      "version": "2.1.0",
+      "addedAt": "2026-11-04",
+      "updatedAt": "2026-11-04"
+    },
     "amll-desktop-lyric": {
       "owners": [
         "TypeDreamMoon"
