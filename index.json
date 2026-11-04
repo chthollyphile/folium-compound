@@ -402,20 +402,20 @@
     {
       "id": "taskbar-lyrics",
       "name": "任务栏抽屉歌词",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "author": "moneker",
-      "description": "以抽屉式替换模式完全覆盖 Windows 任务栏的沉浸式动态歌词模组（仅限 Windows）。最左侧常驻替换按钮，点击后歌词抽屉从右侧丝滑滑入覆盖任务栏，支持实时逐字歌词、Folia流体封面背景与控制面板。",
+      "description": "以抽屉式替换模式完全覆盖 Windows 任务栏的沉浸式动态歌词模组（仅限 Windows）。最左侧常驻替换按钮，点击后歌词抽屉从右侧丝滑滑入覆盖任务栏，支持鼠标悬停避让（Hover 隐藏穿透）、多显示器切换、实时逐字歌词、Folia流体封面背景与控制面板。",
       "origin": "community",
       "channel": "release",
       "path": "mods/community/taskbar-lyrics",
-      "digest": "sha256:bbe8dd92f6dddd5e1b46aa0480d6153e4fd0da83cf5618e07a1c7ffbab07bddc",
+      "digest": "sha256:4a4e6a0968c80b818a5131f9b8b38d67d2b0b8e5cd9d3136791f2a9e986151fa",
       "keyId": "folium-ci-2026-1",
-      "signedAt": "2026-10-19T16:49:44.407Z",
+      "signedAt": "2026-11-04T16:28:57.128Z",
       "owners": [
         "moneker"
       ],
       "source": "https://github.com/moneker/folium-taskbar-lyrics",
-      "sourceCommit": "ad5b6c11b19a1f4b1dce260463e7dc149a1128f1"
+      "sourceCommit": "5610ebf3042a219ba931dd374b18f6cc9acc2758"
     },
     {
       "id": "vinyl-disc",

@@ -380,11 +380,11 @@
       "submission": 27,
       "source": "https://github.com/moneker/folium-taskbar-lyrics",
       "path": "",
-      "commit": "ad5b6c11b19a1f4b1dce260463e7dc149a1128f1",
-      "version": "1.0.5",
+      "commit": "5610ebf3042a219ba931dd374b18f6cc9acc2758",
+      "version": "1.0.6",
       "addedAt": "2026-10-17",
-      "updatedAt": "2026-10-19",
-      "lastIssue": 51
+      "updatedAt": "2026-11-04",
+      "lastIssue": 120
     },
     "taskbar-lyrics-compact": {
       "owners": [
