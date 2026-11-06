@@ -397,6 +397,18 @@
       "updatedAt": "2026-10-19",
       "lastIssue": 54
     },
+    "stardrift": {
+      "owners": [
+        "w0w1w2"
+      ],
+      "submission": 118,
+      "source": "https://github.com/w0w1w2/stardrift",
+      "path": "",
+      "commit": "fefdc328349c5746ff80825037f565632e003b16",
+      "version": "1.38.0",
+      "addedAt": "2026-11-06",
+      "updatedAt": "2026-11-06"
+    },
     "taskbar-lyrics": {
       "owners": [
         "moneker"

@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "stardrift",
+  "modVersion": "1.38.0",
+  "digest": "sha256:25d16fcba4bc7788bdffec2319d3c92aa6c4e15323f535a47a11ece3f99b4211",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-06T01:06:55.951Z",
+  "signature": "SnWo1EhdIts2yV29Us0zCl4KOHXcOp3CaExC2Nr1nK3z36tHX8/A3x4SpLWfeIuHony4MqLOU6orJDdVI+jWCw=="
+}
