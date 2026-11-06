@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "taskbar-player",
+  "modVersion": "0.1.1",
+  "digest": "sha256:0c432b40fafcd0f58d81476a4c63f6587cf8b0423ac5366d2acb0f9ddc805817",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-11-06T01:07:31.749Z",
+  "signature": "EgKyOJVb+mphW0/rbHEnpIjiAxYf2CpP+CDMv6fRSnPXQxOqR1zR60+sy+V6Gj/81hM4ex3dRd+9/H/Rnp+kAw=="
+}

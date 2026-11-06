@@ -776,6 +776,24 @@
       ],
       "source": "https://github.com/Miucak/taskbar-lyrics-compact",
       "sourceCommit": "a60831437d8042e348700e338f58eb7d50c6d9fa"
+    },
+    {
+      "id": "taskbar-player",
+      "name": "任务栏播放器",
+      "version": "0.1.1",
+      "author": "Fy",
+      "description": "在 Windows 任务栏上叠加一个迷你播放器：封面、歌名、当前歌词与上一首 / 播放暂停 / 下一首 / 喜欢按钮，像汽水音乐的任务栏控制器那样浮在任务栏上。",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/taskbar-player",
+      "digest": "sha256:0c432b40fafcd0f58d81476a4c63f6587cf8b0423ac5366d2acb0f9ddc805817",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-11-06T01:07:31.749Z",
+      "owners": [
+        "yoocy36-coder"
+      ],
+      "source": "https://github.com/yoocy36-coder/folia-taskbar-player",
+      "sourceCommit": "a1cf0bebbdc57068abbf9a0ab80e10b31e1b6903"
     }
   ]
 }

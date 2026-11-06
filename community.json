@@ -434,6 +434,18 @@
       "addedAt": "2026-10-30",
       "updatedAt": "2026-10-30"
     },
+    "taskbar-player": {
+      "owners": [
+        "yoocy36-coder"
+      ],
+      "submission": 125,
+      "source": "https://github.com/yoocy36-coder/folia-taskbar-player",
+      "path": "",
+      "commit": "a1cf0bebbdc57068abbf9a0ab80e10b31e1b6903",
+      "version": "0.1.1",
+      "addedAt": "2026-11-06",
+      "updatedAt": "2026-11-06"
+    },
     "vinyl-disc": {
       "owners": [
         "Zhangyx0824"
