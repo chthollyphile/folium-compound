@@ -185,6 +185,18 @@
       "addedAt": "2026-10-28",
       "updatedAt": "2026-10-28"
     },
+    "huajian": {
+      "owners": [
+        "wittyfunn"
+      ],
+      "submission": 126,
+      "source": "https://github.com/wittyfunn/folia-huajian",
+      "path": "huajian",
+      "commit": "0e382ec63b97636d600186a6963d3d08f68c9aad",
+      "version": "1.0.1",
+      "addedAt": "2026-11-07",
+      "updatedAt": "2026-11-07"
+    },
     "listening-archive": {
       "owners": [
         "imicola"

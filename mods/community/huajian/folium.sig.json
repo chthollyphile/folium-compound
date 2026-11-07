@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "huajian",
+  "modVersion": "1.0.1",
+  "digest": "sha256:09c14251d1bef91728b59d886ba059faa5eddacd1222ee8e17fbb6e4dc7c1d60",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-07T01:10:16.523Z",
+  "signature": "pu8xYIut5/6qpk5aGUzfn/FzGvunuvBsAvsPOOByIAnydpbm2FITb3pzkMZ+tJHA5BkcXdgRH9QSbogoh9p2BQ=="
+}
