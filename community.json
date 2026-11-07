@@ -334,6 +334,18 @@
       "updatedAt": "2026-10-18",
       "lastIssue": 47
     },
+    "mod-market": {
+      "owners": [
+        "zaixiaxingzhang"
+      ],
+      "submission": 131,
+      "source": "https://github.com/zaixiaxingzhang/folia-mod-market",
+      "path": "",
+      "commit": "fba4e16223a833b39768d4fcf2c0f6522168903a",
+      "version": "1.0.1",
+      "addedAt": "2026-11-07",
+      "updatedAt": "2026-11-07"
+    },
     "opencc-traditional-lyrics": {
       "owners": [
         "Fringetw"
