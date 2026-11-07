@@ -19,10 +19,11 @@
       "submission": 83,
       "source": "https://github.com/TypeDreamMoon/folia-desktop-lyric",
       "path": "mod",
-      "commit": "7f3850a82304c76e49cffbaeb168ec12ddcd5d28",
-      "version": "0.1.0",
+      "commit": "d874c9600d30d9794007e6ec74c6746c40a7aa8b",
+      "version": "0.1.1",
       "addedAt": "2026-10-24",
-      "updatedAt": "2026-10-24"
+      "updatedAt": "2026-11-07",
+      "lastIssue": 127
     },
     "antialias-ssaa-msaa": {
       "owners": [

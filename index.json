@@ -546,20 +546,20 @@
     {
       "id": "amll-desktop-lyric",
       "name": "桌面歌词 (AMLL)",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": "TypeDreamMoon",
       "description": "独立的置顶透明歌词窗口：AMLL 逐字歌词、单行/双行/多行歌词板、可搜索的字体选择器（中西文分离 + Folia 主题字体）、窗口底色与圆角、鼠标穿透与位置锁定。",
       "origin": "beta",
       "channel": "beta",
       "path": "mods/beta/amll-desktop-lyric",
-      "digest": "sha256:01b0a8349c69e099e6da61fb4d54dfef1db57d64c59bbcdb25f7d30ea19aac1f",
+      "digest": "sha256:47c2f79fe73b198323e668475d66a49f97a326d151f6972db7040072c487429f",
       "keyId": "folium-beta-2026-1",
-      "signedAt": "2026-10-24T05:39:48.883Z",
+      "signedAt": "2026-11-07T01:10:26.104Z",
       "owners": [
         "TypeDreamMoon"
       ],
       "source": "https://github.com/TypeDreamMoon/folia-desktop-lyric",
-      "sourceCommit": "7f3850a82304c76e49cffbaeb168ec12ddcd5d28"
+      "sourceCommit": "d874c9600d30d9794007e6ec74c6746c40a7aa8b"
     },
     {
       "id": "antialias-ssaa-msaa",

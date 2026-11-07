@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "amll-desktop-lyric",
-  "modVersion": "0.1.0",
-  "digest": "sha256:01b0a8349c69e099e6da61fb4d54dfef1db57d64c59bbcdb25f7d30ea19aac1f",
+  "modVersion": "0.1.1",
+  "digest": "sha256:47c2f79fe73b198323e668475d66a49f97a326d151f6972db7040072c487429f",
   "keyId": "folium-beta-2026-1",
-  "signedAt": "2026-10-24T05:39:48.883Z",
-  "signature": "2cY2arJZ0fmv/FIdnAlo4w8SjhJp0lCcHXk53f09lhweaejpzLl1t0TnpJ1pQm7dZvfuZvO2O8O5pqzkx6PVDg=="
+  "signedAt": "2026-11-07T01:10:26.104Z",
+  "signature": "6sQez7o3Gn7IMFY2Yf+jNdw6W+f45cNcQv4fB2ClKHaJ1LZuxAmBYKy+oyTNz9QQGzgUuklhvs5+XZmncAIHDA=="
 }

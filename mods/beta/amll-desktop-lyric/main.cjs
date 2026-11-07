@@ -19,10 +19,10 @@ const FONT = { min: 16, max: 96, minHeight: 140, maxHeight: 360 };
 
 const MODES = {
     // 单行 / 双行：高度由字号算出来，宽度可拖。
-    single: { width: 800, minWidth: 420, resizable: true },
-    double: { width: 800, minWidth: 420, resizable: true },
+    single: { width: 800, minWidth: 420, minHeight: FONT.minHeight, resizable: true },
+    double: { width: 800, minWidth: 420, minHeight: Math.round(FONT.minHeight * 1.72), resizable: true },
     // 多行歌词板：默认大一点，高度也不跟字号走。
-    board: { width: 720, minWidth: 420, resizable: true },
+    board: { width: 720, minWidth: 420, minHeight: 240, resizable: true },
 };
 
 const DEFAULT_SETTINGS = {
@@ -104,10 +104,12 @@ module.exports = function activate(api) {
     let dragOrigin = null;
     // 宿主是 Folium 1.6 时没有 api.rpc.send（1.7 才有），窗口的命令改成排队等 client 来取。
     let pendingCommands = [];
+    let fontSyncTimer = null;
+    let pendingFontSize = null;
     const foliumMinor = () => (api.host && api.host.folium ? Number(api.host.folium.minor) || 0 : 0);
 
     const pushToClient = (name, payload) => {
-        if (foliumMinor() >= 7) {
+        if (foliumMinor() >= 7 && typeof api.rpc.send === 'function') {
             api.rpc.send(name, payload);
             return;
         }
@@ -134,7 +136,7 @@ module.exports = function activate(api) {
         const base = fontSizeToHeight(settings.fontSize);
         if (!Number.isFinite(base)) return 180;
         if (settings.mode === 'double') return Math.round(base * 1.72);
-        if (settings.mode === 'board') return Math.max(320, Math.round(base * 2.6));
+        if (settings.mode === 'board') return Math.max(modeSpec().minHeight, Math.round(base * 2.6));
         return base;
     };
 
@@ -144,7 +146,19 @@ module.exports = function activate(api) {
         const spec = modeSpec();
         const found = geometry || {};
         const width = Math.max(spec.minWidth, Math.round(Number(found.width) || spec.width || 800));
-        const bounds = { width, height: desiredHeight() };
+        // 板式的高度是用户自己拖的，要原样恢复；单行 / 双行的高度由字号算。
+        const storedHeight = Math.round(Number(found.height));
+        // 只有「上次也是板式」时那个高度才是用户拖出来的；从单行切过来时 geometry.height 是窄条高度。
+        const height = settings.mode === 'board'
+            ? clamp(
+                  found.mode === 'board' && Number.isFinite(storedHeight) && storedHeight > 0
+                      ? storedHeight
+                      : desiredHeight(),
+                  spec.minHeight,
+                  2000,
+              )
+            : desiredHeight();
+        const bounds = { width, height };
         // 上次的位置如果已经不在任何显示器里（拔了副屏、改了分辨率），就不带位置，让 Electron 居中。
         if (Number.isFinite(found.x) && Number.isFinite(found.y)) {
             const target = { x: Math.round(found.x), y: Math.round(found.y), width: bounds.width, height: bounds.height };
@@ -164,10 +178,11 @@ module.exports = function activate(api) {
 
     const resizeTo = (width, height) => {
         if (!isAlive(win)) return;
+        const spec = modeSpec();
         const bounds = win.getBounds();
-        const nextWidth = Math.max(modeSpec().minWidth, Math.round(width ?? bounds.width));
+        const nextWidth = Math.max(spec.minWidth, Math.round(width ?? bounds.width));
         const wanted = Number.isFinite(height) ? height : bounds.height;
-        const nextHeight = Math.max(FONT.minHeight, Math.round(wanted));
+        const nextHeight = Math.max(spec.minHeight, Math.round(wanted));
         if (nextWidth === bounds.width && nextHeight === bounds.height) return;
         programmaticUntil = Date.now() + 400;
         win.setSize(nextWidth, nextHeight, false);
@@ -184,11 +199,23 @@ module.exports = function activate(api) {
     const saveBounds = () => {
         if (!isAlive(win)) return;
         const bounds = win.getBounds();
-        geometry = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+        geometry = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, mode: settings.mode };
         persist('window', geometry);
     };
 
     // 用户拖边、拖角结束（或者过程中）：存位置，单行/双行形态下把高度换算回字号。
+    const scheduleFontSync = (value) => {
+        pendingFontSize = value;
+        if (fontSyncTimer) return;
+        // 拖动时 'resized' 会很密；等 120ms 再回传一次，避免设置写入/IPC 跟着拖动刷屏。
+        fontSyncTimer = setTimeout(() => {
+            fontSyncTimer = null;
+            const size = pendingFontSize;
+            pendingFontSize = null;
+            if (size !== null) pushToClient('cmd', { name: 'font-size', value: size });
+        }, 120);
+    };
+
     const onResized = () => {
         if (!isAlive(win)) return;
         if (Date.now() < programmaticUntil) {
@@ -196,11 +223,14 @@ module.exports = function activate(api) {
             return;
         }
         if (settings.mode === 'single' || settings.mode === 'double') {
-            const derived = heightToFontSize(win.getBounds().height);
+            const bounds = win.getBounds();
+            // 双行窗口是「基础高度 × 1.72」，反推字号时要先除回来，否则拖一下就到最大字号。
+            const baseHeight = settings.mode === 'double' ? bounds.height / 1.72 : bounds.height;
+            const derived = heightToFontSize(baseHeight);
             if (Math.abs(derived - settings.fontSize) > 1) {
                 settings = { ...settings, fontSize: derived };
                 // 交给 client 写进设置（设置归宿主管），再由它推回来。
-                if (api.host.folium.minor >= 7) api.rpc.send('cmd', { name: 'font-size', value: derived });
+                scheduleFontSync(derived);
             }
         }
         scheduleSaveBounds();
@@ -239,26 +269,31 @@ module.exports = function activate(api) {
         }
     };
 
-    const applyMode = (previousMode) => {
+    const applyMode = () => {
         if (!isAlive(win)) return;
         const spec = modeSpec();
         win.setResizable(spec.resizable);
-        win.setMinimumSize(spec.minWidth, FONT.minHeight);
-        if (previousMode !== undefined && previousMode !== settings.mode) {
-            // 换形态时宽度回到该形态的默认值，高度按字号重算。
-            resizeTo(settings.mode === 'board' ? 720 : Math.max(win.getBounds().width, 620), desiredHeight());
-        }
+        win.setMinimumSize(spec.minWidth, spec.minHeight);
     };
 
     const applySettings = (next) => {
-        const previousMode = settings.mode;
-        const previousFont = settings.fontSize;
+        const previous = settings;
         settings = { ...settings, ...next };
-        applyAlwaysOnTop();
-        applyLock();
-        applyMode(previousMode);
-        // 字号变了：高度跟着走（板式形态不跟）。
-        if (settings.mode !== 'board' && (settings.fontSize !== previousFont || settings.mode !== previousMode)) {
+        // 这些是原生窗口调用，滑杆拖动时每秒可能来几十次；只在真的变了的时候碰窗口。
+        if (previous.alwaysOnTop !== settings.alwaysOnTop || previous.skipTaskbar !== settings.skipTaskbar) {
+            applyAlwaysOnTop();
+        }
+        if (previous.ignoreHover !== settings.ignoreHover || previous.lock !== settings.lock) {
+            applyLock();
+        }
+        if (previous.mode !== settings.mode) {
+            applyMode();
+            // 窗口还没开时只记下形态，等 openWindow 按新形态算尺寸；别在这里碰空窗口。
+            if (isAlive(win)) {
+                resizeTo(settings.mode === 'board' ? 720 : Math.max(win.getBounds().width, 620), desiredHeight());
+            }
+        } else if (settings.mode !== 'board' && previous.fontSize !== settings.fontSize) {
+            // 字号变了：高度跟着走（板式形态不跟）。
             resizeTo(undefined, desiredHeight());
         }
         send(CH_SETTINGS, settings);
@@ -275,33 +310,39 @@ module.exports = function activate(api) {
         }
         const bounds = savedBounds();
         const spec = modeSpec();
-        win = new BrowserWindow({
-            ...bounds,
-            frame: false,
-            transparent: true,
-            backgroundColor: '#00000000',
-            hasShadow: false,
-            resizable: spec.resizable,
-            minimizable: false,
-            maximizable: false,
-            fullscreenable: false,
-            skipTaskbar: settings.skipTaskbar !== false,
-            alwaysOnTop: Boolean(settings.alwaysOnTop),
-            show: false,
-            title: 'Folia 桌面歌词',
-            // 这个窗口是模组自己的页面，不走宿主的 preload。
-            webPreferences: {
-                preload: path.join(__dirname, 'preload.cjs'),
-                nodeIntegration: false,
-                contextIsolation: true,
-                sandbox: false,
-                backgroundThrottling: false,
-                zoomFactor: 1,
-                partition: 'persist:folia-desktop-lyric',
-            },
-        });
-
-        const created = win;
+        let created;
+        try {
+            created = new BrowserWindow({
+                ...bounds,
+                frame: false,
+                transparent: true,
+                backgroundColor: '#00000000',
+                hasShadow: false,
+                resizable: spec.resizable,
+                minimizable: false,
+                maximizable: false,
+                fullscreenable: false,
+                skipTaskbar: settings.skipTaskbar !== false,
+                alwaysOnTop: Boolean(settings.alwaysOnTop),
+                show: false,
+                title: 'Folia 桌面歌词',
+                // 这个窗口是模组自己的页面，不走宿主的 preload。
+                webPreferences: {
+                    preload: path.join(__dirname, 'preload.cjs'),
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    sandbox: false,
+                    backgroundThrottling: false,
+                    zoomFactor: 1,
+                    partition: 'persist:folia-desktop-lyric',
+                },
+            });
+        } catch (error) {
+            win = null;
+            api.log.error('[desktop-lyric] 创建歌词窗口失败', error);
+            return null;
+        }
+        win = created;
         created.on('ready-to-show', () => {
             // showInactive：不抢主窗口的焦点。
             if (isAlive(created)) created.showInactive();
@@ -321,6 +362,7 @@ module.exports = function activate(api) {
             if (!isAlive(created)) return;
             created.webContents.send(CH_SETTINGS, settings);
             if (lastState) created.webContents.send(CH_STATE, lastState);
+            applyMode();
             applyAlwaysOnTop();
             applyLock();
         });
@@ -339,7 +381,7 @@ module.exports = function activate(api) {
             return { open: false };
         }
         openWindow();
-        return { open: true };
+        return { open: isAlive(win) };
     };
 
     // ---------------------------------------------------------------- 窗口发来的消息
@@ -454,6 +496,11 @@ module.exports = function activate(api) {
             clearTimeout(saveTimer);
             saveTimer = null;
         }
+        if (fontSyncTimer) {
+            clearTimeout(fontSyncTimer);
+            fontSyncTimer = null;
+            pendingFontSize = null;
+        }
         if (isAlive(win)) {
             win.removeAllListeners('closed');
             win.destroy();
@@ -465,11 +512,10 @@ module.exports = function activate(api) {
 
     (async () => {
         try {
-            const stored = await api.storage.get('window');
+            const [stored, open] = await Promise.all([api.storage.get('window'), api.storage.get('open')]);
             if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
                 geometry = stored;
             }
-            const open = await api.storage.get('open');
             if (open === true && !disposed) openWindow();
         } catch (error) {
             api.log.warn('[desktop-lyric] 读取窗口状态失败', error);

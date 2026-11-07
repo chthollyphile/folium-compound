@@ -22,18 +22,20 @@ Folia 托盘里那一项只是把**主窗口**变成透明置顶 + 鼠标穿透�
 
 ```bash
 npm install
-npm run build       # 产出 dist/desktop-lyric/
+npm run build       # 产出 dist/amll-desktop-lyric/
 ```
 
-把 `dist/desktop-lyric/` 整个文件夹拷到 Folia 的用户模组目录（模组面板右上角「打开模组目录」，
-打包版是 `%APPDATA%\Folia\mods`），或者把 `dist/desktop-lyric` 打成 zip 拖进模组面板。
+把 `dist/amll-desktop-lyric/` 整个文件夹拷到 Folia 的用户模组目录（模组面板右上角「打开模组目录」，
+打包版是 `%APPDATA%\Folia\mods`），或者把 `dist/amll-desktop-lyric` 打成 zip 拖进模组面板。
 
-然后在「设置 → 模组」：打开「模组系统」→「重载」→ 启用 `desktop-lyric`（会弹一次确认，
+然后在「设置 → 模组」：打开「模组系统」→「重载」→ 启用 `amll-desktop-lyric`（会弹一次确认，
 自己写的模组没有签名，这是正常的）。之后用命令面板的「桌面歌词：开关」开窗。
 
 ## 设置（设置 → 模组 → 桌面歌词）
 
-主分区 39 项（窗口 / 歌词 / 外观三组），字体单独一个分区带自己的选择器。
+主分区 39 项，设置页里是一个自定义面板：顶部「窗口 / 歌词 / 外观」三个页签 + 两列卡片，
+每页可以单独「恢复本页默认」；字体仍然是单独分区，四行卡片式选择器，点「选择」会在行下方
+弹出可搜索列表（不再把下面的设置项挤走，也不再整页跳动）。
 
 **窗口**
 
@@ -119,11 +121,11 @@ npm run dev:fonts                       # 走一遍字体枚举 rpc，打印本�
 ```text
 mod.json               模组清单：main 入口 + client 入口 + 权限
 src/client.mjs         client 入口（单文件、无相对导入）：快照 → main、命令 → playback、
-                       设置分区、字体选择器面板
+                       设置分区、自定义设置面板、字体选择器面板
 src/main.cjs           main 入口（Node）：BrowserWindow、几何、锁定、置顶、字号↔高度、转发
 src/fonts.cjs          main 侧的本机字体枚举（sfnt name 表解析，零依赖）
 src/preload.cjs        歌词窗口的 contextBridge（只有状态下行和命令上行）
-src/window/            歌词窗口页面（AMLL + rAF 外推时钟 + 顶部控制条 + 自建拖动）
+src/window/            歌词窗口页面（AMLL + 需要时才跑的 rAF 外推时钟 + 顶部控制条 + 自建拖动）
 build.mjs              esbuild 打包成 IIFE（file:// 下 module script 会被 CORS 挡掉）
 
 > **client.mjs 必须是单文件。** Folia 只给 client 入口的 `folia-mod://` URL 加摘要版本号，
@@ -146,6 +148,22 @@ folium.playback.toggle()  ←─ rpc.on('cmd') ←─ IPC ←─ 控制条点击
 外推，所以逐字动画是 60fps 的，不受 IPC 频率限制。唯一的偏差来自用户设置的歌词偏移（Folia 的
 歌词时钟 `lyricTime` 只在 stage 挂载上下文里拿得到，模组从 activate 里够不着）。
 
+## 性能
+
+桌面歌词是一扇一直开着的窗口，挂机时的开销比动画本身更值得管：
+
+- **rAF 只在需要时跑**：播放中、或刚改完设置等弹簧回位时才逐帧更新；暂停、没有歌词、窗口被
+  最小化 / 遮住时完全停掉。以前是永远 `requestAnimationFrame` + `backgroundThrottling:false`，
+  挂着不动也在烧 CPU。
+- **设置推送合并**：滑杆拖动时先按 60ms 合并，一次 IPC 带整份设置；main 只在置顶 / 跳过任务栏 /
+  锁定 / 模式真的变了时才调原生窗口接口，不再每次设置变化都调一遍。
+- **只改颜色不重排**：窗口端按字段判断这次变化要不要 `calcLayout`；改底色、透明度、描边时只改
+  CSS，不碰 AMLL 的排版。歌词行只在版本变化时随快照走，主题字体栈也只解析一次。
+- **阴影只留一层**：整层歌词原来叠了两层 `drop-shadow`，其中一层 10px 模糊，每帧都要重算；
+  现在只留 1px 那层。
+- **字体列表只取一次**：面板反复开关不重复扫本机字体；搜索用 rAF 合并，列表最多渲染 150 条，
+  再长的部分用关键词缩小。
+
 ## 穿透怎么工作
 
 锁定（穿透）开着时，窗口**整扇**始终 `setIgnoreMouseEvents(true, { forward: true })`：点击落到下面的
@@ -162,6 +180,11 @@ folium.playback.toggle()  ←─ rpc.on('cmd') ←─ IPC ←─ 控制条点击
   只能用「桌面歌词：锁定 / 解锁」命令。
 - 窗口按钮的命令有两条路：Folium 1.7 用 `api.rpc.send` 推送（即时）；1.6 没有这个通道，
   改成 main 排队 + client 每 150ms 来取（最多慢 150ms，功能一样）。Folia 0.7.21 及更早就是 1.6。
+- Folia 0.7.22 切换壁纸 / 重建主窗口时会把播放桥接先摘掉再挂回来，这期间读状态会抛
+  `playback-unavailable-in-main-context`。模组按「消息里带 `unavailable-in-main-context`」判断，
+  把它当成「暂时读不到」：不推送空状态、不动歌词，等下一拍读到再补一帧；activate、事件和
+  定时器都不会再把这条错误冒给宿主。如果你还看到旧的 `client activate: ...`，多半是装着的
+  还是 0.1.0 那一版，重载 / 覆盖 `%APPDATA%\Folia\mods\amll-desktop-lyric` 后再试。
 - 底色只能是纯色 + 透明度：透明窗口拿不到桌面画面，所以做不了真正的毛玻璃（Windows 亚克力要用
   `SetWindowCompositionAttribute` 之类的系统接口，模组碰不到）。
 - 拖动是模组自己实现的（app-region 拖动会吃掉指针事件，hover 和穿透就不好使了）；窗口边缘的
