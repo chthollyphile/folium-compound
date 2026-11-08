@@ -430,10 +430,11 @@
       "submission": 118,
       "source": "https://github.com/w0w1w2/stardrift",
       "path": "",
-      "commit": "fefdc328349c5746ff80825037f565632e003b16",
-      "version": "1.38.0",
+      "commit": "c931c6ec94dadcca8265ef0d816de884bf57c8f6",
+      "version": "1.39.0",
       "addedAt": "2026-11-06",
-      "updatedAt": "2026-11-06"
+      "updatedAt": "2026-11-08",
+      "lastIssue": 134
     },
     "taskbar-lyrics": {
       "owners": [

@@ -474,20 +474,20 @@
     {
       "id": "stardrift",
       "name": "星潮·银河 Stardrift",
-      "version": "1.38.0",
+      "version": "1.39.0",
       "author": "w0w1w2",
       "description": "全屏歌词动画（星潮·银河）：背景星海随机更替，流星不时划过；正在读的字会亮起柔和的透明光圈罩住它（可开关，深浅、大小可调），歌词字在屏幕随机位置放大呈现，唱完后停留再缩小淡出。「英文不亮圈」让英文字母与数字不显示光圈（中文照常）；「屏蔽标点」让标点符号既不显示、也不亮圈。可调流星数量、星星与流星大小、字缩放与停留时间。纯渲染端模组，无需权限，支持播放、预览与透明导出。",
       "origin": "community",
       "channel": "release",
       "path": "mods/community/stardrift",
-      "digest": "sha256:25d16fcba4bc7788bdffec2319d3c92aa6c4e15323f535a47a11ece3f99b4211",
+      "digest": "sha256:61bbebf472fcd45193273c55355da4f5b09f04a5b0bc9fdf5a1d04805e50dc2d",
       "keyId": "folium-ci-2026-1",
-      "signedAt": "2026-11-06T01:06:55.951Z",
+      "signedAt": "2026-11-08T01:08:29.565Z",
       "owners": [
         "w0w1w2"
       ],
       "source": "https://github.com/w0w1w2/stardrift",
-      "sourceCommit": "fefdc328349c5746ff80825037f565632e003b16"
+      "sourceCommit": "c931c6ec94dadcca8265ef0d816de884bf57c8f6"
     },
     {
       "id": "taskbar-lyrics",
