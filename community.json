@@ -267,10 +267,11 @@
       "submission": 103,
       "source": "https://github.com/wittyfunn/lyric-ai-director-plus",
       "path": "lyric-ai-director-plus",
-      "commit": "061d6eba23b17cdf4579f1e34380bc4a578c5473",
-      "version": "1.0.3",
+      "commit": "9d6f9d98c0546cce5dac9db55daca883f68d6ecc",
+      "version": "1.1.0",
       "addedAt": "2026-10-31",
-      "updatedAt": "2026-10-31"
+      "updatedAt": "2026-11-08",
+      "lastIssue": 132
     },
     "lyric-split-translation": {
       "owners": [

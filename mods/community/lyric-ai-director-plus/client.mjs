@@ -1,4 +1,4 @@
-// AI 歌词动画导演 Plus 1.0.3 — built from src/ by dev/build.mjs; edit src/, not this file.
+// AI 歌词动画导演 Plus 1.1.0 — built from src/ by dev/build.mjs; edit src/, not this file.
 // Source modules are kept in separate scopes below, in dependency order.
 
 // ---- src/params.mjs
@@ -405,130 +405,73 @@ return { MODE_PARAMS, PARAM_GATES, EFFECT_GATES, BEAT_EFFECTS, EFFECT_DEFAULT, s
 
 // ---- src/host-adapter.mjs
 const __host_adapter = (() => {
-// The only file that touches `folium.internals`: the live mode list, and reading
-// and writing the lyric animation mode, its tuning and its 智能动感 beat effects. Folium 2 removes
-// internals with no replacement (M0 checked the public API: there is none), so
-// when that happens this file is what changes. Every access is feature-checked
-// and degrades to "unavailable" instead of throwing into the player.
+// The only file that touches the host's lyric display: the live mode list, and
+// reading and writing the lyric animation mode, its tuning and its 智能动感 beat
+// effects, all through Folium 1.8's public `folium.visualizer` (no internals).
+// Writes need `visualizer.mode` / `.tuning` / `.beatEffects`; the host limits
+// each kind to one counted write a second and 20 a minute, so the director
+// writes once per song and `restore` waits between modes.
 
-const { MODE_PARAMS, BEAT_EFFECTS, EFFECT_DEFAULT, tuningKeyOf, gatesFor, gateSatisfied, isInertValue, sanitizeParams, sanitizeEffects } = __params;
+const { MODE_PARAMS, BEAT_EFFECTS, EFFECT_DEFAULT, gatesFor, gateSatisfied, isInertValue, sanitizeParams, sanitizeEffects } = __params;
 
-/* Reading `folium.internals` throws (rather than returning undefined) when the
- * host withholds it, and optional chaining does not catch a throwing getter. */
-const internalsOf = (folium) => {
-  try {
-    return folium.internals ?? null;
-  } catch {
-    return null;
-  }
-};
+const WRITE_GAP_MS = 1100;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const refusal = (result) => (result.reason === 'rate-limited' ? '写得太频繁，被 Folia 限流' : `Folia 没有接受（${result.reason}）`);
 
 const createHostAdapter = (folium) => {
-  const store = () => {
-    const visualizerSettings = internalsOf(folium)?.stores?.visualizerSettings;
-    return visualizerSettings && typeof visualizerSettings.getState === 'function' ? visualizerSettings : null;
-  };
-
-  /* Writes of our own, so a `visualizer.modeChanged` that follows can be told
-   * apart from the user picking a mode (M0: the event carries no origin). */
-  let ownWriteUntil = 0;
-  const markOwnWrite = () => { ownWriteUntil = performance.now() + 800; };
-
-  const available = () => Boolean(store());
-
-  const registryEntries = () => {
-    const registry = internalsOf(folium)?.visualizerRegistry ?? null;
-    const entries = Array.isArray(registry) ? registry : (registry?.entries ?? []);
-    return entries.filter((entry) => entry && typeof entry.mode === 'string');
-  };
-
-  /** The live registry: builtin modes plus any a mod contributed. */
-  const listModes = () => registryEntries()
-    .map((entry) => ({ id: entry.mode, label: entry.labelFallback || entry.mode }));
-
-  // ------------------------------------------------------------ 智能动感
-
-  const smartBeat = () => {
-    const value = store()?.getState?.()?.smartBeat;
-    return value && typeof value === 'object' ? value : null;
-  };
-
-  /** 'off' | 'cached' | 'on', or null when this Folia has no 智能动感. */
-  const beatMode = () => {
-    const state = store()?.getState?.();
-    if (typeof state?.handleSetSmartBeat !== 'function') return null;
-    const mode = state.smartBeat?.mode;
-    return typeof mode === 'string' ? mode : null;
-  };
-
-  /** Ids of the beat effects `mode` offers and we can describe (retired ones left out). */
-  const listBeatEffects = (mode) => {
-    const entry = registryEntries().find((item) => item.mode === mode);
-    return (Array.isArray(entry?.beatEffects) ? entry.beatEffects : [])
-      .filter((effect) => effect && !effect.retired && typeof effect.id === 'string' && BEAT_EFFECTS[effect.id])
-      .map((effect) => effect.id);
-  };
-
-  const effectState = (id) => {
-    const value = smartBeat()?.effects?.[id];
-    return {
-      on: typeof value?.on === 'boolean' ? value.on : EFFECT_DEFAULT.on,
-      strength: Number.isFinite(value?.strength) ? value.strength : EFFECT_DEFAULT.strength,
-    };
-  };
-
-  /* An effect toggled mid-song rebuilds the scene (凝彩 clears its shots), so
-   * this goes out with the mode switch, at the same safe moment. */
-  const setEffects = (mode, rawEffects) => {
-    const state = store()?.getState?.();
-    if (typeof state?.handleSetSmartBeat !== 'function') return {};
-    const wanted = sanitizeEffects(rawEffects, listBeatEffects(mode));
-    const patch = {};
-    for (const [id, value] of Object.entries(wanted)) {
-      const now = effectState(id);
-      const next = { on: value.on, strength: value.strength ?? now.strength };
-      if (next.on !== now.on || next.strength !== now.strength) patch[id] = next;
+  /* Older hosts have no `folium.visualizer`; the export window throws on every call. */
+  const vis = () => ((folium.host?.folium?.minor ?? 0) >= 8 ? folium.visualizer ?? null : null);
+  const read = (fn, fallback) => {
+    try {
+      const v = vis();
+      return v ? fn(v) : fallback;
+    } catch {
+      return fallback;
     }
-    if (Object.keys(patch).length === 0) return {};
-    markOwnWrite();
-    state.handleSetSmartBeat({ effects: patch });
-    const written = {};
-    for (const id of Object.keys(patch)) written[id] = effectState(id);
-    return written;
   };
 
-  const currentMode = () => {
-    const mode = store()?.getState?.()?.visualizerMode;
-    return typeof mode === 'string' ? mode : null;
-  };
+  const available = () => Boolean(vis());
+  const modeInfos = () => read((v) => v.listModes(), []);
+  const infoOf = (mode) => modeInfos().find((info) => info.id === mode) ?? null;
 
-  const readTuning = (mode) => {
-    const key = tuningKeyOf(mode);
-    const value = key ? store()?.getState?.()?.[key] : null;
-    return value && typeof value === 'object' ? value : null;
-  };
+  /** Builtin modes plus any a mod contributed, in the order of the mode picker. */
+  const listModes = () => modeInfos().map((info) => ({ id: info.id, label: info.label || info.id }));
+  const currentMode = () => read((v) => v.getMode(), null);
+  const readTuning = (mode) => read((v) => v.getTuning(mode), null);
 
   const setMode = (mode) => {
-    const state = store()?.getState?.();
-    if (typeof state?.handleSetVisualizerMode !== 'function') throw new Error('宿主没有提供切换模式的接口');
-    if (state.visualizerMode === mode) return false;
-    markOwnWrite();
-    // notify:false keeps the host from showing its own "switched to" toast.
-    state.handleSetVisualizerMode(mode, { notify: false });
+    const v = vis();
+    if (!v) throw new Error('需要 Folia 的 Folium 1.8（folium.visualizer）');
+    if (v.getMode() === mode) return false;
+    const result = v.setMode(mode);
+    if (!result.ok) throw new Error(`切换模式失败：${refusal(result)}`);
     return true;
+  };
+
+  /* Only keys the host lets mods write, in the type it expects: a wrong type or
+   * an unlisted choice makes it refuse the whole write. */
+  const fitToHost = (mode, patch) => {
+    const keys = infoOf(mode)?.tuning ?? {};
+    return Object.fromEntries(Object.entries(patch).filter(([key, value]) => {
+      const info = keys[key];
+      if (info?.type === 'number') return typeof value === 'number' && Number.isFinite(value);
+      if (info?.type === 'boolean') return typeof value === 'boolean';
+      if (info?.type === 'choice') return info.options.includes(value);
+      return false;
+    }));
   };
 
   /**
    * Writes a sanitized patch for `mode`, opening the switch a value depends on
    * (M0: a value behind a closed switch changes nothing on screen). A switch the
    * patch itself sets to the blocking value wins, and the gated value is left
-   * out. Returns what was written and what the host kept.
+   * out. Returns what the host kept (clamped, on its steps) and notes.
    */
   const setParams = (mode, rawParams) => {
+    const v = vis();
     const spec = MODE_PARAMS[mode];
-    const state = store()?.getState?.();
-    const setter = spec?.setter ? state?.[spec.setter] : null;
-    if (typeof setter !== 'function') return { written: {}, notes: [] };
+    if (!v || !spec) return { written: {}, notes: [] };
     const patch = sanitizeParams(mode, rawParams);
     const current = readTuning(mode);
     const notes = [];
@@ -546,57 +489,81 @@ const createHostAdapter = (folium) => {
         notes.push(`${key} 需要 ${gate.key}，已一并打开`);
       }
     }
-    if (Object.keys(patch).length === 0) return { written: {}, notes };
-    markOwnWrite();
-    setter(patch);
-    const stored = readTuning(mode) ?? {};
+    const fitted = fitToHost(mode, patch);
+    for (const key of Object.keys(patch)) if (!(key in fitted)) notes.push(`${key} 不在 Folia 开放给模组的参数里，跳过`);
+    if (Object.keys(fitted).length === 0) return { written: {}, notes };
+    const result = v.setTuning(mode, fitted);
+    if (!result.ok) return { written: {}, notes: [...notes, `参数没写进去：${refusal(result)}`] };
     const written = {};
-    for (const key of Object.keys(patch)) written[key] = key in stored ? stored[key] : patch[key];
+    for (const key of Object.keys(fitted)) if (key in result.tuning) written[key] = result.tuning[key];
     return { written, notes };
   };
 
-  /** Mode and every tuning we may touch, for "restore what I had". */
-  const snapshot = () => {
-    const state = store()?.getState?.();
-    if (!state) return null;
-    const tunings = {};
-    for (const mode of Object.keys(MODE_PARAMS)) {
-      const tuning = readTuning(mode);
-      if (!tuning) continue;
-      const keep = {};
-      for (const key of Object.keys(MODE_PARAMS[mode].params)) if (key in tuning) keep[key] = tuning[key];
-      tunings[mode] = keep;
-    }
-    const effects = {};
-    for (const id of Object.keys(BEAT_EFFECTS)) {
-      const stored = state.smartBeat?.effects?.[id];
-      if (stored) effects[id] = { on: stored.on, strength: stored.strength };
-    }
-    return { mode: state.visualizerMode, tunings, effects };
+  // ------------------------------------------------------------ 智能动感
+
+  const beatState = () => read((v) => v.getBeatEffects(), null);
+
+  /** 'off' | 'cached' | 'on', or null when this Folia has no public 智能动感. */
+  const beatMode = () => beatState()?.smartBeat ?? null;
+
+  /** Ids of the beat effects `mode` offers and we can describe. */
+  const listBeatEffects = (mode) => (infoOf(mode)?.beatEffects ?? []).map((effect) => effect.id).filter((id) => BEAT_EFFECTS[id]);
+
+  const effectState = (id) => {
+    const effect = beatState()?.effects.find((item) => item.id === id);
+    return { on: effect?.on ?? EFFECT_DEFAULT.on, strength: effect?.strength ?? EFFECT_DEFAULT.strength };
   };
 
-  const restore = (saved) => {
-    if (!saved) return false;
-    const state = store()?.getState?.();
-    if (!state) return false;
+  /* An effect toggled mid-song rebuilds the scene (凝彩 clears its shots), so
+   * this goes out with the mode switch, at the same safe moment. */
+  const setEffects = (mode, rawEffects) => {
+    const v = vis();
+    if (!v) return {};
+    const patch = {};
+    for (const [id, value] of Object.entries(sanitizeEffects(rawEffects, listBeatEffects(mode)))) {
+      const now = effectState(id);
+      const next = { on: value.on, strength: value.strength ?? now.strength };
+      if (next.on !== now.on || next.strength !== now.strength) patch[id] = next;
+    }
+    if (Object.keys(patch).length === 0) return {};
+    const result = v.setBeatEffects(patch);
+    if (!result.ok) return {};
+    return Object.fromEntries(result.state.effects.filter((effect) => patch[effect.id]).map((effect) => [effect.id, { on: effect.on, strength: effect.strength }]));
+  };
+
+  // ------------------------------------------------------------ restore
+
+  /** Mode, every tuning we may touch and the beat effects, for "restore what I had". */
+  const snapshot = () => {
+    if (!vis()) return null;
+    const tunings = {};
+    for (const info of modeInfos()) {
+      if (MODE_PARAMS[info.id] && Object.keys(info.tuning ?? {}).length > 0) tunings[info.id] = readTuning(info.id);
+    }
+    const effects = Object.fromEntries((beatState()?.effects ?? [])
+      .filter((effect) => BEAT_EFFECTS[effect.id])
+      .map((effect) => [effect.id, { on: effect.on, strength: effect.strength }]));
+    return { mode: currentMode(), tunings, effects };
+  };
+
+  /* One counted write a second per kind: modes are put back one at a time. */
+  const restore = async (saved) => {
+    const v = vis();
+    if (!saved || !v) return false;
     for (const [mode, tuning] of Object.entries(saved.tunings ?? {})) {
-      const setter = state[MODE_PARAMS[mode]?.setter];
-      if (typeof setter === 'function' && Object.keys(tuning).length > 0) {
-        markOwnWrite();
-        setter(tuning);
-      }
+      const now = readTuning(mode);
+      if (!now) continue;
+      const patch = fitToHost(mode, Object.fromEntries(Object.entries(tuning ?? {}).filter(([key, value]) => now[key] !== value)));
+      if (Object.keys(patch).length === 0) continue;
+      v.setTuning(mode, patch);
+      await sleep(WRITE_GAP_MS);
     }
-    if (typeof state.handleSetSmartBeat === 'function' && saved.effects) {
-      // Effects the user never set go back to Folia's default.
-      const touched = Object.fromEntries(Object.keys(BEAT_EFFECTS)
-        .filter((id) => state.smartBeat?.effects?.[id] || saved.effects[id])
-        .map((id) => [id, saved.effects[id] ?? EFFECT_DEFAULT]));
-      if (Object.keys(touched).length > 0) {
-        markOwnWrite();
-        state.handleSetSmartBeat({ effects: touched });
-      }
-    }
-    if (saved.mode) setMode(saved.mode);
+    const effects = Object.fromEntries(Object.entries(saved.effects ?? {}).filter(([id, value]) => {
+      const now = effectState(id);
+      return now.on !== value.on || now.strength !== value.strength;
+    }));
+    if (Object.keys(effects).length > 0) v.setBeatEffects(effects);
+    if (saved.mode && infoOf(saved.mode)) setMode(saved.mode);
     return true;
   };
 
@@ -629,7 +596,8 @@ const createHostAdapter = (folium) => {
     setEffects,
     snapshot,
     restore,
-    isOwnWrite: () => performance.now() < ownWriteUntil,
+    /** A `visualizer.*Changed` origin that is this mod's own write. */
+    isOwnWrite: (origin) => origin?.kind === 'mod' && origin.modId === folium.modId,
   };
 };
 return { createHostAdapter };
@@ -2237,7 +2205,7 @@ const createDirector = ({ folium, host, store, settings, onChange }) => {
       userOverrode: false,
     } : null;
     if (!current) return emit();
-    if (!host.available()) return setPhase(current, 'error', '宿主内部接口不可用：确认模组 folia 版本范围与当前 Folia 匹配');
+    if (!host.available()) return setPhase(current, 'error', '这个版本的 Folia 没有 folium.visualizer：需要 Folium 1.8 或更新');
 
     // The next-song job may be working on this very song: wait for it rather than pay twice.
     if (next?.key === key && next.promise) {
@@ -2269,8 +2237,13 @@ const createDirector = ({ folium, host, store, settings, onChange }) => {
     run(gen, {});
   };
 
-  const onModeChanged = (mode) => {
-    if (!current || host.isOwnWrite()) return;
+  const onModeChanged = (mode, origin) => {
+    if (!current || host.isOwnWrite(origin)) return;
+    if (origin?.kind === 'mod') { // another mod took over: step back, but it is not the user's taste
+      current.userOverrode = true;
+      setPhase(current, 'user', `模组 ${origin.modId} 换成了 ${PROFILES[mode]?.name ?? mode}，本首不再自动切换`);
+      return;
+    }
     if (performance.now() - current.startedAt < USER_CHANGE_GRACE_MS) return;
     current.userOverrode = true;
     current.userMode = mode;
@@ -2392,7 +2365,7 @@ const createDirector = ({ folium, host, store, settings, onChange }) => {
     restore: async () => {
       const saved = await store.get('snapshot');
       if (!saved) return '还没有改动过你的设置';
-      host.restore(saved);
+      await host.restore(saved);
       await store.set('snapshot', null);
       if (current) current.userOverrode = true; // do not switch again for this song
       return '已恢复原来的模式与参数';
@@ -2811,8 +2784,8 @@ const SETTINGS = [
 ];
 
 export default async function activate(folium) {
-  if ((folium.host?.folium?.minor ?? 0) < 7) {
-    folium.ui.toast('AI 歌词动画导演 Plus 需要 Folium 1.7（Folia 0.7.22）或更新版本', { type: 'error' });
+  if ((folium.host?.folium?.minor ?? 0) < 8) {
+    folium.ui.toast('AI 歌词动画导演 Plus 需要 Folium 1.8 或更新版本的 Folia', { type: 'error' });
     return undefined;
   }
 
@@ -2860,7 +2833,7 @@ export default async function activate(folium) {
   folium.events.on('playback.songChanged', ({ song }) => director.onSongChanged(song));
   folium.events.on('lyrics.loaded', ({ song, lines }) => director.onLyricsLoaded(song, lines));
   folium.events.on('theme.changed', ({ theme }) => director.onThemeChanged(theme));
-  folium.events.on('visualizer.modeChanged', ({ mode }) => director.onModeChanged(mode));
+  folium.events.on('visualizer.modeChanged', ({ mode, origin }) => director.onModeChanged(mode, origin));
   folium.events.on('playback.queueChanged', () => director.onQueueChanged());
   folium.events.on('playback.loopModeChanged', () => director.onQueueChanged());
   folium.secrets.subscribe((key) => {

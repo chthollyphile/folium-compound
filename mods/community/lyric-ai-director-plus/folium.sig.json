@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "lyric-ai-director-plus",
+  "modVersion": "1.1.0",
+  "digest": "sha256:7e5d499d60bee798b9d712fd4e5b764ee5963458ceb135aa44945f3f496db890",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-08T01:08:19.234Z",
+  "signature": "6bDLF30j/d4MT5IROanrAeGpc0JeGlcU8bCaw/fFqAojVtXic1jtCQvTs3ZyDkFyGk/++RYTzBUNYDD5BwCVBw=="
+}
