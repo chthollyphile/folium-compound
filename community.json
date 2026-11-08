@@ -286,6 +286,18 @@
       "updatedAt": "2026-11-08",
       "lastIssue": 132
     },
+    "lyric-ai-segment-director": {
+      "owners": [
+        "shiryaed"
+      ],
+      "submission": 135,
+      "source": "https://github.com/shiryaed/lyric-ai-segment-director",
+      "path": "",
+      "commit": "b233fe7d591e0cac1b8bd05de582ef344b14bb74",
+      "version": "1.0.0",
+      "addedAt": "2026-11-08",
+      "updatedAt": "2026-11-08"
+    },
     "lyric-split-translation": {
       "owners": [
         "tumuyan"

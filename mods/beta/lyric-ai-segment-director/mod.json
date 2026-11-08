@@ -1,0 +1,12 @@
+{
+  "folium": 1,
+  "id": "lyric-ai-segment-director",
+  "name": "AI 逐段歌词导演",
+  "version": "1.0.0",
+  "author": "dsh（参考 wittyfunn/lyric-ai-director-plus，MIT）",
+  "description": "把一首歌交给 AI 排成一段段的「分段剧本」：每段多长、用哪个歌词动画模式、调哪些样式参数、动画强度与背景类型，都由 AI 按它对这首歌的理解决定，播放时只在句子之间的空隙逐段切换，不打断当前这句。每段 2~4 句的硬限制可开关，参数经白名单与范围校验后落盘。只把歌名、歌手和歌词发给你自己配置的 OpenAI 兼容接口。",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": ["filesystem.data", "net.fetch"],
+  "folia": ">=0.7.22 <0.8.0"
+}
