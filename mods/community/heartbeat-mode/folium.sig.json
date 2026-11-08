@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "heartbeat-mode",
+  "modVersion": "2.1.1",
+  "digest": "sha256:12c5affde04c3ae1de46b4ec1c4415a5158e8fea9df606f6aa60756b665372b0",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-08T01:09:31.232Z",
+  "signature": "E/YchqMlHDqu81edosD01ovwmhWw801qaN57A0vWT0GOtLf/FUCwL1kR8gj4fdvZTEBOfJcERYd55x+zVQB+Ag=="
+}

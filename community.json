@@ -186,6 +186,18 @@
       "addedAt": "2026-10-28",
       "updatedAt": "2026-10-28"
     },
+    "heartbeat-mode": {
+      "owners": [
+        "tamakoyu"
+      ],
+      "submission": 91,
+      "source": "https://github.com/tamakoyu/folia-heartbeat-mode",
+      "path": "mods/heartbeat-mode",
+      "commit": "b1a395845813115af9da09a9dde8ed8c53234982",
+      "version": "2.1.1",
+      "addedAt": "2026-11-08",
+      "updatedAt": "2026-11-08"
+    },
     "huajian": {
       "owners": [
         "wittyfunn"

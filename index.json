@@ -220,6 +220,24 @@
       "sourceCommit": "4e8cb39a5f07b46c187e500b99a20e416a2750f2"
     },
     {
+      "id": "heartbeat-mode",
+      "name": "心动模式",
+      "version": "2.1.1",
+      "author": "tamakoyu",
+      "description": "把网易云的「心动模式」搬进 Folia：随机抽一首「我喜欢的音乐」，再向网易云要两首推荐，一组接一组无限循环。只用 Folium 1.7 的公开接口（playback.replaceQueue、platform.raw、omni.resolveSongs、storage），不读宿主凭据。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/heartbeat-mode",
+      "digest": "sha256:12c5affde04c3ae1de46b4ec1c4415a5158e8fea9df606f6aa60756b665372b0",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-08T01:09:31.232Z",
+      "owners": [
+        "tamakoyu"
+      ],
+      "source": "https://github.com/tamakoyu/folia-heartbeat-mode",
+      "sourceCommit": "b1a395845813115af9da09a9dde8ed8c53234982"
+    },
+    {
       "id": "huajian",
       "name": "花笺",
       "version": "1.0.2",
