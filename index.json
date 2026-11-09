@@ -562,6 +562,24 @@
       "sourceCommit": "f77181ca827f1a65c8a7c2ae5298fd1c8a44fe92"
     },
     {
+      "id": "wallpaper-engine-bg",
+      "name": "壁纸引擎背景",
+      "version": "1.2.3",
+      "author": "飛.",
+      "description": "把本机 Wallpaper Engine 的壁纸、以及你自己的图片 / 视频，接到 Folia 播放页背景上",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/wallpaper-engine-bg",
+      "digest": "sha256:02c7e83a9f0a0365137128455eb669909226bd73ef13d456209edb623714e8e4",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-09T01:08:35.366Z",
+      "owners": [
+        "zaixiaxingzhang"
+      ],
+      "source": "https://github.com/zaixiaxingzhang/folia-wallpaper-engine",
+      "sourceCommit": "41966b0c86a8efec08505ca2587080f7b70aded6"
+    },
+    {
       "id": "wave-light",
       "name": "动感波光",
       "version": "1.5.1",

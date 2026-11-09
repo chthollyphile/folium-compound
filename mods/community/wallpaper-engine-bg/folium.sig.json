@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "wallpaper-engine-bg",
+  "modVersion": "1.2.3",
+  "digest": "sha256:02c7e83a9f0a0365137128455eb669909226bd73ef13d456209edb623714e8e4",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-09T01:08:35.366Z",
+  "signature": "gcggIjUkCWgfySy3dh5w3KIvVrBi8gZwCA97gw1NEZvAs3VZFHnfvAgpyZE+Mrfy8Q446Pfsq2yoUJuvDN76Cg=="
+}

@@ -1,0 +1,15 @@
+{
+  "folium": 1,
+  "id": "wallpaper-engine-bg",
+  "name": "壁纸引擎背景",
+  "version": "1.2.3",
+  "author": "飛.",
+  "description": "把本机 Wallpaper Engine 的壁纸、以及你自己的图片 / 视频，接到 Folia 播放页背景上",
+  "main": "main.cjs",
+  "client": "client.mjs",
+  "preview": "preview.jpg",
+  "permissions": [
+    "filesystem.data"
+  ],
+  "folia": ">=0.7.21 <0.8.0"
+}

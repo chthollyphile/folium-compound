@@ -524,6 +524,18 @@
       "updatedAt": "2026-10-27",
       "lastIssue": 94
     },
+    "wallpaper-engine-bg": {
+      "owners": [
+        "zaixiaxingzhang"
+      ],
+      "submission": 130,
+      "source": "https://github.com/zaixiaxingzhang/folia-wallpaper-engine",
+      "path": "",
+      "commit": "41966b0c86a8efec08505ca2587080f7b70aded6",
+      "version": "1.2.3",
+      "addedAt": "2026-11-09",
+      "updatedAt": "2026-11-09"
+    },
     "wave-light": {
       "owners": [
         "Zhangyx0824"
