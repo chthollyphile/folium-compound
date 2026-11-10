@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "we-wallpaper",
+  "modVersion": "0.3.5",
+  "digest": "sha256:40641e3e1c074ced3e1ecb92cd97c5b4c1a11efdf08d1d54d6ddf004f051dfae",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-11-10T01:10:18.346Z",
+  "signature": "tns2EdKrIMIgcVfI+hDb8fJzP/eOHmQU1i8QE6dNf3h2IjElcryuE1r3e0BDmss/vfTEbhCrtKa0skKlBDU/Cg=="
+}

@@ -1,0 +1,16 @@
+{
+  "folium": 1,
+  "id": "we-wallpaper",
+  "name": "Wallpaper Engine 原生联动",
+  "version": "0.3.5",
+  "author": "Lavender3533 (Pier)",
+  "description": "Windows 原生 Wallpaper Engine 场景与 Folia 歌词组合；仅选中本背景时捕获 GPU 画面，保留原壁纸脚本、组件、属性和预设。",
+  "main": "index.cjs",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "experimental": ["player.layout"],
+  "permissions": [
+    "filesystem.data",
+    "stageLayers"
+  ]
+}
