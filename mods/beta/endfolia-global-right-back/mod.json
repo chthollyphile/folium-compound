@@ -1,0 +1,10 @@
+{
+    "folium": 1,
+    "folia": "=0.7.27",
+    "id": "endfolia-global-right-back",
+    "name": "ENDFOLIA全局右键返回",
+    "version": "1.0.0",
+    "description": "灵感来自 ENDFIELD 的全局右键返回。在 Folia 主窗口右键退一层，先关闭弹窗和面板。Shift＋右键保留原菜单。",
+    "client": "client.mjs",
+    "preview": "preview.png"
+}

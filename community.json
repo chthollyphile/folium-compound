@@ -135,6 +135,18 @@
       "addedAt": "2026-10-31",
       "updatedAt": "2026-10-31"
     },
+    "endfolia-global-right-back": {
+      "owners": [
+        "L-OONES"
+      ],
+      "submission": 140,
+      "source": "https://github.com/L-OONES/endfolia-global-right-back",
+      "path": "",
+      "commit": "2ad29d3b7ba28909588aa188f43122457bed173c",
+      "version": "1.0.0",
+      "addedAt": "2026-11-11",
+      "updatedAt": "2026-11-11"
+    },
     "enhanced-remote-widget": {
       "owners": [
         "hoangmaituan882-hue"

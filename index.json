@@ -706,6 +706,24 @@
       "sourceCommit": "11ce2f8220510b495c5fbfb3c7e5f3519d844e9b"
     },
     {
+      "id": "endfolia-global-right-back",
+      "name": "ENDFOLIA全局右键返回",
+      "version": "1.0.0",
+      "author": null,
+      "description": "灵感来自 ENDFIELD 的全局右键返回。在 Folia 主窗口右键退一层，先关闭弹窗和面板。Shift＋右键保留原菜单。",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/endfolia-global-right-back",
+      "digest": "sha256:9333c70c88d6adce24ee9e08740b13fd509f0476fcbca140e73350ea75a4f34f",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-11-11T01:09:21.909Z",
+      "owners": [
+        "L-OONES"
+      ],
+      "source": "https://github.com/L-OONES/endfolia-global-right-back",
+      "sourceCommit": "2ad29d3b7ba28909588aa188f43122457bed173c"
+    },
+    {
       "id": "folia-lx-music-mod",
       "name": "Online Music Source",
       "version": "1.0.2",
