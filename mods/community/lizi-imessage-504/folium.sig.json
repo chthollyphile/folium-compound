@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "lizi-imessage-504",
+  "modVersion": "1.0.0",
+  "digest": "sha256:290e785f5eabccdbec4045da773853d44cb788380131ec108803283d712d73cb",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-11T01:09:35.154Z",
+  "signature": "bfACMz39Js1aNQZJ84WnxFPQvIqQIN6KS6bkxFAgkZfBBUslfZPLvl97HaIOW9ODPCJtN9XZtfaSSuq4ivSaAg=="
+}

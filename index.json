@@ -274,6 +274,24 @@
       "sourceCommit": "fff207bd06cf9dce6bdddf4adab2a7cbfb16a8de"
     },
     {
+      "id": "lizi-imessage-504",
+      "name": "已发送 · iMessage 歌词",
+      "version": "1.0.0",
+      "author": "LIZI",
+      "description": "LIZI 形态 504「已发送」：歌词变成 iMessage 聊天，逐字点亮、气泡上浮、灵动岛与语音条随音乐起伏，并带八机位自动运镜。纯渲染端歌词动画，无权限。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/lizi-imessage-504",
+      "digest": "sha256:290e785f5eabccdbec4045da773853d44cb788380131ec108803283d712d73cb",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-11T01:09:35.154Z",
+      "owners": [
+        "woshi32s"
+      ],
+      "source": "https://github.com/woshi32s/folia-mod-lizi-imessage-504",
+      "sourceCommit": "14e03a2d414b8f93e71ae84650298e3ebef9c547"
+    },
+    {
       "id": "lx-favorites-sync",
       "name": "LX Music 收藏同步",
       "version": "1.7.3",

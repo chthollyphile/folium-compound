@@ -248,6 +248,18 @@
       "addedAt": "2026-10-30",
       "updatedAt": "2026-10-30"
     },
+    "lizi-imessage-504": {
+      "owners": [
+        "woshi32s"
+      ],
+      "submission": 142,
+      "source": "https://github.com/woshi32s/folia-mod-lizi-imessage-504",
+      "path": "lizi-imessage-504",
+      "commit": "14e03a2d414b8f93e71ae84650298e3ebef9c547",
+      "version": "1.0.0",
+      "addedAt": "2026-11-11",
+      "updatedAt": "2026-11-11"
+    },
     "lx-favorites-sync": {
       "owners": [
         "xiaomo521314"

@@ -1,0 +1,10 @@
+{
+  "folium": 1,
+  "id": "lizi-imessage-504",
+  "name": "已发送 · iMessage 歌词",
+  "version": "1.0.0",
+  "author": "LIZI",
+  "description": "LIZI 形态 504「已发送」：歌词变成 iMessage 聊天，逐字点亮、气泡上浮、灵动岛与语音条随音乐起伏，并带八机位自动运镜。纯渲染端歌词动画，无权限。",
+  "client": "client.mjs",
+  "preview": "preview.png"
+}
