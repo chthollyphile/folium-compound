@@ -1,0 +1,395 @@
+[
+  {
+    "id": "sakura",
+    "name": "樱花粉",
+    "dot": "#E8447A",
+    "mode": "light",
+    "panel": {
+      "background": "linear-gradient(135deg, #FFF0F4 0%, #FFE0EA 100%)",
+      "color": "#fff0f4",
+      "alpha": 1,
+      "borderColor": "rgba(255,150,180,.4)",
+      "radius": 14
+    },
+    "text": {
+      "fontFamily": "",
+      "weight": 600,
+      "weightDim": 400,
+      "lineHeight": 2.6,
+      "letterSpacing": "0.05em",
+      "shadow": "",
+      "glow": ""
+    },
+    "colors": {
+      "lyric": "#DB7A97",
+      "unsung": "#DB7A97",
+      "sung": {
+        "type": "color",
+        "color": "#E8447A"
+      },
+      "dim": "#EAB6C6",
+      "translation": "#E8447A",
+      "romanization": "#C4738F"
+    }
+  },
+  {
+    "id": "vinyl",
+    "name": "黑胶复古",
+    "dot": "#D4AF37",
+    "mode": "dark",
+    "panel": {
+      "background": "rgba(23,18,15,.96)",
+      "color": "#17120f",
+      "alpha": 0.96,
+      "borderColor": "rgba(212,175,55,.22)",
+      "radius": 14
+    },
+    "text": {
+      "fontFamily": "\"Noto Serif SC\", \"Songti SC\", \"STSong\", \"SimSun\", serif",
+      "weight": 600,
+      "weightDim": 400,
+      "lineHeight": 2.6,
+      "letterSpacing": "0.12em",
+      "shadow": "",
+      "glow": ""
+    },
+    "colors": {
+      "lyric": "#8A7455",
+      "unsung": "#8A7455",
+      "sung": {
+        "type": "linear",
+        "angle": 90,
+        "stops": [
+          "#8A6D2B",
+          "#F5E6A8",
+          "#D4AF37"
+        ]
+      },
+      "dim": "#5C4C39",
+      "translation": "#D4AF37",
+      "romanization": "#C9AD6B"
+    }
+  },
+  {
+    "id": "tokyo-night",
+    "name": "东京之夜",
+    "dot": "linear-gradient(135deg,#7dcfff,#7aa2f7,#bb9af7)",
+    "mode": "dark",
+    "panel": {
+      "background": "rgba(26,27,38,.88)",
+      "color": "#1a1b26",
+      "alpha": 0.88,
+      "angle": 135,
+      "type": "color",
+      "stops": [
+        "#1a1b26"
+      ],
+      "borderColor": "rgba(122,162,247,.18)",
+      "borderWidth": 1,
+      "radius": 14,
+      "blur": ""
+    },
+    "text": {
+      "fontFamily": "",
+      "weight": 600,
+      "weightDim": 400,
+      "lineHeight": 2.6,
+      "letterSpacing": "0.05em",
+      "shadow": "",
+      "glow": ""
+    },
+    "colors": {
+      "lyric": "#c0caf5",
+      "unsung": "#565f89",
+      "sung": {
+        "type": "linear",
+        "color": "#7aa2f7",
+        "angle": 90,
+        "stops": [
+          "#7dcfff",
+          "#7aa2f7",
+          "#bb9af7"
+        ]
+      },
+      "dim": "rgba(86,95,137,.5)",
+      "translation": "#7dcfff",
+      "romanization": "#bb9af7"
+    }
+  },
+  {
+    "id": "rose-pine",
+    "name": "玫瑰松林",
+    "dot": "linear-gradient(135deg,#ebbcba,#f6c177,#eb6f92,#c4a7e7)",
+    "mode": "dark",
+    "panel": {
+      "background": "rgba(25,23,36,.90)",
+      "color": "#191724",
+      "alpha": 0.9,
+      "angle": 135,
+      "type": "color",
+      "stops": [
+        "#191724"
+      ],
+      "borderColor": "rgba(235,111,146,.16)",
+      "borderWidth": 1,
+      "radius": 14,
+      "blur": ""
+    },
+    "text": {
+      "fontFamily": "",
+      "weight": 600,
+      "weightDim": 400,
+      "lineHeight": 2.6,
+      "letterSpacing": "0.05em",
+      "shadow": "",
+      "glow": ""
+    },
+    "colors": {
+      "lyric": "#e0def4",
+      "unsung": "#908caa",
+      "sung": {
+        "type": "linear",
+        "color": "#ebbcba",
+        "angle": 90,
+        "stops": [
+          "#ebbcba",
+          "#f6c177",
+          "#eb6f92"
+        ]
+      },
+      "dim": "rgba(144,140,170,.5)",
+      "translation": "#f6c177",
+      "romanization": "#c4a7e7"
+    }
+  },
+  {
+    "id": "one-dark",
+    "name": "One Dark 暗色",
+    "dot": "linear-gradient(135deg,#61afef,#c678dd,#e06c75)",
+    "mode": "dark",
+    "panel": {
+      "background": "rgba(40,44,52,.78)",
+      "color": "#282c34",
+      "alpha": 0.78,
+      "angle": 135,
+      "type": "color",
+      "stops": [
+        "#282c34"
+      ],
+      "borderColor": "rgba(97,175,239,.20)",
+      "borderWidth": 1,
+      "radius": 14,
+      "blur": "blur(24px) saturate(150%)"
+    },
+    "text": {
+      "fontFamily": "",
+      "weight": 600,
+      "weightDim": 400,
+      "lineHeight": 2.6,
+      "letterSpacing": "0.05em",
+      "shadow": "",
+      "glow": ""
+    },
+    "colors": {
+      "lyric": "#abb2bf",
+      "unsung": "#5c6370",
+      "sung": {
+        "type": "linear",
+        "color": "#61afef",
+        "angle": 90,
+        "stops": [
+          "#61afef",
+          "#c678dd",
+          "#e06c75"
+        ]
+      },
+      "dim": "rgba(92,99,112,.5)",
+      "translation": "#56b6c2",
+      "romanization": "#c678dd"
+    }
+  },
+  {
+    "id": "cyberpunk-2077",
+    "name": "赛博朋克 2077",
+    "dot": "linear-gradient(135deg,#fcee0a,#00f0ff)",
+    "mode": "dark",
+    "panel": {
+      "background": "rgba(8,8,12,.94)",
+      "color": "#08080c",
+      "alpha": 0.94,
+      "angle": 135,
+      "type": "color",
+      "stops": [
+        "#08080c"
+      ],
+      "borderColor": "rgba(252,238,10,.32)",
+      "borderWidth": 1,
+      "radius": 14,
+      "blur": ""
+    },
+    "text": {
+      "fontFamily": "",
+      "weight": 700,
+      "weightDim": 400,
+      "lineHeight": 2.6,
+      "letterSpacing": "0.12em",
+      "shadow": "",
+      "glow": ""
+    },
+    "colors": {
+      "lyric": "#fcee0a",
+      "unsung": "#fcee0a",
+      "sung": {
+        "type": "linear",
+        "color": "#fcee0a",
+        "angle": 90,
+        "stops": [
+          "#fcee0a",
+          "#00f0ff"
+        ]
+      },
+      "dim": "rgba(252,238,10,.35)",
+      "translation": "#00f0ff",
+      "romanization": "#ff003c"
+    }
+  },
+  {
+    "id": "solarized-dark",
+    "name": "Solarized 暗色",
+    "dot": "linear-gradient(135deg,#268bd2,#2aa198,#b58900)",
+    "mode": "dark",
+    "panel": {
+      "background": "rgba(0,43,54,.93)",
+      "color": "#002b36",
+      "alpha": 0.93,
+      "angle": 135,
+      "type": "color",
+      "stops": [
+        "#002b36"
+      ],
+      "borderColor": "rgba(42,161,152,.20)",
+      "borderWidth": 1,
+      "radius": 14,
+      "blur": ""
+    },
+    "text": {
+      "fontFamily": "",
+      "weight": 600,
+      "weightDim": 400,
+      "lineHeight": 2.6,
+      "letterSpacing": "0.06em",
+      "shadow": "",
+      "glow": ""
+    },
+    "colors": {
+      "lyric": "#93a1a1",
+      "unsung": "#839496",
+      "sung": {
+        "type": "linear",
+        "color": "#2aa198",
+        "angle": 90,
+        "stops": [
+          "#268bd2",
+          "#2aa198",
+          "#b58900"
+        ]
+      },
+      "dim": "rgba(131,148,150,.45)",
+      "translation": "#b58900",
+      "romanization": "#2aa198"
+    }
+  },
+  {
+    "id": "catppuccin-latte",
+    "name": "Catppuccin 拿铁",
+    "dot": "linear-gradient(135deg,#ea76cb,#8839ef,#1e66f5,#179299)",
+    "mode": "light",
+    "panel": {
+      "background": "#eff1f5",
+      "color": "#eff1f5",
+      "alpha": 1,
+      "angle": 135,
+      "type": "color",
+      "stops": [
+        "#eff1f5"
+      ],
+      "borderColor": "rgba(140,143,161,.20)",
+      "borderWidth": 1,
+      "radius": 14,
+      "blur": ""
+    },
+    "text": {
+      "fontFamily": "",
+      "weight": 500,
+      "weightDim": 400,
+      "lineHeight": 2.6,
+      "letterSpacing": "0.04em",
+      "shadow": "",
+      "glow": ""
+    },
+    "colors": {
+      "lyric": "#4c4f69",
+      "unsung": "#9ca0b0",
+      "sung": {
+        "type": "linear",
+        "color": "#8839ef",
+        "angle": 90,
+        "stops": [
+          "#ea76cb",
+          "#8839ef",
+          "#1e66f5"
+        ]
+      },
+      "dim": "#ccd0da",
+      "translation": "#df8e1d",
+      "romanization": "#9ca0b0"
+    }
+  },
+  {
+    "id": "macaron",
+    "name": "马卡龙",
+    "dot": "linear-gradient(135deg,#f7a8c4,#b8e0d2,#a8d8ea)",
+    "mode": "light",
+    "panel": {
+      "background": "linear-gradient(135deg, #fff5f8 0%, #f0faf6 100%)",
+      "color": "#fff5f8",
+      "alpha": 1,
+      "angle": 135,
+      "type": "linear",
+      "stops": [
+        "#fff5f8",
+        "#f0faf6"
+      ],
+      "borderColor": "rgba(247,168,196,.30)",
+      "borderWidth": 1,
+      "radius": 14,
+      "blur": ""
+    },
+    "text": {
+      "fontFamily": "",
+      "weight": 600,
+      "weightDim": 400,
+      "lineHeight": 2.6,
+      "letterSpacing": "0.06em",
+      "shadow": "",
+      "glow": ""
+    },
+    "colors": {
+      "lyric": "#6e6e7a",
+      "unsung": "#b7aab6",
+      "sung": {
+        "type": "linear",
+        "color": "#f7a8c4",
+        "angle": 90,
+        "stops": [
+          "#f7a8c4",
+          "#b8e0d2",
+          "#a8d8ea"
+        ]
+      },
+      "dim": "#d8ccd6",
+      "translation": "#f08fb1",
+      "romanization": "#8fc4d4"
+    }
+  }
+]

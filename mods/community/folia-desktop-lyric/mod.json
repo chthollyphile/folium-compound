@@ -1,0 +1,18 @@
+{
+  "id": "folia-desktop-lyric",
+  "name": "桌面歌词",
+  "version": "1.0.0",
+  "description": "独立桌面歌词窗：胶囊式置顶歌词条，支持单行/多行与逐字卡拉OK、翻译/音译；可拖动、缩放、锁定穿透、一键贴任务栏；独立设置窗口可调字体、字号、偏移、显隐、主题配色和背景透明度，配置自动记忆。",
+  "author": "hnxyhcz",
+  "folium": 1,
+  "folia": ">=0.7.21 <0.8.0",
+  "preview": "preview.png",
+  "main": "main.cjs",
+  "client": "client.mjs",
+  "permissions": [
+    "playback.read",
+    "playback.control",
+    "filesystem.data"
+  ]
+}
+

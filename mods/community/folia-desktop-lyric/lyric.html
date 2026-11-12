@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' 'self'" />
+<title>桌面歌词</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --font-size: 19px;
+    --lyric-rgb: 255,255,255;
+    --trans-rgb: 255,255,255;
+    --rom-rgb: 255,255,255;
+    --bar-bg-rgb: 26,27,33;
+    --bar-bg-alpha: .55;
+    --lyric-shadow-rgb: 0,0,0;
+    --font-family: "Microsoft YaHei", "微软雅黑", "Segoe UI", sans-serif;
+    --line-h: calc(var(--font-size) * var(--line-height-mul, 2.6));
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: transparent;
+    overflow: hidden;
+    user-select: none;
+    cursor: default;
+    /* UI（工具栏、菜单等）用固定字体；歌词字体单独由 #text 的 --font-family 控制 */
+    font-family: "Microsoft YaHei", "微软雅黑", "Segoe UI", sans-serif;
+  }
+
+  body {
+    display: flex;
+    /* 顶部对齐：展开齿轮菜单时窗口向下长高，歌词固定在原位不动 */
+    align-items: flex-start;
+    justify-content: center;
+  }
+  /* 拉伸/缩放模式：胶囊贴合窗口边缘（不再内缩 1px，避免贴边留缝） */
+  body.resized:not(.taskbar) { padding: 0; }
+
+  /* 任务栏模式：只显示当前歌词、透明背景、高度就是任务栏那一条 */
+  body.taskbar { align-items: center; background: transparent; }
+  body.taskbar #bar {
+    min-width: 0; min-height: 0; max-width: none;
+    padding: 0 10px; gap: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  body.taskbar #topbar,
+  body.taskbar #lyrics,
+  body.taskbar #trans,
+  body.taskbar #rom,
+  body.taskbar .dl-panel { display: none !important; }
+  body.taskbar #text {
+    height: auto; min-height: 0; line-height: 1.15;
+    display: block;
+    /* 任务栏模式完整显示，不省略 */
+    overflow: visible;
+    text-overflow: clip;
+  }
+  /* 竖向任务栏：歌词竖排 */
+  body.taskbar-vertical #bar { width: 100%; height: 100%; padding: 0 2px; display: flex; align-items: center; justify-content: center; }
+  body.taskbar-vertical #text {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    white-space: nowrap;
+  }
+
+  /* ===== 设计主题（经典金黄 / 纯净白 / 亚克力 / 赛博霓虹 / 樱花粉 / 黑胶复古） ===== */
+  body[data-theme-visual] #bar {
+    background: var(--theme-bg) !important;
+    border-color: var(--theme-border, rgba(255, 255, 255, .09)) !important;
+    border-width: var(--bar-border-width, 1px);
+    border-radius: var(--bar-radius, 14px);
+    -webkit-backdrop-filter: var(--theme-blur, none);
+    backdrop-filter: var(--theme-blur, none);
+  }
+  body.taskbar #bar,
+  body.taskbar[data-theme-visual] #bar {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  body[data-theme-visual] #text { color: var(--karaoke-unsung); font-weight: var(--lyric-weight, 500); }
+  body[data-theme-visual] #lyrics .l-line { color: var(--dim-color); opacity: 1; }
+  body[data-theme-visual] #lyrics .l-line.current .l-main { color: var(--karaoke-unsung); font-weight: var(--lyric-weight-active, 500); }
+  body[data-theme-visual] #lyrics .l-line .l-main { font-weight: var(--lyric-weight-dim, 400); }
+  /* 翻译/音译：非当前句跟“暗行色”，当前句跟“已唱色”（渐变主题则渐变） */
+  body[data-theme-visual] #lyrics .l-line .l-sub { color: var(--dim-color); }
+  body[data-theme-visual] #lyrics .l-line.current .l-sub { color: var(--karaoke-sung-a, var(--karaoke-unsung)); }
+  body[data-theme-visual] #trans,
+  body[data-theme-visual] #rom { color: var(--karaoke-sung-a, rgb(var(--trans-rgb))); }
+  body.has-sung-grad #lyrics .l-line.current .l-sub,
+  body.has-sung-grad #trans,
+  body.has-sung-grad #rom {
+    background-image: var(--karaoke-sung-grad);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-fill-color: transparent;
+  }
+  body[data-theme-visual] #lyrics .l-line,
+  body[data-theme-visual] #text,
+  body[data-theme-visual] #text-inner { font-family: var(--theme-font, var(--font-family)); }
+  /* 主题通用：描边阴影 / 字距 */
+  body.has-line-shadow #lyrics .l-line,
+  body.has-line-shadow #text { text-shadow: var(--theme-text-shadow); }
+  body.has-letter #text-inner,
+  body.has-letter #lyrics .l-line.current .l-main { letter-spacing: var(--theme-letter-spacing); }
+
+  /* 胶囊容器：上排工具栏 + 下排歌词/翻译/音译 + 齿轮菜单 */
+  #bar {
+    position: relative;
+    width: 100%;
+    min-width: 450px;
+    min-height: 150px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 8px 12px 12px 14px;
+    border-radius: 14px;
+    background: rgba(var(--bar-bg-rgb), var(--bar-bg-alpha));
+    border: 1px solid rgba(255, 255, 255, .09);
+    /* 不要外投影：透明窗口上大范围外阴影会露出一圈带角的暗色区域 */
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+    opacity: 0;
+    transition: opacity .18s ease;
+  }
+  body.ready #bar { opacity: 1; }
+
+  /* ---- 上排：左播放控制（居中）+ 右齿轮/关闭 ---- */
+  #topbar { position: relative; display: flex; align-items: center; min-height: 30px; }
+  #acts {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    display: flex; align-items: center; gap: 2px;
+  }
+  #side { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+  /* 工具栏左侧：歌曲名（过长省略，不挤占居中的播放控制） */
+  #title {
+    position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    max-width: 36%;
+    font-size: 12px; line-height: 1.2;
+    color: rgba(255, 255, 255, .6);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    pointer-events: none;
+  }
+
+  button {
+    -webkit-app-region: no-drag;
+    border: none; background: transparent; padding: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #topbar button {
+    width: 30px; height: 30px; border-radius: 9px;
+    color: rgba(255, 255, 255, .82);
+    transition: background .12s ease, color .12s ease;
+  }
+  #topbar button:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+  #play { color: #fff; }
+  #side button { width: 27px; height: 27px; border-radius: 8px; color: rgba(255, 255, 255, .76); }
+  #gear.on { background: rgba(255, 255, 255, .16); color: #fff; }
+  button svg { display: block; }
+
+  /* 锁定时整条工具栏（含歌名、按钮）隐藏，只留歌词 */
+  body:not(.unlocked) #topbar { display: none; }
+  /* 穿透（锁定）后工具栏隐藏，未缩放时把歌词在胶囊里垂直居中，避免贴顶 */
+  body.is-locked:not(.taskbar):not(.resized) #bar { justify-content: center; }
+
+  /* ---- 歌词 / 翻译 / 音译 ---- */
+  #text {
+    font-family: var(--font-family);
+    font-size: var(--font-size);
+    font-weight: 500;
+    line-height: 1.3;
+    /* 歌词栏固定高度 48px：无论有没有歌词、字号多大，高度都不变，避免窗口跳动 */
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgb(var(--lyric-rgb));
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-shadow:
+      0 1px 2px rgba(var(--lyric-shadow-rgb), .78),
+      0 0 6px rgba(var(--lyric-shadow-rgb), .42);
+  }
+  #text.empty { font-weight: 500; opacity: .55; }
+  #text.placeholder { font-size: calc(var(--font-size) * .86); opacity: .72; }
+
+  /* 长歌词横向滚动：内层 span 做 marquee */
+  #text-inner { display: inline-block; white-space: nowrap; }
+  /* 字间距稍微拉开（主题有自定义字距时优先用主题值） */
+  #text-inner,
+  #lyrics .l-line .l-main { letter-spacing: var(--theme-letter-spacing, 0.05em); }
+  /* 卡拉OK高亮层：底层文字保持正常清晰，::after 按进度裁剪叠加 */
+  #text-inner.kara-on,
+  #lyrics .l-line .l-main.kara-on { position: relative; display: inline-block; }
+  #text-inner.kara-on::after,
+  #lyrics .l-line .l-main.kara-on::after {
+    content: attr(data-kara);
+    position: absolute; left: 0; top: 0;
+    width: var(--kara-w, 0%);
+    overflow: hidden; white-space: nowrap; pointer-events: none;
+    color: var(--kara-sung, rgb(var(--lyric-rgb)));
+    text-shadow: var(--karaoke-text-shadow, none);
+    filter: var(--karaoke-filter, none);
+  }
+  #text-inner.kara-on.kara-vert::after { width: 100%; height: var(--kara-w, 0%); }
+  #text-inner.kara-grad::after,
+  #lyrics .l-line .l-main.kara-grad::after {
+    background-image: var(--kara-grad);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-fill-color: transparent;
+  }
+  #text.marquee #text-inner {
+    animation: lyric-marquee 8s linear infinite alternate;
+  }
+  @keyframes lyric-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(var(--marquee-dist, -120px)); }
+  }
+  /* 多行模式：当前句过长时横向滚动 */
+  #lyrics .l-line.current .l-main { max-width: none; }
+  @keyframes lyric-line-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(var(--line-dist, -120px)); }
+  }
+  #lyrics .l-line.current .l-main.l-marquee {
+    animation: lyric-line-marquee var(--line-dur, 8s) linear infinite alternate;
+  }
+
+  /* 多行歌词容器：可上下滚动，自动跟随当前句 */
+  #lyrics {
+    display: flex; flex-direction: column; align-items: center;
+    overflow-y: auto; overflow-x: hidden;
+    min-height: 0; width: 100%;
+    scrollbar-width: none; -ms-overflow-style: none;
+    overscroll-behavior: contain;
+    gap: 8px;
+    padding-bottom: 14px;
+  }
+  #lyrics::-webkit-scrollbar { display: none; }
+  #lyrics[hidden] { display: none; }
+  /* 被拖动调整尺寸后：胶囊铺满窗口宽度（左右拉时胶囊连续跟随） */
+  body.resized #bar { width: 100%; max-width: 100%; }
+  /* 高度也铺满窗口：否则上下拉时窗口高度连续变、胶囊高度只按整行跳变，中间会露出一条 body（调试底色）。
+     任务栏模式除外：那里窗口只有任务栏那么矮，撑满反而让歌词贴到顶、不垂直居中。 */
+  body.resized:not(.taskbar) #bar { height: 100%; }
+  /* 胶囊被拉高后，让多行歌词在剩余空间里垂直居中，别全挤在顶部 */
+  body.resized:not(.taskbar) #lyrics { flex: 1 1 auto; justify-content: center; }
+  /* 拉高但未到多行阈值：保持单行，歌词在工具栏下方剩余空间里垂直居中 */
+  body.resized.single:not(.taskbar) #text {
+    flex: 1 1 auto; height: auto; display: flex; align-items: center; justify-content: center;
+  }
+  #lyrics .l-line {
+    position: relative; flex: 0 0 auto;
+    height: auto; min-height: var(--line-h);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 100%; padding: 4px 24px;
+    line-height: 1.2;
+    color: rgb(var(--lyric-rgb));
+    white-space: nowrap; overflow: hidden;
+    opacity: .45;
+    text-shadow: 0 1px 2px rgba(var(--lyric-shadow-rgb), .55);
+  }
+  /* 悬停整行高亮；右侧出现一个播放按钮，点它跳到这句 */
+  #lyrics .l-line:hover { background: rgba(255, 255, 255, .08); border-radius: 8px; }
+  /* 浅色面板：白色高亮看不见，改用深色悬停底色 */
+  body.mode-light #lyrics .l-line:hover { background: rgba(0, 0, 0, .07); }
+  #lyrics .l-line .l-play {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 22px; border-radius: 50%; padding: 0; cursor: pointer;
+    background: rgba(255, 255, 255, .2); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #lyrics .l-line .l-play:hover { background: rgba(255, 255, 255, .35); }
+  body:not(.unlocked) #lyrics .l-line .l-play { display: none; }
+  /* 悬停行左侧显示该句开始时间 */
+  #lyrics .l-line .l-time {
+    position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
+    font-size: 10.5px; line-height: 1; color: rgba(var(--lyric-rgb), .62);
+    font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap;
+  }
+  #lyrics .l-line .l-main {
+    font-size: var(--font-size); font-weight: 400; line-height: 1.3;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* 每句歌词下方的翻译 / 音译 */
+  #lyrics .l-line .l-sub {
+    font-size: max(10px, calc(var(--font-size) * .6)); font-weight: 400; line-height: 1.2;
+    margin-top: 3px;
+    color: rgba(var(--trans-rgb), .72);
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; max-width: 100%; overflow: hidden;
+  }
+  #lyrics .l-line .l-sub.l-rom { color: rgba(var(--rom-rgb), .58); font-size: max(10px, calc(var(--font-size) * .55)); }
+  #lyrics .l-line.current {
+    opacity: 1;
+  }
+  #lyrics .l-line.current .l-main { font-weight: 500; }
+
+  /* 右下角缩放图标（纯视觉，事件统一由 #bar 处理，pointer-events:none） */
+  #resize {
+    position: absolute; right: 3px; bottom: 3px;
+    width: 16px; height: 16px;
+    pointer-events: none;
+    opacity: .6;
+    background: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cg stroke='%23ffffff' stroke-opacity='0.9' stroke-width='1.7' stroke-linecap='round'%3E%3Cline x1='3' y1='13' x2='13' y2='3'/%3E%3Cpolyline points='13 9 13 3 7 3' fill='none'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  body:not(.unlocked) #resize { display: none; }
+  body.taskbar #resize { display: none; }
+
+  #trans, #rom {
+    /* 翻译/音译不随歌词字号缩放，用固定字号 */
+    font-size: 13px;
+    line-height: 1.3;
+    /* 固定一行高度：整首有翻译/音译时，逐句有无都占同样高度，避免窗口跳动 */
+    min-height: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(var(--trans-rgb), .72);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-shadow: 0 1px 2px rgba(var(--lyric-shadow-rgb), .55);
+  }
+  #rom { font-size: 12px; min-height: 16px; color: rgba(var(--rom-rgb), .58); }
+  /* 翻译/音译超长时横向滚动（仅当前句）；非当前句省略号 */
+  .sub-inner { display: inline-block; white-space: nowrap; }
+  #lyrics .l-line .l-sub .sub-inner {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  }
+  #lyrics .l-line .l-sub.sub-scroll .sub-inner {
+    max-width: none; overflow: visible; text-overflow: clip;
+  }
+  @keyframes sub-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(var(--sub-dist, -80px)); }
+  }
+  #trans.sub-scroll, #rom.sub-scroll,
+  #lyrics .l-line .l-sub.sub-scroll { justify-content: flex-start; }
+  #trans.sub-scroll .sub-inner, #rom.sub-scroll .sub-inner,
+  #lyrics .l-line .l-sub.sub-scroll .sub-inner {
+    animation: sub-marquee var(--sub-dur, 8s) linear infinite alternate;
+  }
+  #trans[hidden], #rom[hidden] { display: none; }
+
+  /* 显示模式：胶囊背景（暗色用 --bar-bg-rgb 半透明；亮色固定浅色） */
+  body.mode-light:not(.taskbar) #bar {
+    background: rgba(var(--bar-bg-rgb), var(--bar-bg-alpha));
+    border-color: rgba(0, 0, 0, .12);
+  }
+  body.mode-light #title { color: rgba(0, 0, 0, .55); }
+  body.mode-light #topbar button { color: rgba(0, 0, 0, .72); }
+  body.mode-light #topbar button:hover { background: rgba(0, 0, 0, .08); color: #000; }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <div id="topbar">
+      <div id="title"></div>
+      <div id="acts">
+        <button id="prev" title="上一首"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2.4" height="16" rx="1"/></svg></button>
+        <button id="play" title="播放 / 暂停"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><polygon points="7 4 20 12 7 20 7 4"/></svg></button>
+        <button id="next" title="下一首"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><rect x="16.6" y="4" width="2.4" height="16" rx="1"/></svg></button>
+      </div>
+      <div id="side">
+        <button id="dock" title="移到任务栏"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt"><line x1="6" y1="12" x2="18" y2="12"/></svg></button>
+        <button id="lock" title="鼠标穿透"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="9.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></button>
+        <button id="gear" title="设置"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
+        <button id="close" title="关闭桌面歌词"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+      </div>
+    </div>
+
+    <div id="text" class="empty"><span id="text-inner">桌面歌词已就绪，等待播放…</span></div>
+    <div id="lyrics" hidden></div>
+    <div id="trans" hidden></div>
+    <div id="rom" hidden></div>
+    <div id="resize" title="拖动调整歌词行数（双击恢复自动）"></div>
+
+  </div>
+
+<script src="color-picker.js"></script>
+<script>
+  const el = {
+    text: document.getElementById('text'),
+    textInner: document.getElementById('text-inner'),
+    lyrics: document.getElementById('lyrics'),
+    title: document.getElementById('title'),
+    trans: document.getElementById('trans'),
+    rom: document.getElementById('rom'),
+    play: document.getElementById('play'),
+    gear: document.getElementById('gear'),
+    lock: document.getElementById('lock'),
+  };
+
+  const ICONS = {
+    play: '<svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><polygon points="7 4 20 12 7 20 7 4"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="9.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>',
+    unlock: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="9.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 7.6-1.7"/></svg>',
+  };
+
+  // 通用取色组件（color-picker.js）暴露的颜色工具
+  const { parseColor, toCss } = window.DLColorPicker;
+
+  let lockHoverPolled = false;
+  let lockHoverRenderer = false;
+  /** 当前打开的面板：'settings' | 'colors' | null */
+  /** 切换面板时等待窗口复原期间的待开面板 */
+  let lastRenderedText = null;
+  /** 上次触发 measure 的布局签名：只有会影响窗口尺寸的东西变了才重测。 */
+  let lastLayoutSig = '';
+  let lastTranslation = '';
+  let lastRomanization = '';
+  let colors = { lyric: '#ffffff', translation: '', romanization: '', bg: '#1a1b21', bgAlpha: 0.55, mode: 'dark', preset: 'classic', theme: null };
+
+  // ------------------------------------------------------------ 逐字卡拉OK渐变
+  let karaokeRAF = 0;
+  let karaokeState = null;
+  function clearKaraokeStyle(el) {
+    if (!el) return;
+    el.classList.remove('kara-on', 'kara-grad', 'kara-vert');
+    delete el.dataset.kara;
+    el.style.removeProperty('--kara-w');
+    el.style.removeProperty('--kara-sung');
+    el.style.removeProperty('--kara-grad');
+    el.style.color = '';
+    el.style.webkitTextFillColor = '';
+    el.style.textShadow = '';
+    el.style.filter = '';
+    el.style.display = '';
+    el.style.transform = '';
+    el.style.alignSelf = '';
+    if (el === el.textInner && el.text) el.text.style.justifyContent = '';
+  }
+  function stopKaraoke() {
+    if (karaokeRAF) { cancelAnimationFrame(karaokeRAF); karaokeRAF = 0; }
+    if (karaokeState) clearKaraokeStyle(karaokeState.target);
+    karaokeState = null;
+  }
+  function wordFraction(words, t) {
+    let total = 0;
+    for (const w of words) total += String(w.text || '').length;
+    if (total <= 0) return 0;
+    let done = 0;
+    for (const w of words) {
+      const len = String(w.text || '').length;
+      const ws = Number(w.startTime) || 0;
+      const we = Number(w.endTime) || 0;
+      if (t >= we) { done += len; continue; }
+      if (t <= ws) break;
+      const d = we - ws;
+      done += len * (d > 0 ? (t - ws) / d : 1);
+      break;
+    }
+    return done / total;
+  }
+  // 主题相关的 --karaoke-* 变量只在换主题/换颜色时变化。帧循环里每帧 getComputedStyle 会强制
+  // 样式重算，这里读一次并缓存；applyTheme 里把缓存失效，下一次帧循环再重新读。
+  let karaokeVars = null;
+  function getKaraokeVars(el) {
+    if (karaokeVars) return karaokeVars;
+    const cs = getComputedStyle(el);
+    const sungA = (cs.getPropertyValue('--karaoke-sung-a') || '').trim() || 'rgb(var(--lyric-rgb))';
+    const sungB = (cs.getPropertyValue('--karaoke-sung-b') || '').trim() || sungA;
+    const sungGradVar = (cs.getPropertyValue('--karaoke-sung-grad') || '').trim();
+    const unsung = (cs.getPropertyValue('--karaoke-unsung') || '').trim() || 'rgba(var(--lyric-rgb), .34)';
+    const shadowVar = (cs.getPropertyValue('--karaoke-text-shadow') || '').trim();
+    karaokeVars = { sungA, sungB, sungGradVar, unsung, shadowVar };
+    return karaokeVars;
+  }
+  function applyKaraokeGradient(el, frac) {
+    const p = Math.max(0, Math.min(1, Number(frac) || 0));
+    const stop = (p * 100).toFixed(2) + '%';
+    const deg = document.body.classList.contains('taskbar-vertical') ? '180deg' : '90deg';
+    const vertical = document.body.classList.contains('taskbar-vertical');
+    const vars = getKaraokeVars(el);
+    const sungA = vars.sungA;
+    const sungB = vars.sungB;
+    const sungGradVar = vars.sungGradVar;
+    const unsung = vars.unsung;
+    // 底层保留正常清晰文字，只改“未唱色”；高亮层用伪元素 ::after 按进度裁剪叠加
+    el.classList.add('kara-on');
+    el.classList.toggle('kara-vert', vertical);
+    el.dataset.kara = String(el.textContent || '');
+    el.style.color = unsung;
+    el.style.setProperty('--kara-w', stop);
+    if (sungGradVar) {
+      el.classList.add('kara-grad');
+      el.style.setProperty('--kara-sung', sungA);
+      el.style.setProperty('--kara-grad', vertical ? `linear-gradient(180deg, ${sungA}, ${sungB})` : sungGradVar);
+    } else if (sungA === sungB) {
+      el.classList.remove('kara-grad');
+      el.style.setProperty('--kara-sung', sungA);
+      el.style.removeProperty('--kara-grad');
+    } else {
+      el.classList.add('kara-grad');
+      el.style.setProperty('--kara-sung', sungA);
+      el.style.setProperty('--kara-grad', `linear-gradient(${deg}, ${sungA}, ${sungB})`);
+    }
+    // 没有主题描边时关闭底层阴影，避免阴影从已唱高亮边缘透出来
+    el.style.textShadow = vars.shadowVar ? '' : 'none';
+    applyKaraokeScroll(el, p);
+  }
+  function karaokeStep() {
+    karaokeRAF = 0;
+    const st = karaokeState;
+    if (!st || !st.target || !st.target.isConnected) return;
+    const t = st.playing ? st.baseTime + (performance.now() - st.baseAt) / 1000 : st.baseTime;
+    applyKaraokeGradient(st.target, wordFraction(st.words, t));
+    if (st.playing) karaokeRAF = requestAnimationFrame(karaokeStep);
+  }
+  function setupKaraoke(k, useMulti) {
+    if (!k || !Array.isArray(k.words) || k.words.length === 0) {
+      stopKaraoke();
+      return;
+    }
+    const target = useMulti
+      ? el.lyrics.querySelector('.l-line.current .l-main')
+      : el.textInner;
+    if (!target) {
+      stopKaraoke();
+      return;
+    }
+    const id = String(k.id || '');
+    const nextTime = Number(k.time) || 0;
+    const playing = !!k.playing;
+    // 同一句歌词（id 相同、目标元素相同）的 100ms 刷新：只把基准时间拨到最新，RAF 继续跑，
+    // 不 cancel / 不重建样式。切句、切歌、单行/多行切换才整段重建。
+    if (karaokeState && karaokeState.id === id && karaokeState.target === target) {
+      karaokeState.baseTime = nextTime;
+      karaokeState.baseAt = performance.now();
+      karaokeState.playing = playing;
+      if (playing) {
+        if (!karaokeRAF) karaokeRAF = requestAnimationFrame(karaokeStep);
+      } else {
+        if (karaokeRAF) { cancelAnimationFrame(karaokeRAF); karaokeRAF = 0; }
+        // 暂停瞬间按最新时间贴一帧，避免停在上一帧的进度上
+        applyKaraokeGradient(target, wordFraction(karaokeState.words, nextTime));
+      }
+      return;
+    }
+    stopKaraoke();
+    if (target === el.textInner) el.text.classList.remove('marquee');
+    karaokeState = {
+      words: k.words,
+      baseTime: nextTime,
+      baseAt: performance.now(),
+      playing,
+      target,
+      id,
+    };
+    applyKaraokeGradient(target, wordFraction(k.words, nextTime));
+    if (playing) karaokeRAF = requestAnimationFrame(karaokeStep);
+  }
+
+  // ------------------------------------------------------------ 渲染歌词
+  let lastLinesKey = '';
+  let lastLinesData = [];
+  let lastLinesVersion = 0;
+  function render(payload) {
+    const artist = String(payload.artist || '').trim();
+    const titleText = String(payload.title || '').trim();
+    const headText = artist ? `${titleText} - ${artist}` : titleText;
+    if (el.title.textContent !== headText) el.title.textContent = headText;
+
+    const text = (payload.text || '').trim();
+    const nextText = text || (payload.state === 'stopped' ? '桌面歌词已就绪，等待播放…' : '');
+    const textChanged = nextText !== lastRenderedText;
+    if (textChanged) {
+      el.textInner.textContent = nextText;
+      lastRenderedText = nextText;
+    }
+
+    if (text) {
+      el.text.classList.remove('empty');
+      el.text.classList.toggle('placeholder', payload.placeholder === true);
+    } else {
+      el.text.classList.add('empty');
+      el.text.classList.remove('placeholder');
+    }
+
+    // 多行歌词：窗口被拉高后显示当前行附近的一批行；否则单行。
+    const lines = Array.isArray(payload.lines) ? payload.lines : [];
+    const useMulti = lines.length > 1;
+    // 先记下整首是否有翻译/音译，renderLyricLines 里逐句渲染要用
+    songHasTranslation = payload.hasTranslation === true;
+    songHasRomanization = payload.hasRomanization === true;
+    const nextTranslation = text ? String(payload.translation || '').trim() : '';
+    const nextRomanization = text ? String(payload.romanization || '').trim() : '';
+    lastTranslation = nextTranslation;
+    lastRomanization = nextRomanization;
+    lastLinesData = lines;
+    lastLinesVersion = Number(payload.linesVersion) || 0;
+    renderLyricLines(lines, useMulti, lastLinesVersion);
+
+    // 单行长歌词横向滚动（多行 / 任务栏模式不滚动）
+    updateMarquee();
+
+    // 翻译 / 音译：单行显示在歌词下方单独一行；多行则显示在每一句歌词内部（见 renderLyricLines）
+    if (useMulti) {
+      el.trans.hidden = true;
+      el.rom.hidden = true;
+    } else {
+      setLine(el.trans, lastTranslation, 'translation');
+      setLine(el.rom, lastRomanization, 'romanization');
+    }
+    // 逐字卡拉OK：当前句按词时间做扫过渐变
+    setupKaraoke(payload.karaoke, useMulti);
+    syncAllSubScrolls();
+
+    const isPlaying = payload.state === 'playing';
+    // 只在播放状态真的变化时才替换图标：卡啦OK每 100ms 重渲染，避免频繁替换按钮内部节点导致点击丢失
+    const playIcon = isPlaying ? 'pause' : 'play';
+    if (el.play.dataset.icon !== playIcon) {
+      el.play.innerHTML = ICONS[playIcon];
+      el.play.dataset.icon = playIcon;
+    }
+    el.play.title = isPlaying ? '暂停' : '播放';
+
+    // 只有会影响窗口尺寸的东西变了才重测：karaoke 时间 / 播放状态每 100ms 变化，跟尺寸无关，不测。
+    const layoutSig = [
+      nextText,
+      nextTranslation,
+      nextRomanization,
+      useMulti ? 1 : 0,
+      songHasTranslation ? 1 : 0,
+      songHasRomanization ? 1 : 0,
+      payload.placeholder === true ? 1 : 0,
+    ].join('|');
+    if (layoutSig !== lastLayoutSig) {
+      lastLayoutSig = layoutSig;
+      measure();
+    }
+  }
+
+  let lyricsUserScrolledAt = 0;
+  let lyricsProgrammaticScroll = false;
+  let lastLinesShowT = null;
+  let lastLinesShowR = null;
+
+  function buildLyricRow(line, showT, showR) {
+    const row = document.createElement('div');
+    row.className = 'l-line' + (line.isCurrent ? ' current' : '');
+    row.dataset.start = String(line.startTime || 0);
+    const main = document.createElement('span');
+    main.className = 'l-main';
+    main.textContent = line.text || '♪';
+    row.appendChild(main);
+    if (showT) {
+      const sub = document.createElement('span');
+      sub.className = 'l-sub';
+      const inner = document.createElement('span');
+      inner.className = 'sub-inner';
+      inner.textContent = line.translation || '';
+      sub.appendChild(inner);
+      row.appendChild(sub);
+    }
+    if (showR) {
+      const sub = document.createElement('span');
+      sub.className = 'l-sub l-rom';
+      const inner = document.createElement('span');
+      inner.className = 'sub-inner';
+      inner.textContent = line.romanization || '';
+      sub.appendChild(inner);
+      row.appendChild(sub);
+    }
+    return row;
+  }
+
+  function updateLyricRow(row, line, showT, showR) {
+    const isCurrent = line.isCurrent === true;
+    const cls = 'l-line' + (isCurrent ? ' current' : '');
+    if (row.className !== cls) row.className = cls;
+    row.dataset.start = String(line.startTime || 0);
+    // 多行只对当前句做翻译/音译滚动；这句不再是当前句时清掉残留的 sub-scroll。
+    if (!isCurrent) {
+      for (const s of row.querySelectorAll('.l-sub')) s.classList.remove('sub-scroll');
+    }
+    const main = row.querySelector('.l-main');
+    const txt = line.text || '♪';
+    if (main && main.textContent !== txt) main.textContent = txt;
+    if (showT) {
+      const s = row.querySelector('.l-sub:not(.l-rom) .sub-inner');
+      if (s && s.textContent !== (line.translation || '')) s.textContent = line.translation || '';
+    }
+    if (showR) {
+      const s = row.querySelector('.l-sub.l-rom .sub-inner');
+      if (s && s.textContent !== (line.romanization || '')) s.textContent = line.romanization || '';
+    }
+  }
+
+  // 内容超过容器高度时，改用顶部对齐，否则 flex 居中会把第一句顶到滚动区上方、滚到顶也看不全。
+  function syncLyricsScrollMode() {
+    if (el.lyrics.hidden) return;
+    // 先清零底部留白再测内容高度，避免把留白算进“是否可滚动”的判断
+    el.lyrics.style.paddingBottom = '0px';
+    const contentH = el.lyrics.scrollHeight;
+    const scrollable = contentH > el.lyrics.clientHeight + 1;
+    el.lyrics.style.justifyContent = scrollable ? 'flex-start' : '';
+    // 内容溢出时底部留半个容器高度：这样最后一句也能滚到垂直居中，而不是贴在底部。
+    // 不溢出时只留一点底部间隙。
+    el.lyrics.style.paddingBottom = scrollable ? Math.round(el.lyrics.clientHeight / 2) + 'px' : '14px';
+  }
+
+  // 把当前句滚到容器中间（先确认布局模式已切换，否则 offsetTop 会算错）
+  function scrollCurrentIntoView() {
+    const cur = el.lyrics.querySelector('.l-line.current');
+    if (!cur) return;
+    lyricsProgrammaticScroll = true;
+    // 当前句相对「滚动容器内容」的位置（offsetTop 相对的是 #bar，会多算顶部工具栏）
+    const lyRect = el.lyrics.getBoundingClientRect();
+    const curRect = cur.getBoundingClientRect();
+    const rel = curRect.top - lyRect.top + el.lyrics.scrollTop;
+    const target = rel - (el.lyrics.clientHeight - cur.offsetHeight) / 2;
+    el.lyrics.scrollTop = Math.max(0, target);
+    requestAnimationFrame(() => { lyricsProgrammaticScroll = false; });
+  }
+
+  function renderLyricLines(lines, useMulti, version) {
+    el.lyrics.hidden = !useMulti;
+    el.text.style.display = useMulti ? 'none' : '';
+    if (!useMulti) {
+      lastLinesKey = '';
+      lastLinesShowT = null;
+      lastLinesShowR = null;
+      document.body.classList.add('single');
+      return;
+    }
+    document.body.classList.remove('single');
+    const showT = showTranslation && songHasTranslation;
+    const showR = showRomanization && songHasRomanization;
+    // 主进程只在歌词列表变化时递增 linesVersion，这里用版本号代替每 tick 拼整首歌词的大 key。
+    const key = `${showT ? 'T' : ''}${showR ? 'R' : ''}|${version}`;
+    if (key === lastLinesKey) return;
+    const structureChanged = lastLinesShowT !== showT || lastLinesShowR !== showR;
+    lastLinesKey = key;
+    lastLinesShowT = showT;
+    lastLinesShowR = showR;
+    const rows = el.lyrics.children;
+    if (!structureChanged && rows.length === lines.length) {
+      for (let i = 0; i < lines.length; i += 1) updateLyricRow(rows[i], lines[i], showT, showR);
+    } else {
+      el.lyrics.replaceChildren();
+      for (const line of lines) el.lyrics.appendChild(buildLyricRow(line, showT, showR));
+    }
+    // 先根据内容是否超高切换“居中/顶部”布局，再计算滚动位置（顺序反了当前句会偏）
+    syncLyricsScrollMode();
+    // 自动滚动到当前句；用户手动滚动后 4 秒内不被抢回
+    const now = performance.now();
+    if (!lyricsUserScrolledAt || now - lyricsUserScrolledAt > 4000) {
+      scrollCurrentIntoView();
+    }
+  }
+
+  function applyMultiMarquee() {
+    // 已改为“跟随已唱进度平移”（见 applyKaraokeScroll），这里只清理旧的 marquee 动画类
+    if (el.lyrics.hidden) return;
+    for (const m of el.lyrics.querySelectorAll('.l-main.l-marquee')) m.classList.remove('l-marquee');
+  }
+
+  function applyKaraokeScroll(node, p) {
+    // 单行歌词：跟着已唱进度平移（不再用自动 marquee）
+    if (node === el.textInner) {
+      const overflow = node.scrollWidth - el.text.clientWidth;
+      node.style.transform = overflow > 4 ? `translateX(${(overflow / 2 - overflow * p).toFixed(1)}px)` : '';
+      return;
+    }
+    let overflow = 0;
+    if (node.classList && node.classList.contains('l-main')) {
+      const row = node.closest('.l-line');
+      if (!row) return;
+      const cs = getComputedStyle(row);
+      const avail = row.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+      overflow = node.scrollWidth - avail;
+      if (overflow > 4) {
+        // 保持居中：元素整体居中，平移范围左右对称，进度 0→1 从开头滚到结尾
+        node.style.alignSelf = '';
+        node.style.transform = `translateX(${(overflow / 2 - overflow * p).toFixed(1)}px)`;
+      } else {
+        node.style.alignSelf = '';
+        node.style.transform = '';
+      }
+    }
+  }
+
+  function syncSubScroll(node) {
+    if (!node) return;
+    if (node.hidden) { node.classList.remove('sub-scroll'); return; }
+    // 多行里的翻译/音译：只有当前句才滚动，非当前句显示省略号
+    if (node.classList.contains('l-sub')) {
+      const row = node.closest('.l-line');
+      if (!row || !row.classList.contains('current')) { node.classList.remove('sub-scroll'); return; }
+    }
+    const inner = node.querySelector('.sub-inner');
+    if (!inner) { node.classList.remove('sub-scroll'); return; }
+    const overflow = inner.scrollWidth - node.clientWidth;
+    if (overflow > 4) {
+      if (!node.classList.contains('sub-scroll')) node.classList.add('sub-scroll');
+      node.style.setProperty('--sub-dist', `${-Math.ceil(overflow)}px`);
+      node.style.setProperty('--sub-dur', `${Math.max(3, Math.min(15, overflow / 40))}s`);
+    } else {
+      node.classList.remove('sub-scroll');
+    }
+  }
+  function syncAllSubScrolls() {
+    if (el.lyrics.hidden) {
+      // 单行/任务栏模式：只有歌词下方的翻译、音译两行需要处理
+      syncSubScroll(el.trans);
+      syncSubScroll(el.rom);
+      return;
+    }
+    // 多行模式：只处理当前句行内的翻译/音译，避免每 tick 遍历整首歌词行读尺寸
+    const cur = el.lyrics.querySelector('.l-line.current');
+    if (!cur) return;
+    for (const s of cur.querySelectorAll('.l-sub')) syncSubScroll(s);
+  }
+
+  function updateMarquee() {
+    const useMulti = !el.lyrics.hidden;
+    const isTaskbar = document.body.classList.contains('taskbar');
+    if (useMulti) applyMultiMarquee();
+    if (useMulti || isTaskbar) {
+      el.text.classList.remove('marquee');
+      el.textInner.style.transform = '';
+      return;
+    }
+    // 单行长歌词：交给卡拉OK进度平移，不用 marquee
+    if (karaokeState) {
+      el.text.classList.remove('marquee');
+      return;
+    }
+    const overflow = el.textInner.offsetWidth - el.text.clientWidth;
+    if (overflow > 4) {
+      el.text.classList.add('marquee');
+      el.text.style.setProperty('--marquee-dist', `${-overflow}px`);
+      const dur = Math.max(3, Math.min(15, overflow / 25));
+      el.textInner.style.animationDuration = dur + 's';
+    } else {
+      el.text.classList.remove('marquee');
+    }
+  }
+
+  let showTranslation = true;
+  let showRomanization = false;
+  let songHasTranslation = false;
+  let songHasRomanization = false;
+  function setSubInner(node, text) {
+    let inner = node.querySelector('.sub-inner');
+    if (!inner) {
+      node.textContent = '';
+      inner = document.createElement('span');
+      inner.className = 'sub-inner';
+      node.appendChild(inner);
+    }
+    inner.textContent = text || '';
+  }
+  function setLine(node, value, which) {
+    const enabled = which === 'translation' ? showTranslation : showRomanization;
+    const hasGlobal = which === 'translation' ? songHasTranslation : songHasRomanization;
+    // 整首有对应内容 + 打开显示时才占位（固定高度）；否则整行收起
+    const reserve = enabled && hasGlobal;
+    if (!reserve) {
+      node.hidden = true;
+      node.textContent = '';
+      node.classList.remove('sub-scroll');
+      return;
+    }
+    node.hidden = false;
+    setSubInner(node, value || '');
+  }
+
+  function applyLineVisibility(next) {
+    if (!next || typeof next !== 'object') return;
+    if (typeof next.showTranslation === 'boolean') showTranslation = next.showTranslation;
+    if (typeof next.showRomanization === 'boolean') showRomanization = next.showRomanization;
+    // 多行：翻译/音译是每行内部的子行，重排行；同时把单行的 #trans/#rom 隐藏掉，避免闪一下。
+    if (!el.lyrics.hidden) {
+      el.trans.hidden = true;
+      el.rom.hidden = true;
+      renderLyricLines(lastLinesData, true, lastLinesVersion);
+      measure();
+      return;
+    }
+    setLine(el.trans, lastTranslation, 'translation');
+    setLine(el.rom, lastRomanization, 'romanization');
+    measure();
+  }
+
+
+  // ------------------------------------------------------------ 颜色 / 字体 / 字号
+  function toRgb(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  }
+
+  // ------------------------------------------------------------ 主题定义（按 B 预留结构）
+  // 字段说明：panel 面板/边框/模糊/圆角；text 字体/字重/字距/阴影/发光；
+  // colors 未唱/已唱(纯色或渐变)/暗行/翻译/音译/标题/图标。【A 阶段 UI 只编辑 colors + panel 底色/透明度】
+
+  // 内置基础主题（暗色 / 亮色）；其余主题由 themes.json 自动加载后合并
+  const BUILTIN_THEMES = [
+    {
+      "id": "classic",
+      "name": "暗色",
+      "dot": "#1a1b21",
+      "mode": "dark",
+      "panel": {
+        "background": "",
+        "color": "#1a1b21",
+        "alpha": 1,
+        "borderColor": "rgba(255,255,255,.09)",
+        "radius": 14
+      },
+      "text": {
+        "fontFamily": "",
+        "weight": 500,
+        "weightDim": 400,
+        "lineHeight": 2.6,
+        "letterSpacing": "0.05em",
+        "shadow": "",
+        "glow": ""
+      },
+      "colors": {
+        "lyric": "#ffffff",
+        "unsung": "#cbd5e1",
+        "sung": {
+          "type": "color",
+          "color": "#ffffff"
+        },
+        "dim": "#9ca3af",
+        "translation": "#e5e7eb",
+        "romanization": "#cbd5e1"
+      }
+    },
+    {
+      "id": "light",
+      "name": "亮色",
+      "dot": "#f2f3f7",
+      "mode": "light",
+      "panel": {
+        "background": "",
+        "color": "#f2f3f7",
+        "alpha": 1,
+        "borderColor": "rgba(0,0,0,.10)",
+        "radius": 14
+      },
+      "text": {
+        "fontFamily": "",
+        "weight": 500,
+        "weightDim": 400,
+        "lineHeight": 2.6,
+        "letterSpacing": "0.05em",
+        "shadow": "",
+        "glow": ""
+      },
+      "colors": {
+        "lyric": "#1f2937",
+        "unsung": "#6b7280",
+        "sung": {
+          "type": "color",
+          "color": "#111827"
+        },
+        "dim": "#9aa3af",
+        "translation": "#374151",
+        "romanization": "#6b7280"
+      }
+    }
+  ];
+  let THEMES = BUILTIN_THEMES.slice();
+  const findTheme = (id) => THEMES.find((t) => t.id === id) || null;
+
+  function colorWithAlpha(color, alpha) {
+    const c = parseColor(color);
+    if (!c) return color;
+    const base = Number.isFinite(alpha) ? Math.min(1, Math.max(0, alpha)) : 1;
+    const a = Math.round(c.a * base * 100) / 100;
+    return toCss({ ...c, a });
+  }
+
+  function applyTheme(theme) {
+    // 主题相关 CSS 变量变了，karaoke 帧循环缓存的颜色值失效，下次帧循环重读
+    karaokeVars = null;
+    const body = document.body;
+    const props = ['--theme-bg', '--theme-border', '--dim-color', '--karaoke-unsung',
+      '--karaoke-sung-a', '--karaoke-sung-b', '--karaoke-sung-grad', '--karaoke-text-shadow',
+      '--karaoke-filter', '--theme-blur', '--theme-font', '--theme-letter-spacing',
+      '--lyric-weight', '--lyric-weight-active', '--bar-border-width', '--bar-radius', '--line-height-mul'];
+    if (!theme) {
+      body.removeAttribute('data-theme-visual');
+      body.classList.remove('has-line-shadow', 'has-letter', 'has-sung-grad');
+      document.documentElement.style.removeProperty('--line-height-mul');
+      for (const p of props) body.style.removeProperty(p);
+      return;
+    }
+    body.setAttribute('data-theme-visual', theme.id || 'custom');
+    const panel = theme.panel || {};
+    const cols = theme.colors || {};
+    const text = theme.text || {};
+    // 面板
+    const alpha = Number.isFinite(panel.alpha) ? panel.alpha : 1;
+    let bg;
+    if (Array.isArray(panel.stops) && panel.stops.length > 0) {
+      if (panel.stops.length > 1) {
+        const parts = panel.stops.map((st, i) => {
+          const color = colorWithAlpha(typeof st === 'object' ? st.color : st, alpha);
+          const pos = typeof st === 'object' && Number.isFinite(st.pos)
+            ? st.pos
+            : i / (panel.stops.length - 1);
+          return `${color} ${Math.round(pos * 1000) / 10}%`;
+        });
+        bg = `linear-gradient(${Number.isFinite(panel.angle) ? panel.angle : 135}deg, ${parts.join(', ')})`;
+      } else {
+        bg = colorWithAlpha(typeof panel.stops[0] === 'object' ? panel.stops[0].color : panel.stops[0], alpha);
+      }
+    } else if (panel.background) {
+      bg = panel.background;
+    } else {
+      bg = colorWithAlpha(panel.color || '#1a1b21', alpha);
+    }
+    body.style.setProperty('--theme-bg', bg);
+    body.style.setProperty('--theme-border', panel.borderColor || 'rgba(255,255,255,.09)');
+    if (panel.blur) body.style.setProperty('--theme-blur', panel.blur); else body.style.removeProperty('--theme-blur');
+    if (Number.isFinite(panel.borderWidth)) body.style.setProperty('--bar-border-width', panel.borderWidth + 'px'); else body.style.removeProperty('--bar-border-width');
+    if (Number.isFinite(panel.radius)) body.style.setProperty('--bar-radius', panel.radius + 'px'); else body.style.removeProperty('--bar-radius');
+    // 颜色
+    if (cols.dim) body.style.setProperty('--dim-color', cols.dim);
+    if (cols.unsung) body.style.setProperty('--karaoke-unsung', cols.unsung);
+    const sung = cols.sung || {};
+    const isGrad = sung.type === 'linear' || (Array.isArray(sung.stops) && sung.stops.length > 1);
+    body.classList.toggle('has-sung-grad', isGrad);
+    if (isGrad) {
+      const rawStops = Array.isArray(sung.stops) ? sung.stops : [sung.color, sung.color];
+      const angle = Number.isFinite(sung.angle) ? sung.angle : 90;
+      const first = typeof rawStops[0] === 'object' ? rawStops[0].color : rawStops[0];
+      const last = typeof rawStops[rawStops.length - 1] === 'object' ? rawStops[rawStops.length - 1].color : rawStops[rawStops.length - 1];
+      body.style.setProperty('--karaoke-sung-a', first);
+      body.style.setProperty('--karaoke-sung-b', last);
+      const parts = rawStops.map((st, i) => {
+        const color = typeof st === 'object' ? st.color : st;
+        const pos = typeof st === 'object' && Number.isFinite(st.pos) ? st.pos : i / (rawStops.length - 1);
+        return `${color} ${Math.round(pos * 1000) / 10}%`;
+      });
+      body.style.setProperty('--karaoke-sung-grad', `linear-gradient(${angle}deg, ${parts.join(', ')})`);
+    } else {
+      const c = sung.color || cols.lyric || '#ffffff';
+      body.style.setProperty('--karaoke-sung-a', c);
+      body.style.setProperty('--karaoke-sung-b', c);
+      body.style.removeProperty('--karaoke-sung-grad');
+    }
+    // 文本样式（B 预留）
+    if (text.shadow) { body.style.setProperty('--karaoke-text-shadow', text.shadow); body.style.setProperty('--theme-text-shadow', text.shadow); body.classList.add('has-line-shadow'); }
+    else { body.style.removeProperty('--karaoke-text-shadow'); body.style.removeProperty('--theme-text-shadow'); body.classList.remove('has-line-shadow'); }
+    if (text.glow) body.style.setProperty('--karaoke-filter', text.glow); else body.style.removeProperty('--karaoke-filter');
+    if (text.fontFamily) body.style.setProperty('--theme-font', text.fontFamily); else body.style.removeProperty('--theme-font');
+    if (text.letterSpacing && text.letterSpacing !== '0') { body.style.setProperty('--theme-letter-spacing', text.letterSpacing); body.classList.add('has-letter'); }
+    else { body.style.setProperty('--theme-letter-spacing', '0.05em'); body.classList.remove('has-letter'); }
+    const lineHeight = Number.isFinite(text.lineHeight) ? text.lineHeight : 2.6;
+    // --line-h 在 :root 上计算，行高倍率必须也放在根元素才生效
+    document.documentElement.style.setProperty('--line-height-mul', String(lineHeight));
+    body.style.setProperty('--line-height-mul', String(lineHeight));
+    const w = Number.isFinite(text.weight) ? text.weight : 500;
+    body.style.setProperty('--lyric-weight', String(w));
+    body.style.setProperty('--lyric-weight-active', String(w));
+    if (Number.isFinite(text.weightDim)) body.style.setProperty('--lyric-weight-dim', String(text.weightDim));
+  }
+
+  function applyColors(next) {
+    if (!next || typeof next !== 'object') return;
+    if (typeof next.lyric === 'string') colors.lyric = next.lyric;
+    if (typeof next.translation === 'string') colors.translation = next.translation;
+    if (typeof next.romanization === 'string') colors.romanization = next.romanization;
+    if (next.mode === 'dark' || next.mode === 'light') colors.mode = next.mode;
+    if (typeof next.preset === 'string') colors.preset = next.preset;
+    if (typeof next.bg === 'string') colors.bg = next.bg;
+    if (typeof next.bgAlpha === 'number' && Number.isFinite(next.bgAlpha)) colors.bgAlpha = Math.min(1, Math.max(0, next.bgAlpha));
+    if (next.theme && typeof next.theme === 'object') colors.theme = next.theme;
+    const lyricRgb = toRgb(colors.lyric);
+    if (lyricRgb) document.documentElement.style.setProperty('--lyric-rgb', lyricRgb);
+    const transRgb = toRgb(colors.translation) || lyricRgb;
+    if (transRgb) document.documentElement.style.setProperty('--trans-rgb', transRgb);
+    const romRgb = toRgb(colors.romanization) || lyricRgb;
+    if (romRgb) document.documentElement.style.setProperty('--rom-rgb', romRgb);
+    const bgRgb = toRgb(colors.bg);
+    if (bgRgb) document.documentElement.style.setProperty('--bar-bg-rgb', bgRgb);
+    const alpha = Number.isFinite(colors.bgAlpha) ? Math.min(1, Math.max(0, colors.bgAlpha)) : 0.55;
+    document.documentElement.style.setProperty('--bar-bg-alpha', String(alpha));
+    // 显示模式：暗色 / 亮色，用 body class 控制胶囊背景
+    const mode = colors.mode === 'light' ? 'light' : 'dark';
+    document.body.classList.remove('mode-dark', 'mode-light');
+    document.body.classList.add('mode-' + mode);
+    applyTheme(colors.theme || findTheme(colors.preset));
+  }
+
+  function renderFont(size) {
+    const n = Number(size);
+    if (Number.isFinite(n) && n > 0) {
+      document.documentElement.style.setProperty('--font-size', n + 'px');
+      measure();
+      applyMultiMarquee();
+      syncAllSubScrolls();
+    }
+  }
+
+  let currentFontFamily = '';
+  function applyFontFamily(family) {
+    const name = String(family || '').trim();
+    currentFontFamily = name;
+    const safe = name.replace(/[";{}<>\\]/g, '');
+    const stack = safe
+      ? `"${safe}", "Microsoft YaHei", "微软雅黑", "Segoe UI", sans-serif`
+      : '"Microsoft YaHei", "微软雅黑", "Segoe UI", sans-serif';
+    document.documentElement.style.setProperty('--font-family', stack);
+    // 无条件写回输入框：点选项 / 主进程回显时都应反映真实生效值。
+    measure();
+  }
+
+  // ------------------------------------------------------------ 歌词字体下拉选择器
+  // ------------------------------------------------------------ 锁定状态
+  function renderLock(locked) {
+    document.body.classList.toggle('unlocked', !locked);
+    document.body.classList.toggle('is-locked', locked);
+    document.body.classList.remove('lock-hover');
+    lockHoverPolled = false;
+    lockHoverRenderer = false;
+    if (el.lock) {
+      el.lock.innerHTML = locked ? ICONS.lock : ICONS.unlock;
+      el.lock.title = locked ? '关闭鼠标穿透（可交互）' : '开启鼠标穿透';
+      el.lock.classList.toggle('on', !locked);
+    }
+  }
+
+
+  let lastReportedW = 0;
+  let lastReportedH = 0;
+  // 复用一个隐藏探针测文字宽度，避免每次 measure 都新建/插入/删除节点触发回流。
+  let widthProbe = null;
+  function textWidth(node) {
+    if (node.hidden) return 0;
+    const cs = getComputedStyle(node);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return 0;
+    const content = (node.textContent || '').trim();
+    if (!content) return 0;
+    if (!widthProbe) {
+      widthProbe = document.createElement('span');
+      widthProbe.style.cssText = 'position:absolute;left:-9999px;top:0;white-space:nowrap;visibility:hidden;';
+      document.body.appendChild(widthProbe);
+    }
+    widthProbe.style.font = cs.font;
+    widthProbe.textContent = content;
+    return widthProbe.offsetWidth;
+  }
+  function measure() {
+    // 拖动/缩放过程中不要按内容重算尺寸（会和窗口移动/缩放抢，表现为宽度抖动）
+    if (dragging || resizing) return;
+    const bar = document.getElementById('bar');
+    const isTaskbar = document.body.classList.contains('taskbar');
+    const isVertical = document.body.classList.contains('taskbar-vertical');
+    // 胶囊宽度：取各内容最大宽度 + 内边距；普通模式不小于 450，任务栏模式贴文字即可。
+    let capsuleW = isTaskbar ? 60 : 450;
+    const pad = isTaskbar ? 24 : 26 + 12;
+    if (!el.lyrics.hidden) {
+      // 多行可滚动：宽度只取当前句（否则整首最长一句会把窗口撑很宽）
+      const target = el.lyrics.querySelector('.l-line.current') || el.lyrics.firstElementChild;
+      if (target) {
+        let maxW = 0;
+        for (const sel of ['.l-main', '.l-sub']) {
+          for (const node of target.querySelectorAll(sel)) {
+            const w = textWidth(node);
+            if (w > maxW) maxW = w;
+          }
+        }
+        if (maxW > 0) capsuleW = Math.max(capsuleW, maxW + pad);
+      }
+    }
+    for (const node of [el.text, el.trans, el.rom]) {
+      const w = textWidth(node);
+      if (w > 0) capsuleW = Math.max(capsuleW, w + pad);
+    }
+    // 单行模式：长歌词不要撑宽面板（手动拉过宽度时主进程会用 userWidth，不受这里影响），超过默认宽度就横向滚动
+    if (el.lyrics.hidden && !isTaskbar) {
+      capsuleW = Math.min(capsuleW, 460);
+    }
+    const wantW = Math.ceil(capsuleW);
+    // 竖排时窗口高度 = 文字长度（#text 竖直方向的尺寸）；其它情况 = 胶囊实际高度。
+    let wantH;
+    if (isVertical) {
+      const rect = el.text.getBoundingClientRect();
+      wantH = Math.ceil(rect.height) + 8;
+    } else {
+      wantH = Math.ceil(bar.getBoundingClientRect().height);
+    }
+    // 宽度阈值放大到 20：避免逐句文字宽度不同导致窗口宽度每句都跳（胶囊铺满窗口，略宽不会露边）
+    if (Math.abs(wantW - lastReportedW) >= 20 || Math.abs(wantH - lastReportedH) >= 3) {
+      lastReportedW = wantW;
+      lastReportedH = wantH;
+      window.desktopLyric.command('fit', { width: wantW, height: wantH });
+    }
+  }
+
+  // ------------------------------------------------------------ 歌词偏移
+  applyColors(colors);
+  if (window.desktopLyric && typeof window.desktopLyric.onThemes === 'function') {
+    window.desktopLyric.onThemes((list) => {
+      THEMES = BUILTIN_THEMES.concat(Array.isArray(list) ? list : []);
+      applyColors(colors);
+    });
+  }
+
+
+  // ------------------------------------------------------------ 事件绑定
+  const cmd = (name) => () => window.desktopLyric.command(name);
+  document.getElementById('prev').addEventListener('click', cmd('prev'));
+  document.getElementById('next').addEventListener('click', cmd('next'));
+  el.play.addEventListener('click', cmd('toggle-play'));
+  document.getElementById('close').addEventListener('click', cmd('close'));
+  el.gear.addEventListener('click', (e) => { e.stopPropagation(); window.desktopLyric.command('open-settings', 'settings'); });
+  el.lock.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const lockedNow = document.body.classList.contains('is-locked');
+    window.desktopLyric.command(lockedNow ? 'unlock' : 'lock');
+  });
+  document.getElementById('dock').addEventListener('click', (e) => { e.stopPropagation(); window.desktopLyric.command('to-taskbar'); });
+  // macOS 没有 Windows 任务栏，贴菜单栏/Dock 效果不好，直接隐藏「移到任务栏」按钮。
+  if (window.desktopLyric.platform === 'darwin') {
+    const dockBtn = document.getElementById('dock');
+    if (dockBtn) dockBtn.style.display = 'none';
+  }
+  // 窗口尺寸变化（文字/菜单导致收放）时重排。缩放拖动过程中跳过重活，避免卡顿/圆角闪烁，
+  // 松手后再统一刷新一次。
+  window.addEventListener('resize', () => {
+    if (resizing) return;
+    syncLyricsScrollMode();
+    // 窗口高度变了（比如缩到很小/最小化）也把当前句重新滚到中间
+    if (!lyricsUserScrolledAt || performance.now() - lyricsUserScrolledAt > 4000) scrollCurrentIntoView();
+    applyMultiMarquee();
+    syncAllSubScrolls();
+  });
+
+  // 面板不自动关闭：点击胶囊外 / 窗口失焦都不收起，只走面板右上角的 ✕，
+  // 或再点一次齿轮 / 调色板按钮。
+
+  // ------------------------------------------------------------ 右下角拖动调整高度
+  // 只保留状态；实际的 pointerdown/move/up 统一在 #bar 上处理（带 pointer capture，窗口外也能收到）。
+  let resizing = false;
+  let resizeEdges = null;
+  let resizeStartX = 0;
+  let resizeStartY = 0;
+  let resizeStartW = 0;
+  let resizeStartH = 0;
+  let resizeStartLeft = 0;
+  let resizeStartTop = 0;
+  let lastHandleDownAt = 0;
+  /** 缩放拖动：用 rAF 合并高频 setBounds，避免每帧多次发 IPC 造成卡顿/圆角闪烁。 */
+  let resizeFrame = 0;
+  let pendingResizeRect = null;
+  const flushResizeRect = () => {
+    resizeFrame = 0;
+    if (!pendingResizeRect) return;
+    const rect = pendingResizeRect;
+    pendingResizeRect = null;
+    window.desktopLyric.command('resize-rect', rect);
+  };
+
+  // 歌词列表：用户手动滚动时暂停自动跟随；悬停某行在右侧出现播放按钮，点它跳到该句
+  // 秒数 → m:ss / h:mm:ss
+  function formatClock(sec) {
+    const total = Math.max(0, Math.round(Number(sec) || 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const ss = String(s).padStart(2, '0');
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${ss}`;
+    return `${m}:${ss}`;
+  }
+
+  el.lyrics.addEventListener('scroll', () => {
+    if (lyricsProgrammaticScroll) return;
+    lyricsUserScrolledAt = performance.now();
+  }, { passive: true });
+  el.lyrics.addEventListener('mouseover', (e) => {
+    if (!document.body.classList.contains('unlocked')) return;
+    const row = e.target && e.target.closest ? e.target.closest('.l-line') : null;
+    if (!row || row.querySelector('.l-play')) return;
+    // 同一时刻只保留一个按钮/时间
+    el.lyrics.querySelectorAll('.l-play, .l-time').forEach((n) => n.remove());
+    const time = document.createElement('span');
+    time.className = 'l-time';
+    time.textContent = formatClock(row.dataset.start);
+    row.appendChild(time);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'l-play';
+    btn.title = '从这里播放';
+    btn.dataset.start = String(row.dataset.start || 0);
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><polygon points="7 4 20 12 7 20 7 4"/></svg>';
+    row.appendChild(btn);
+  });
+  el.lyrics.addEventListener('mouseout', (e) => {
+    const row = e.target && e.target.closest ? e.target.closest('.l-line') : null;
+    if (!row) return;
+    if (e.relatedTarget && row.contains(e.relatedTarget)) return;
+    row.querySelectorAll('.l-play, .l-time').forEach((n) => n.remove());
+  });
+  el.lyrics.addEventListener('click', (e) => {
+    if (!document.body.classList.contains('unlocked')) return;
+    const btn = e.target && e.target.closest ? e.target.closest('.l-play') : null;
+    if (!btn) return;
+    e.stopPropagation();
+    const sec = Number(btn.dataset.start);
+    if (Number.isFinite(sec) && sec >= 0) {
+      lyricsUserScrolledAt = 0; // 跳转后恢复自动跟随
+      window.desktopLyric.command('seek-lyric', sec);
+    }
+  });
+
+  window.desktopLyric.onUpdate(render);
+  window.desktopLyric.onLock((locked) => { renderLock(locked); window.setTimeout(measure, 60); });
+  window.desktopLyric.onFont(renderFont);
+  window.desktopLyric.onFontFamily(applyFontFamily);
+  window.desktopLyric.onLines(applyLineVisibility);
+  window.desktopLyric.onTaskbar((data) => {
+    const active = data && typeof data === 'object' ? data.active === true : Boolean(data);
+    const edge = data && typeof data === 'object' ? data.edge : '';
+    document.body.classList.toggle('taskbar', active);
+    document.body.classList.toggle('taskbar-vertical', active && (edge === 'left' || edge === 'right'));
+    if (active) {
+      // 任务栏模式强制单行：收起多行列表、恢复单行歌词
+      el.lyrics.hidden = true;
+      el.text.style.display = '';
+      lastLinesKey = '';
+    }
+    window.setTimeout(measure, 20);
+  });
+  window.desktopLyric.onColors((next) => {
+    applyColors(next);
+    if (next && typeof next.preset === 'string') {
+      const bt = findTheme(next.preset);
+      if (bt) colorBaseTheme = bt;
+    }
+  });
+  window.desktopLyric.onResized((active) => {
+    document.body.classList.toggle('resized', Boolean(active));
+    window.setTimeout(measure, 20);
+  });
+
+  // 齿轮菜单里点空白处不关闭；点歌词区关闭菜单
+  // 滚轮不再改字号：只剩「锁定/任务栏时把滚轮透传给下层程序」。
+  document.getElementById('bar').addEventListener('wheel', (event) => {
+    if (document.body.classList.contains('taskbar') || !document.body.classList.contains('unlocked')) {
+      window.desktopLyric.command('wheel-through');
+      return;
+    }
+    // 未锁定时不拦截滚轮（也不改字号）
+  }, { passive: true });
+
+  // ------------------------------------------------------------ 锁定悬停
+  const refreshLockHover = () => {
+    const active = document.body.classList.contains('is-locked') && (lockHoverPolled || lockHoverRenderer);
+    document.body.classList.toggle('lock-hover', active);
+  };
+  const setRendererLockHover = (inside) => {
+    if (!document.body.classList.contains('is-locked')) inside = false;
+    if (inside === lockHoverRenderer) return;
+    lockHoverRenderer = inside;
+    refreshLockHover();
+    window.desktopLyric.command('unlock-hover', inside);
+  };
+  window.addEventListener('mousemove', (event) => {
+    if (!document.body.classList.contains('is-locked')) return;
+    const inside = event.clientX >= 0 && event.clientY >= 0 && event.clientX <= window.innerWidth && event.clientY <= window.innerHeight;
+    setRendererLockHover(inside);
+  });
+  document.addEventListener('mouseleave', () => setRendererLockHover(false));
+  window.desktopLyric.onInteractive((active) => {
+    lockHoverPolled = Boolean(active);
+    if (!lockHoverPolled) lockHoverRenderer = false;
+    refreshLockHover();
+  });
+
+  // ------------------------------------------------------------ 拖动
+  const TAP_SLOP_PX = 4;
+  let dragging = false;
+  let moved = false;
+  let dragStartSent = false;
+  let startX = 0, startY = 0, lastX = 0, lastY = 0, dragFrame = 0;
+
+  const flushDragMove = () => {
+    dragFrame = 0;
+    if (!dragging || !moved) return;
+    window.desktopLyric.command('drag-move', { x: lastX, y: lastY });
+  };
+  const stopDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    if (dragFrame) { cancelAnimationFrame(dragFrame); dragFrame = 0; }
+    if (dragStartSent) {
+      window.desktopLyric.command('drag-end');
+      lastReportedW = 0; lastReportedH = 0;
+      window.setTimeout(measure, 60);
+    }
+    dragStartSent = false;
+  };
+  const dragBar = document.getElementById('bar');
+  // 缩放：四边 + 四角都能拖（离边 6px 内算缩放区）；胶囊内部仍是拖动移动。
+  // 缩放：四边（6px 内）+ 四角（16px 内，更好点）；胶囊内部仍是拖动移动。
+  const RESIZE_EDGE = 6;
+  const RESIZE_CORNER = 16;
+  const resizeEdgesAt = (event) => {
+    const r = dragBar.getBoundingClientRect();
+    const x = event.clientX, y = event.clientY;
+    if (x < r.left - RESIZE_CORNER || x > r.right + RESIZE_CORNER || y < r.top - RESIZE_CORNER || y > r.bottom + RESIZE_CORNER) return null;
+    const nearL = x >= r.left - RESIZE_CORNER && x <= r.left + RESIZE_CORNER;
+    const nearR = x >= r.right - RESIZE_CORNER && x <= r.right + RESIZE_CORNER;
+    const nearT = y >= r.top - RESIZE_CORNER && y <= r.top + RESIZE_CORNER;
+    const nearB = y >= r.bottom - RESIZE_CORNER && y <= r.bottom + RESIZE_CORNER;
+    // 四角优先：只要同时靠近某个左右边和某个上下边，就按角处理（判定范围更大）
+    if ((nearL || nearR) && (nearT || nearB)) {
+      return { left: nearL, right: nearR, top: nearT, bottom: nearB };
+    }
+    const left = x >= r.left - RESIZE_EDGE && x <= r.left + RESIZE_EDGE;
+    const right = x >= r.right - RESIZE_EDGE && x <= r.right + RESIZE_EDGE;
+    const top = y >= r.top - RESIZE_EDGE && y <= r.top + RESIZE_EDGE;
+    const bottom = y >= r.bottom - RESIZE_EDGE && y <= r.bottom + RESIZE_EDGE;
+    if (!(left || right || top || bottom)) return null;
+    return { left, right, top, bottom };
+  };
+  const cursorForEdges = (e) => {
+    if (!e) return '';
+    const horizontal = e.left !== e.right;
+    const vertical = e.top !== e.bottom;
+    if (horizontal && vertical) return e.left === e.top ? 'nwse-resize' : 'nesw-resize';
+    if (horizontal) return 'ew-resize';
+    if (vertical) return 'ns-resize';
+    return '';
+  };
+  dragBar.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    const unlocked = document.body.classList.contains('unlocked');
+    if (!unlocked && !document.body.classList.contains('is-locked')) return;
+    // 按钮和面板里按下不算拖动；工具栏的空白/歌曲名区域可以拖动整条胶囊。
+    if (event.target.closest('.dl-panel, button')) return;
+    // 四边 / 四角：缩放
+    if (unlocked && !document.body.classList.contains('taskbar')) {
+      const edges = resizeEdgesAt(event);
+      if (edges) {
+        const sx = Number.isFinite(event.screenX) ? event.screenX : event.clientX;
+        const sy = Number.isFinite(event.screenY) ? event.screenY : event.clientY;
+        if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
+        const cornerRB = edges.right && edges.bottom && !edges.left && !edges.top;
+        const now = performance.now();
+        // 双击右下角 = 恢复自动尺寸
+        if (cornerRB && lastHandleDownAt && now - lastHandleDownAt < 350) {
+          lastHandleDownAt = 0;
+          event.preventDefault();
+          window.desktopLyric.command('resize-reset');
+          return;
+        }
+        lastHandleDownAt = cornerRB ? now : 0;
+        resizing = true;
+        resizeEdges = edges;
+        resizeStartX = sx;
+        resizeStartY = sy;
+        resizeStartW = window.innerWidth;
+        resizeStartH = window.innerHeight;
+        resizeStartLeft = Number.isFinite(window.screenX) ? window.screenX : 0;
+        resizeStartTop = Number.isFinite(window.screenY) ? window.screenY : 0;
+        event.preventDefault();
+        // 捕获指针：拖出窗口也能收到后续 move/up
+        try { dragBar.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+        return;
+      }
+    }
+    if (!Number.isFinite(event.screenX) || !Number.isFinite(event.screenY)) return;
+    dragging = true;
+    moved = false;
+    dragStartSent = false;
+    startX = lastX = event.screenX;
+    startY = lastY = event.screenY;
+    try { dragBar.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+  });
+  dragBar.addEventListener('pointermove', (event) => {
+    if (resizing) {
+      const sx = Number.isFinite(event.screenX) ? event.screenX : event.clientX;
+      const sy = Number.isFinite(event.screenY) ? event.screenY : event.clientY;
+      if (!Number.isFinite(sx) || !Number.isFinite(sy) || !resizeEdges) return;
+      const dx = sx - resizeStartX;
+      const dy = sy - resizeStartY;
+      let x = resizeStartLeft, y = resizeStartTop, w = resizeStartW, h = resizeStartH;
+      if (resizeEdges.left) { x = resizeStartLeft + dx; w = resizeStartW - dx; }
+      if (resizeEdges.right) { w = resizeStartW + dx; }
+      if (resizeEdges.top) { y = resizeStartTop + dy; h = resizeStartH - dy; }
+      if (resizeEdges.bottom) { h = resizeStartH + dy; }
+      pendingResizeRect = { x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h), dir: resizeEdges };
+      if (!resizeFrame) resizeFrame = requestAnimationFrame(flushResizeRect);
+      return;
+    }
+    if (!dragging) return;
+    if (!Number.isFinite(event.screenX) || !Number.isFinite(event.screenY)) return;
+    lastX = event.screenX; lastY = event.screenY;
+    if (!moved && (Math.abs(lastX - startX) > TAP_SLOP_PX || Math.abs(lastY - startY) > TAP_SLOP_PX)) {
+      moved = true;
+      window.desktopLyric.command('drag-start', { x: startX, y: startY });
+      dragStartSent = true;
+    }
+    if (moved && !dragFrame) dragFrame = requestAnimationFrame(flushDragMove);
+  });
+  const endDragOnPointerUp = (event) => {
+    if (resizing) {
+      if (resizeFrame) { cancelAnimationFrame(resizeFrame); resizeFrame = 0; }
+      if (pendingResizeRect) { window.desktopLyric.command('resize-rect', pendingResizeRect); pendingResizeRect = null; }
+      resizing = false;
+      resizeEdges = null;
+      try { dragBar.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
+      // 缩放结束后统一刷新一次布局与尺寸，避免拖动过程中反复重排导致卡顿/圆角闪烁。
+      syncLyricsScrollMode();
+      if (!lyricsUserScrolledAt || performance.now() - lyricsUserScrolledAt > 4000) scrollCurrentIntoView();
+      applyMultiMarquee();
+      syncAllSubScrolls();
+      measure();
+      return;
+    }
+    if (!dragging) return;
+    if (moved) {
+      if (dragFrame) { cancelAnimationFrame(dragFrame); dragFrame = 0; }
+      if (Number.isFinite(event.screenX) && Number.isFinite(event.screenY)) {
+        window.desktopLyric.command('drag-move', { x: event.screenX, y: event.screenY });
+      }
+    }
+    stopDrag();
+  };
+  dragBar.addEventListener('pointerup', endDragOnPointerUp);
+  dragBar.addEventListener('pointercancel', () => {
+    resizing = false;
+    resizeEdges = null;
+    if (resizeFrame) { cancelAnimationFrame(resizeFrame); resizeFrame = 0; }
+    pendingResizeRect = null;
+    stopDrag();
+    document.body.style.cursor = '';
+  });
+
+  // 鼠标靠近四边/四角时显示对应的缩放光标。
+  const updateResizeCursor = (event) => {
+    if (!document.body.classList.contains('unlocked') || document.body.classList.contains('taskbar')) {
+      document.body.style.cursor = '';
+      return;
+    }
+    document.body.style.cursor = cursorForEdges(resizeEdgesAt(event));
+  };
+  dragBar.addEventListener('pointermove', updateResizeCursor);
+  dragBar.addEventListener('pointerleave', () => { if (!resizing && !dragging) document.body.style.cursor = ''; });
+
+  document.addEventListener('DOMContentLoaded', () => document.body.classList.add('ready'));
+  if (document.readyState !== 'loading') document.body.classList.add('ready');
+</script>
+</body>
+</html>

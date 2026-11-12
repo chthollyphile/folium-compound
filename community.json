@@ -160,6 +160,18 @@
       "updatedAt": "2026-10-27",
       "lastIssue": 96
     },
+    "folia-desktop-lyric": {
+      "owners": [
+        "hnxyhcz"
+      ],
+      "submission": 145,
+      "source": "https://github.com/hnxyhcz/folia-desktop-lyric",
+      "path": "desktop-lyric",
+      "commit": "e2376ed01dff7ee92de6237c8287d20cc3387216",
+      "version": "1.0.0",
+      "addedAt": "2026-11-12",
+      "updatedAt": "2026-11-12"
+    },
     "folia-lx-music-mod": {
       "owners": [
         "wumeng114514"

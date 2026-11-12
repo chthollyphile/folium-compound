@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' 'self'" />
+<title>桌面歌词设置</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; }
+  body {
+    background: #2f3140; color: #e8e8ea;
+    font-family: "Microsoft YaHei", "微软雅黑", "Segoe UI", sans-serif;
+    font-size: 12px; user-select: none; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  #header { flex: none; padding: 16px 20px 12px; border-bottom: 1px solid rgba(255,255,255,.08); -webkit-app-region: drag; }
+  .head-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .head-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
+  .head-sub { margin-top: 4px; font-size: 12px; color: rgba(255,255,255,.5); }
+  .done { -webkit-app-region: no-drag; height: 34px; padding: 0 18px; border: none; border-radius: 9px; background: #1677ff; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .done:hover { background: #3b8bff; }
+  #tabs { -webkit-app-region: no-drag; margin-top: 14px; display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: rgba(255,255,255,.08); }
+  #tabs .tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; border: none; border-radius: 8px; background: transparent; color: rgba(255,255,255,.62); font-size: 13px; cursor: pointer; }
+  #tabs .tab.on { background: #1677ff; color: #fff; }
+  #tabs .tab svg { display: block; }
+  #body { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: 12px 20px 18px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; }
+  #body::-webkit-scrollbar { width: 10px; }
+  #body::-webkit-scrollbar-track { background: transparent; }
+  #body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+  #body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.34); background-clip: padding-box; }
+  .panel { display: none; flex-direction: column; gap: 10px; }
+  .panel.on { display: flex; }
+  .m-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; }
+  .m-k { font-size: 12px; color: rgba(255,255,255,.72); }
+  .m-div { height: 1px; background: rgba(255,255,255,.10); margin: 2px 0; }
+  .m-val { min-width: 52px; text-align: center; font-size: 12px; font-family: ui-monospace, Menlo, monospace; opacity: .92; }
+  /* 分段步进按钮： [−] 值 [+] */
+  .stepper { display: flex; align-items: stretch; width: 160px; height: 30px; border: 1px solid rgba(255,255,255,.22); border-radius: 8px; overflow: hidden; background: rgba(255,255,255,.04); }
+  .stepper button { width: 46px; border: none; background: transparent; color: #e8e8ea; font-size: 17px; line-height: 1; cursor: pointer; }
+  .stepper button:hover { background: rgba(255,255,255,.10); }
+  .stepper .stepper-val { flex: 1 1 auto; min-width: 0; width: auto; height: 100%; border: none; background: transparent; text-align: center; font-size: 12px; font-family: ui-monospace, Menlo, monospace; color: #e8e8ea; border-left: 1px solid rgba(255,255,255,.14); border-right: 1px solid rgba(255,255,255,.14); outline: none; padding: 0; }
+  .stepper .stepper-val:focus { background: rgba(255,255,255,.06); }
+  /* 歌词字体：自绘分页下拉（无滚动条，样式可控、不卡） */
+  .font-btn { width: 160px; max-width: 62vw; height: 30px; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.04); color: #e8e8ea; font-size: 12px; line-height: 1.2; cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .font-btn:hover { border-color: rgba(255,255,255,.32); }
+  .font-panel { position: fixed; z-index: 30; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px; background: rgba(28,29,36,.98); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 14px 34px rgba(0,0,0,.55); }
+  .font-panel[hidden] { display: none; }
+  .font-search { width: 100%; padding: 6px 9px; border-radius: 7px; border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.28); color: #f0f0f2; font-size: 12px; outline: none; }
+  .font-search:focus { border-color: #3b82f6; }
+  .font-list { display: flex; flex-direction: column; gap: 1px; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; contain: layout paint; transform: translateZ(0); will-change: transform; }
+  .font-list::-webkit-scrollbar { width: 8px; }
+  .font-list::-webkit-scrollbar-track { background: transparent; }
+  .font-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+  .font-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.34); background-clip: padding-box; }
+  .font-row { display: block; width: 100%; flex: none; text-align: left; padding: 7px 9px; border-radius: 6px; border: none; background: transparent; color: #e8e8ea; font-size: 12.5px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .font-row:hover { background: rgba(255,255,255,.10); }
+  .font-row.on { background: rgba(59,130,246,.38); color: #fff; }
+  .m-switch { width: 40px; height: 22px; border-radius: 999px; flex: none; position: relative; background: rgba(255,255,255,.25); cursor: pointer; }
+  .m-switch i { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .16s ease; }
+  .m-switch.on { background: #1677ff; }
+  .m-switch.on i { left: 20px; }
+  .m-presets { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+  .m-presets .th { width: 20px; height: 20px; border-radius: 50%; padding: 0; cursor: pointer; border: 1px solid rgba(255,255,255,.3); }
+  .m-presets .th.on { outline: 2px solid #fff; outline-offset: 1px; }
+  .cp-field { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .cp-trigger { width: 36px; height: 22px; border-radius: 6px; flex: none; border: 1px solid rgba(255,255,255,.22); background: #888; cursor: pointer; }
+  .m-alpha { display: flex; align-items: center; gap: 7px; }
+  .m-alpha input[type=range] { width: 120px; height: 6px; -webkit-appearance: none; appearance: none; background: rgba(255,255,255,.16); border-radius: 999px; outline: none; cursor: pointer; }
+  .m-alpha input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid #1677ff; box-shadow: 0 1px 4px rgba(0,0,0,.4); cursor: pointer; }
+  .m-alpha .m-val { min-width: 38px; }
+</style>
+</head>
+<body>
+  <div id="header">
+    <div class="head-top">
+      <div class="head-text">
+        <div class="head-title">偏好设置</div>
+        <div class="head-sub">让小组件适合你的桌面</div>
+      </div>
+      <button type="button" class="done" id="done">完成</button>
+    </div>
+    <div id="tabs">
+      <button type="button" class="tab on" data-tab="settings"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>设置</button>
+      <button type="button" class="tab" data-tab="colors"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.9-.9 1.9-1.9 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-3.6-4-7.2-9-7.2Z"/><circle cx="7.5" cy="11" r="1.1" fill="currentColor" stroke="none"/><circle cx="11" cy="7.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg>配色</button>
+    </div>
+  </div>
+
+  <div id="body">
+    <!-- 设置 -->
+    <div id="panel-settings" class="panel on">
+      <div class="m-row">
+        <span class="m-k">歌词字体</span>
+        <button type="button" id="font-btn" class="font-btn" title="选择歌词字体">默认（跟随 Folia 字体）</button>
+      </div>
+      <div class="m-div"></div>
+      <div class="m-row">
+        <span class="m-k">歌词偏移</span>
+        <div class="stepper">
+          <button type="button" data-off="-100" title="提前 0.1 秒">−</button>
+          <input id="off-val" class="stepper-val" type="text" inputmode="decimal" spellcheck="false" autocomplete="off" />
+          <button type="button" data-off="100" title="延后 0.1 秒">+</button>
+        </div>
+      </div>
+      <div class="m-div"></div>
+      <div class="m-row">
+        <span class="m-k">歌词字号</span>
+        <div class="stepper">
+          <button type="button" data-size="-1" title="缩小">−</button>
+          <input id="size-val" class="stepper-val" type="text" inputmode="decimal" spellcheck="false" autocomplete="off" />
+          <button type="button" data-size="1" title="放大">+</button>
+        </div>
+      </div>
+      <div class="m-div"></div>
+      <div class="m-row">
+        <span class="m-k">显示翻译</span>
+        <span id="trans-toggle" class="m-switch" role="switch"><i></i></span>
+      </div>
+      <div class="m-div"></div>
+      <div class="m-row">
+        <span class="m-k">显示音译</span>
+        <span id="rom-toggle" class="m-switch" role="switch"><i></i></span>
+      </div>
+      <div class="m-div"></div>
+    </div>
+
+    <!-- 配色 -->
+    <div id="panel-colors" class="panel">
+      <div class="m-row">
+        <span class="m-k">颜色主题</span>
+        <span id="color-presets" class="m-presets"></span>
+      </div>
+      <div class="m-div"></div>
+      <div class="m-row">
+        <span class="m-k">背景颜色</span>
+        <span class="cp-field"><button type="button" class="cp-trigger" data-field="panel"></button></span>
+      </div>
+      <div class="m-div"></div>
+      <div class="m-row">
+        <span class="m-k">未唱颜色</span>
+        <span class="cp-field"><button type="button" class="cp-trigger" data-field="unsung"></button></span>
+      </div>
+      <div class="m-div"></div>
+      <div class="m-row">
+        <span class="m-k">已唱颜色</span>
+        <span class="cp-field"><button type="button" class="cp-trigger" data-field="sung"></button></span>
+      </div>
+      <div class="m-div"></div>
+      <div class="m-row">
+        <span class="m-k">暗行颜色</span>
+        <span class="cp-field"><button type="button" class="cp-trigger" data-field="dim"></button></span>
+      </div>
+      <div class="m-div"></div>
+      <div class="m-row">
+        <span class="m-k">背景透明度</span>
+        <span class="m-alpha">
+          <input id="bg-alpha" type="range" min="0" max="100" step="5" />
+          <span id="bg-alpha-val" class="m-val">55%</span>
+        </span>
+      </div>
+      <div class="m-div"></div>
+    </div>
+  </div>
+
+  <div id="font-panel" class="font-panel" hidden>
+    <input id="font-search" class="font-search" type="text" placeholder="搜索字体…" autocomplete="off" spellcheck="false" />
+    <div id="font-list" class="font-list"></div>
+  </div>
+
+<script src="color-picker.js"></script>
+<script>
+(() => {
+  'use strict';
+  const { parseColor, toCss, normColor, gradientCss } = window.DLColorPicker;
+  const api = window.desktopLyric;
+  const command = (name, arg) => api && api.command ? api.command(name, arg) : undefined;
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---------------------------------------------------------------- 状态
+  const DEFAULT_COLORS = { lyric: '#ffffff', translation: '', romanization: '', bg: '#1a1b21', bgAlpha: 0.55, mode: 'dark', preset: 'classic', theme: null };
+  let colors = { ...DEFAULT_COLORS };
+  // 内置基础主题（暗色/亮色），与 themes.json 合并
+  const BUILTIN_THEMES = [
+    {
+      "id": "classic",
+      "name": "暗色",
+      "dot": "#1a1b21",
+      "mode": "dark",
+      "panel": {
+        "background": "",
+        "color": "#1a1b21",
+        "alpha": 1,
+        "borderColor": "rgba(255,255,255,.09)",
+        "radius": 14
+      },
+      "text": {
+        "fontFamily": "",
+        "weight": 500,
+        "weightDim": 400,
+        "lineHeight": 2.6,
+        "letterSpacing": "0.05em",
+        "shadow": "",
+        "glow": ""
+      },
+      "colors": {
+        "lyric": "#ffffff",
+        "unsung": "#cbd5e1",
+        "sung": {
+          "type": "color",
+          "color": "#ffffff"
+        },
+        "dim": "#9ca3af",
+        "translation": "#e5e7eb",
+        "romanization": "#cbd5e1"
+      }
+    },
+    {
+      "id": "light",
+      "name": "亮色",
+      "dot": "#f2f3f7",
+      "mode": "light",
+      "panel": {
+        "background": "",
+        "color": "#f2f3f7",
+        "alpha": 1,
+        "borderColor": "rgba(0,0,0,.10)",
+        "radius": 14
+      },
+      "text": {
+        "fontFamily": "",
+        "weight": 500,
+        "weightDim": 400,
+        "lineHeight": 2.6,
+        "letterSpacing": "0.05em",
+        "shadow": "",
+        "glow": ""
+      },
+      "colors": {
+        "lyric": "#1f2937",
+        "unsung": "#6b7280",
+        "sung": {
+          "type": "color",
+          "color": "#111827"
+        },
+        "dim": "#9aa3af",
+        "translation": "#374151",
+        "romanization": "#6b7280"
+      }
+    }
+  ];
+  let THEMES = BUILTIN_THEMES.slice();
+  let fontSize = 19;
+  let lyricFont = '';
+  let showTranslation = true;
+  let showRomanization = false;
+  let offsetMs = 0;
+  let fontFamilies = null;
+
+  const hexesIn = (str) => (String(str || '').match(/#[0-9a-fA-F]{6}/g) || []).map((s) => s.toLowerCase());
+  const findTheme = (id) => THEMES.find((t) => t.id === id) || null;
+  const defaultTheme = () => findTheme('classic') || THEMES[0] || null;
+  const activeTheme = () => colors.theme || findTheme(colors.preset) || defaultTheme();
+
+  // ---------------------------------------------------------------- 标签切换
+  function switchTab(tab) {
+    for (const b of document.querySelectorAll('#tabs .tab')) b.classList.toggle('on', b.dataset.tab === tab);
+    $('panel-settings').classList.toggle('on', tab !== 'colors');
+    $('panel-colors').classList.toggle('on', tab === 'colors');
+  }
+  for (const b of document.querySelectorAll('#tabs .tab')) b.addEventListener('click', () => switchTab(b.dataset.tab));
+  $('done').addEventListener('click', () => command('close-settings'));
+
+  // ---------------------------------------------------------------- 颜色预设
+  let COLOR_PRESETS = [];
+  const presetWrap = $('color-presets');
+  const presetButtons = [];
+  function computeColorPresets() {
+    COLOR_PRESETS = THEMES.map((t) => ({
+      id: t.id, name: t.name, dot: t.dot, mode: t.mode,
+      lyric: t.colors.lyric, translation: t.colors.translation || '', romanization: t.colors.romanization || '',
+      bg: t.panel.color || '#1a1b21', bgAlpha: Number.isFinite(t.panel.alpha) ? t.panel.alpha : 0.55, theme: t,
+    }));
+  }
+  function buildPresetButtons() {
+    if (!presetWrap) return;
+    presetWrap.replaceChildren();
+    presetButtons.length = 0;
+    for (const p of COLOR_PRESETS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'th'; b.dataset.preset = p.id; b.title = p.name;
+      const thTheme = p.theme || {}; const thPanel = thTheme.panel || {};
+      if (p.id === 'classic' || p.id === 'light') {
+        b.style.background = thPanel.background || thPanel.color || p.bg || '#1a1b21';
+      } else {
+        const thCols = thTheme.colors || {};
+        const stops = [thCols.unsung || thCols.lyric || p.lyric || '#888'];
+        const sungDef = thCols.sung || {};
+        const sungStops = Array.isArray(sungDef.stops) && sungDef.stops.length ? sungDef.stops : [sungDef.color];
+        for (const c of sungStops) { if (c) stops.push(c); }
+        b.style.background = `linear-gradient(135deg, ${stops.join(', ')})`;
+      }
+      b.addEventListener('click', () => applyPreset(p));
+      presetWrap.appendChild(b);
+      presetButtons.push(b);
+    }
+  }
+  function syncColorUI() { for (const b of presetButtons) b.classList.toggle('on', colors.preset === b.dataset.preset); }
+
+  function applyPreset(p) {
+    const t = p.theme;
+    colors = { ...colors, mode: t.mode, lyric: t.colors.lyric, translation: t.colors.translation || '', romanization: t.colors.romanization || '', bg: t.panel.color || colors.bg, bgAlpha: Number.isFinite(t.panel.alpha) ? t.panel.alpha : colors.bgAlpha, preset: t.id, theme: t };
+    paintColorsUI();
+    command('colors-set', { mode: colors.mode, lyric: colors.lyric, translation: colors.translation, romanization: colors.romanization, bg: colors.bg, bgAlpha: colors.bgAlpha, preset: t.id, theme: t });
+  }
+
+  function commitThemeEdit(mutate) {
+    const base = colors.theme || findTheme(colors.preset) || defaultTheme();
+    const t = JSON.parse(JSON.stringify(base || {}));
+    t.id = 'custom'; t.name = '自定义'; t.colors = t.colors || {};
+    if (!t.dot) t.dot = t.colors.lyric;
+    mutate(t);
+    colors = {
+      ...colors, theme: t, preset: 'custom', mode: t.mode,
+      lyric: t.colors.lyric || colors.lyric,
+      translation: t.colors.translation || '',
+      romanization: t.colors.romanization || '',
+      bg: t.panel && t.panel.color ? t.panel.color : colors.bg,
+      bgAlpha: t.panel && Number.isFinite(t.panel.alpha) ? t.panel.alpha : colors.bgAlpha,
+    };
+    paintColorsUI();
+    command('colors-set', { mode: colors.mode, lyric: colors.lyric, translation: colors.translation, romanization: colors.romanization, bg: colors.bg, bgAlpha: colors.bgAlpha, preset: 'custom', theme: t });
+  }
+
+  // ---------------------------------------------------------------- 颜色字段
+  function fieldState(f) {
+    const r = f.read();
+    const raw = Array.isArray(r.stops) && r.stops.length ? r.stops : [r.start || '#ffffff'];
+    const stops = [];
+    raw.forEach((st, i) => {
+      const color = normColor(typeof st === 'object' ? st.color : st);
+      const pos = typeof st === 'object' && Number.isFinite(st.pos) ? st.pos : (raw.length > 1 ? i / (raw.length - 1) : 0);
+      if (color) stops.push({ color, pos: Math.max(0, Math.min(1, pos)) });
+    });
+    stops.sort((a, b) => a.pos - b.pos);
+    const gradient = Boolean(f.gradient && stops.length > 1);
+    const angle = Math.max(0, Math.min(360, Math.round(Number.isFinite(r.angle) ? r.angle : 90)));
+    return { gradient, stops, angle };
+  }
+  function applyFieldState(f, s) {
+    const raw = (Array.isArray(s.stops) && s.stops.length) ? s.stops : [{ color: s.start, pos: 0 }];
+    const stops = raw.map((st) => ({
+      color: normColor(typeof st === 'object' ? st.color : st) || '#ffffff',
+      pos: Math.max(0, Math.min(1, Number(typeof st === 'object' ? st.pos : 0) || 0)),
+    })).sort((a, b) => a.pos - b.pos);
+    const gradient = Boolean(f.gradient && s.gradient && stops.length > 1);
+    const angle = Math.max(0, Math.min(360, Math.round(Number.isFinite(s.angle) ? s.angle : 90)));
+    f.write({ gradient, stops: gradient ? stops : [stops[0]], angle });
+  }
+
+  const COLOR_FIELDS = [
+    {
+      id: 'panel', label: '背景颜色', gradient: true,
+      read() {
+        const p = (activeTheme() && activeTheme().panel) || {};
+        const parsed = hexesIn(p.background);
+        const stops = Array.isArray(p.stops) && p.stops.length ? p.stops.slice() : (parsed.length ? parsed : [p.color || '#1a1b21']);
+        return { stops, angle: Number.isFinite(p.angle) ? p.angle : 135 };
+      },
+      write(s) {
+        commitThemeEdit((t) => {
+          const p = t.panel || (t.panel = {});
+          p.background = '';
+          if (s.gradient) {
+            p.type = 'linear'; p.angle = s.angle;
+            p.stops = s.stops.map((st) => ({ color: st.color, pos: Math.round(st.pos * 1000) / 1000 }));
+            p.color = s.stops[0].color;
+          } else {
+            p.type = 'color'; p.color = s.stops[0].color; p.angle = s.angle; p.stops = [s.stops[0].color];
+          }
+        });
+      },
+      defaults() {
+        const b = (defaultTheme() && defaultTheme().panel) || {};
+        const parsed = hexesIn(b.background);
+        const stops = Array.isArray(b.stops) && b.stops.length ? b.stops.slice() : (parsed.length ? parsed : [b.color || '#1a1b21']);
+        return { gradient: stops.length > 1, stops: stops.map((c, i) => ({ color: c, pos: stops.length > 1 ? i / (stops.length - 1) : 0 })), angle: Number.isFinite(b.angle) ? b.angle : 135 };
+      },
+    },
+    {
+      id: 'unsung', label: '未唱颜色', gradient: false,
+      read() { const c = (activeTheme() && activeTheme().colors) || {}; return { start: c.unsung || c.lyric || colors.lyric }; },
+      write(s) { commitThemeEdit((t) => { t.colors.unsung = s.stops[0].color; }); },
+      defaults() { const b = (defaultTheme() && defaultTheme().colors) || {}; return { stops: [{ color: b.unsung || b.lyric || '#ffffff', pos: 0 }], gradient: false }; },
+    },
+    {
+      id: 'sung', label: '已唱颜色', gradient: true,
+      read() {
+        const c = (activeTheme() && activeTheme().colors) || {};
+        const s = c.sung || {};
+        const stops = Array.isArray(s.stops) && s.stops.length ? s.stops.slice() : [s.color || c.lyric || '#ffffff'];
+        return { stops, angle: Number.isFinite(s.angle) ? s.angle : 90 };
+      },
+      write(s) {
+        commitThemeEdit((t) => {
+          const c = t.colors || (t.colors = {});
+          if (s.gradient) {
+            c.sung = { type: 'linear', angle: s.angle, stops: s.stops.map((st) => ({ color: st.color, pos: Math.round(st.pos * 1000) / 1000 })) };
+          } else { c.sung = { type: 'color', color: s.stops[0].color, angle: s.angle }; }
+          t.dot = s.stops[0].color;
+        });
+      },
+      defaults() {
+        const b = (defaultTheme() && defaultTheme().colors) || {};
+        const s = b.sung || {};
+        const stops = Array.isArray(s.stops) && s.stops.length ? s.stops.slice() : [s.color || b.lyric || '#ffffff'];
+        return { gradient: stops.length > 1, stops: stops.map((c, i) => ({ color: c, pos: stops.length > 1 ? i / (stops.length - 1) : 0 })), angle: Number.isFinite(s.angle) ? s.angle : 90 };
+      },
+    },
+    {
+      id: 'dim', label: '暗行颜色', gradient: false,
+      read() { const c = (activeTheme() && activeTheme().colors) || {}; return { start: c.dim || c.translation || c.lyric || colors.translation || colors.lyric }; },
+      write(s) { commitThemeEdit((t) => { t.colors.dim = s.stops[0].color; }); },
+      defaults() { const b = (defaultTheme() && defaultTheme().colors) || {}; return { stops: [{ color: b.dim || b.translation || b.lyric || '#9ca3af', pos: 0 }], gradient: false }; },
+    },
+  ];
+
+  const cpPicker = window.DLColorPicker.create();
+  let cpActiveField = null;
+  function openCpPop(f) {
+    cpActiveField = f;
+    cpPicker.open(f.el.trigger, {
+      gradient: f.gradient,
+      getState: () => fieldState(f),
+      onChange: (state) => applyFieldState(f, state),
+      onReset: () => applyFieldState(f, f.defaults()),
+    });
+  }
+  function bindColorFields() {
+    for (const trigger of document.querySelectorAll('#panel-colors .cp-trigger')) {
+      const f = COLOR_FIELDS.find((item) => item.id === trigger.dataset.field);
+      if (!f) continue;
+      f.el = { trigger };
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (cpActiveField === f) { cpActiveField = null; cpPicker.close(); return; }
+        openCpPop(f);
+      });
+    }
+  }
+  function paintColorFields() {
+    for (const f of COLOR_FIELDS) {
+      if (!f.el) continue;
+      const s = fieldState(f);
+      f.el.trigger.style.background = s.gradient ? gradientCss(s.stops, s.angle) : (s.stops[0] && s.stops[0].color) || '#888';
+    }
+  }
+  function paintColorsUI() {
+    paintColorFields();
+    syncColorUI();
+    const th = activeTheme();
+    const a = th && th.panel && Number.isFinite(th.panel.alpha) ? th.panel.alpha : (Number.isFinite(colors.bgAlpha) ? colors.bgAlpha : 0.55);
+    const p = Math.round(a * 100);
+    const ai = $('bg-alpha');
+    if (ai) ai.value = String(p);
+    const av = $('bg-alpha-val');
+    if (av) av.textContent = p + '%';
+  }
+  function setupThemes() {
+    computeColorPresets();
+    buildPresetButtons();
+    paintColorsUI();
+  }
+
+  // 背景透明度
+  const alphaInput = $('bg-alpha');
+  alphaInput.addEventListener('input', () => {
+    const p = Math.min(100, Math.max(0, Number(alphaInput.value) || 0)) / 100;
+    commitThemeEdit((t) => {
+      const pp = t.panel || (t.panel = {});
+      if (!Array.isArray(pp.stops) || !pp.stops.length) {
+        const parsed = hexesIn(pp.background);
+        pp.stops = parsed.length ? parsed : [pp.color || '#1a1b21'];
+        pp.type = pp.stops.length > 1 ? 'linear' : 'color';
+        if (pp.stops.length === 1) pp.color = pp.stops[0];
+      }
+      pp.background = '';
+      pp.alpha = p;
+    });
+  });
+
+  // ---------------------------------------------------------------- 设置控件
+  // [−][值][+] 步进按钮：歌词偏移与歌词字号共用，中间值可手动输入
+  const sizeValEl = $('size-val');
+  const offValEl = $('off-val');
+  function renderFontSize() { if (sizeValEl && document.activeElement !== sizeValEl) sizeValEl.value = (Math.round(fontSize * 10) / 10) + 'px'; }
+  function renderOffset() { const s = offsetMs / 1000; if (offValEl && document.activeElement !== offValEl) offValEl.value = (s > 0 ? '+' : '') + s.toFixed(1) + 's'; }
+  function syncToggles() {
+    const t = $('trans-toggle'); t.classList.toggle('on', showTranslation); t.setAttribute('aria-checked', showTranslation ? 'true' : 'false');
+    const r = $('rom-toggle'); r.classList.toggle('on', showRomanization); r.setAttribute('aria-checked', showRomanization ? 'true' : 'false');
+  }
+  for (const b of document.querySelectorAll('.stepper button[data-size]')) b.addEventListener('click', () => {
+    const d = Number(b.dataset.size) || 0;
+    fontSize = Math.min(48, Math.max(12, fontSize + d));
+    renderFontSize();
+    command('font-delta', d);
+  });
+  for (const b of document.querySelectorAll('.stepper button[data-off]')) b.addEventListener('click', () => {
+    const d = Number(b.dataset.off) || 0;
+    offsetMs += d;
+    renderOffset();
+    command('offset-delta', d);
+  });
+  // 手动输入：字号（px，可小数）/ 偏移（秒）
+  sizeValEl.addEventListener('change', () => {
+    const v = parseFloat(sizeValEl.value);
+    if (Number.isFinite(v)) {
+      fontSize = Math.min(48, Math.max(12, Math.round(v * 10) / 10));
+      command('font-set', fontSize);
+    }
+    renderFontSize();
+  });
+  sizeValEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sizeValEl.blur(); } });
+  offValEl.addEventListener('change', () => {
+    const v = parseFloat(offValEl.value);
+    if (Number.isFinite(v)) {
+      offsetMs = Math.round(v * 1000);
+      command('offset-set', offsetMs);
+    }
+    renderOffset();
+  });
+  offValEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); offValEl.blur(); } });
+  $('trans-toggle').addEventListener('click', () => { showTranslation = !showTranslation; syncToggles(); command('set-translation', showTranslation); });
+  $('rom-toggle').addEventListener('click', () => { showRomanization = !showRomanization; syncToggles(); command('set-romanization', showRomanization); });
+
+  // 歌词字体：手绘下拉（全部字体、纯文本，可滚动，滚动条已美化）
+  const fontBtn = $('font-btn');
+  const fontPanel = $('font-panel');
+  const fontSearch = $('font-search');
+  const fontList = $('font-list');
+  let fontQuery = '';
+  const fontLabel = () => lyricFont || '默认（跟随 Folia 字体）';
+  function renderFontBtn() { fontBtn.textContent = fontLabel(); }
+  function renderFontList() {
+    const q = fontQuery.trim().toLowerCase();
+    const all = Array.isArray(fontFamilies) ? fontFamilies : [];
+    const items = [''].concat(all).filter((fam) => !q || String(fam || '默认').toLowerCase().includes(q));
+    fontList.replaceChildren();
+    if (!items.length) {
+      const e = document.createElement('div'); e.className = 'font-row'; e.style.opacity = '.5'; e.textContent = fontFamilies === null ? '正在读取本机字体…' : '没有匹配的字体'; fontList.appendChild(e);
+    } else {
+      const frag = document.createDocumentFragment();
+      for (const fam of items) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'font-row' + ((fam || '') === lyricFont ? ' on' : '');
+        b.textContent = fam || '默认（跟随 Folia 字体）';
+        b.addEventListener('click', () => selectFont(fam));
+        frag.appendChild(b);
+      }
+      fontList.appendChild(frag);
+    }
+    fontList.scrollTop = 0;
+  }
+  function selectFont(fam) { lyricFont = fam || ''; command('font-family', lyricFont); renderFontBtn(); closeFontPanel(); fontBtn.blur(); }
+  function positionFontPanel() {
+    const r = fontBtn.getBoundingClientRect(); const margin = 8;
+    const width = Math.min(Math.max(240, Math.round(r.width)), window.innerWidth - margin * 2);
+    const left = Math.min(Math.max(margin, Math.round(r.left)), window.innerWidth - width - margin);
+    const estH = 380; let top = Math.round(r.bottom + 4);
+    if (top + estH > window.innerHeight - margin && r.top - estH > margin) top = Math.round(r.top - estH);
+    fontPanel.style.width = width + 'px'; fontPanel.style.left = left + 'px'; fontPanel.style.top = top + 'px';
+  }
+  function openFontPanel() { if (fontFamilies === null) command('request-fonts'); fontQuery = ''; fontSearch.value = ''; renderFontList(); positionFontPanel(); fontPanel.hidden = false; fontSearch.focus(); }
+  function closeFontPanel() { fontPanel.hidden = true; }
+  fontBtn.addEventListener('click', () => { if (fontPanel.hidden) openFontPanel(); else closeFontPanel(); });
+  fontBtn.addEventListener('blur', () => { window.setTimeout(() => { if (document.activeElement !== fontSearch && !fontPanel.contains(document.activeElement)) closeFontPanel(); }, 120); });
+  fontSearch.addEventListener('input', () => { fontQuery = fontSearch.value; renderFontList(); });
+  fontSearch.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeFontPanel(); fontBtn.focus(); } });
+  document.addEventListener('pointerdown', (e) => { if (!fontPanel.hidden && !fontPanel.contains(e.target) && e.target !== fontBtn) closeFontPanel(); }, true);
+
+
+  // ---------------------------------------------------------------- 接收主进程状态
+  function applyState(s) {
+    if (!s || typeof s !== 'object') return;
+    if (s.colors && typeof s.colors === 'object') colors = { ...DEFAULT_COLORS, ...s.colors };
+    if (typeof s.fontSize === 'number') fontSize = s.fontSize;
+    if (typeof s.lyricFont === 'string') lyricFont = s.lyricFont;
+    if (typeof s.showTranslation === 'boolean') showTranslation = s.showTranslation;
+    if (typeof s.showRomanization === 'boolean') showRomanization = s.showRomanization;
+    if (typeof s.lyricOffsetMs === 'number') offsetMs = s.lyricOffsetMs;
+    renderFontSize(); renderOffset(); syncToggles();
+    renderFontBtn();
+    paintColorsUI();
+  }
+
+  if (api) {
+    if (api.onState) api.onState((s) => applyState(s));
+    if (api.onThemes) api.onThemes((list) => { THEMES = BUILTIN_THEMES.concat(Array.isArray(list) ? list : []); setupThemes(); });
+    if (api.onFonts) api.onFonts((data) => { if (data && Array.isArray(data.families)) { fontFamilies = data.families; renderFontBtn(); if (!fontPanel.hidden) renderFontList(); } });
+    if (api.onSettingsTab) api.onSettingsTab((tab) => switchTab(tab === 'colors' ? 'colors' : 'settings'));
+    if (api.onFont) api.onFont((n) => { fontSize = Number(n) || fontSize; renderFontSize(); });
+    if (api.onFontFamily) api.onFontFamily((f) => { lyricFont = String(f || ''); renderFontBtn(); if (!fontPanel.hidden) renderFontList(); });
+    if (api.onLines) api.onLines((v) => { if (v && typeof v === 'object') { if (typeof v.showTranslation === 'boolean') showTranslation = v.showTranslation; if (typeof v.showRomanization === 'boolean') showRomanization = v.showRomanization; syncToggles(); } });
+    if (api.onOffset) api.onOffset((ms) => { offsetMs = Number(ms) || 0; renderOffset(); });
+    if (api.onColors) api.onColors((next) => { if (next && typeof next === 'object') { colors = { ...colors, ...next }; paintColorsUI(); } });
+  }
+
+  bindColorFields();
+  setupThemes();
+  renderFontSize(); renderOffset(); syncToggles();
+  renderFontBtn();
+  if (fontFamilies === null) command('request-fonts');
+})();
+</script>
+</body>
+</html>
+
+
+
