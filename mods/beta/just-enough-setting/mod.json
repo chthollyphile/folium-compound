@@ -1,0 +1,15 @@
+{
+  "folium": 1,
+  "id": "just-enough-setting",
+  "name": "Just Enough Setting（SMTC / Steam）",
+  "version": "1.3.1",
+  "author": "Minecraftmc22",
+  "description": "把系统媒体（Windows SMTC / 媒体浮窗）的标题栏、歌手栏、专辑栏、浏览器标签页标题，以及 Steam 好友列表里那句「正在玩」交给同一套可拖拽的片段列表自由编排：歌曲名、歌手、专辑、歌词、翻译、逐词歌词、播放时长（已播放 + 进度条 + 总时长，模板可改）、自定义网站名与连接符（连接符可以就是一个空格）；歌词延迟可自动精确排期到行时间戳，也可手动 ±3 秒；带快速预设、JSON 导入导出与实时诊断面板。系统媒体三行与窗口标题是 Folia 自己的界面状态，模组默认一次都不碰，需要你在面板里明确同意后才接管，随时可撤销并还原。Steam 部分由主进程入口直连 Steam 网络（登录你自己的账号，把状态报成非 Steam 游戏），不需要 Folia 上架 Steam。",
+  "main": "index.cjs",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": [
+    "stageLayers",
+    "filesystem.data"
+  ]
+}
