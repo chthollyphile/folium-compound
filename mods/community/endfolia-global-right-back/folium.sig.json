@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "endfolia-global-right-back",
+  "modVersion": "1.1.0",
+  "digest": "sha256:8359cbfec3c1b70c7019ef30c8359433863d273e1a3d7aa15f376182964a585c",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-13T06:34:03.469Z",
+  "signature": "bgS7bIPhp/Mtv0QzYewveL6xuVuQiHPD9dwwO8RIBckArrqLODUtHLKw3eDw0s6qEQSchD8PjcHB7aVLwiujCg=="
+}
