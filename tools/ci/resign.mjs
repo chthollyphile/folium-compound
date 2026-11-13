@@ -38,7 +38,8 @@ if (git('status', '--porcelain') === '') {
 
 const summary = resigned.map((entry) => `${entry.modId}@${entry.version}`).join(', ');
 const details = resigned.map((entry) => `- ${entry.path}: ${entry.previous} -> signed`).join('\n');
-git('add', '-A', 'mods', 'index.json');
+git('add', '-A', '--force', 'mods');
+git('add', '-A', 'index.json');
 git('commit', '-m', resigned.length > 0 ? `chore(sign): 自动续签 ${summary}\n\n${details}` : 'chore(index): 更新 index.json');
 git('push', 'origin', 'HEAD:main');
 console.log(resigned.length > 0 ? `re-signed ${summary}` : 'updated index.json');

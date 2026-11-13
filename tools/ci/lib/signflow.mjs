@@ -121,7 +121,10 @@ export const importAndSign = ({ repoDir, stagedDir, modId, kind, channel = 'rele
         const coAuthor = authorId ? `\n\nCo-authored-by: ${author} <${authorId}+${author}@users.noreply.github.com>` : '';
         // The other channel's directory is staged only when main had it (a promotion or demotion removed it).
         const removed = git(repoDir, ['ls-files', '--', otherDir]) ? [otherDir] : [];
-        git(repoDir, ['add', '-A', relativeDir, ...removed, 'community.json', 'index.json']);
+        // --force: the signed digest covers every imported file, so none may be left out by .gitignore
+        // (its `*.pem` rule, meant for signing keys, once dropped a mod's public key and broke verify on main).
+        git(repoDir, ['add', '-A', '--force', '--', relativeDir]);
+        git(repoDir, ['add', '-A', ...removed, 'community.json', 'index.json']);
         git(repoDir, ['commit', '-q', '-m', `sign(${channel === 'beta' ? 'beta' : 'community'}): ${modId}@${version}\n\nImported from ${source.repository}@${source.commit}${source.path ? ` (${source.path})` : ''}, reviewed in #${issueNumber}, signed with ${key.keyId}.${coAuthor}`]);
         return { commit: git(repoDir, ['rev-parse', 'HEAD']), record };
     } catch (error) {
