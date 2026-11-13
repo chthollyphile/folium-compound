@@ -354,10 +354,11 @@
       "submission": 143,
       "source": "https://github.com/GUDUYUNI99/lyric-float",
       "path": "",
-      "commit": "f6c46584597ba4ee305ac5cd95e1670d09afbda3",
-      "version": "1.8.0",
+      "commit": "7b04b11fd6893229d6a63392ea7dc2fbb06de29f",
+      "version": "1.8.6",
       "addedAt": "2026-11-11",
-      "updatedAt": "2026-11-11"
+      "updatedAt": "2026-11-13",
+      "lastIssue": 150
     },
     "lyric-split-translation": {
       "owners": [

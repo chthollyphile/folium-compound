@@ -870,20 +870,20 @@
     {
       "id": "lyric-float",
       "name": "歌词浮岛",
-      "version": "1.8.0",
+      "version": "1.8.6",
       "author": null,
       "description": "桌面歌词与悬浮窗歌词双形态：多行滚动、鼠标穿透、自由缩放，支持播放器控制与状态记忆",
       "origin": "beta",
       "channel": "beta",
       "path": "mods/beta/lyric-float",
-      "digest": "sha256:6f5507c40fe58dc8b165f9a366442b165cff981ae3fa7ce62e08f1ad67b8f092",
+      "digest": "sha256:e79cb19f4f409880dd72eb5c21b31e91e356f9f8c3229b301250f19458067572",
       "keyId": "folium-beta-2026-1",
-      "signedAt": "2026-11-11T01:09:48.637Z",
+      "signedAt": "2026-11-13T06:34:12.252Z",
       "owners": [
         "GUDUYUNI99"
       ],
       "source": "https://github.com/GUDUYUNI99/lyric-float",
-      "sourceCommit": "f6c46584597ba4ee305ac5cd95e1670d09afbda3"
+      "sourceCommit": "7b04b11fd6893229d6a63392ea7dc2fbb06de29f"
     },
     {
       "id": "lyric-style-switcher",

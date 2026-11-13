@@ -110,6 +110,9 @@ const IPC_POPUP_LAYOUT = 'lyric-float:popup-layout';
 const IPC_POPUP_TOAST = 'lyric-float:popup-toast';
 // 1.7.12：悬浮窗歌词里的播放列表面板（数据由 client 读宿主队列后回传）。
 const IPC_POPUP_PLAYLIST = 'lyric-float:popup-playlist';
+// 1.8.3：悬浮窗显示握手 —— 页面画完一帧后回信，主进程收到才上屏（切形态时不再先露旧画面）。
+const IPC_POPUP_FRAME = 'lyric-float:popup-frame';
+const POPUP_SHOW_FALLBACK_MS = 320;
 const RPC_PLAYLIST_DATA = 'playlist-data';
 const RPC_PLAYBACK_HINT = 'playback-hint';
 // 穿透态下「退出穿透」键的命中外扩（和桌面歌词固定键同一口径）。
@@ -180,7 +183,10 @@ const PIN_HIT_PADDING = 2;
 const SHOWN_TIMEOUT_MS = 800;
 // 页面侧等「显示中之后的第一帧」最多等多久（ms）：等不到就用现有画面回信，宁可闪一下也不能不上屏。
 // 这个值写进页面模板，页面脚本里直接用它（曾经漏过模板插值，页面侧变成未定义变量、握手直接报错）。
-const SHOWN_FRAME_WAIT_MS = 400;
+const SHOWN_FRAME_WAIT_MS = 200;
+// 1.8.4：上屏之后强制摘「显示中」铺底的最长等待（ms）。暂停/停止时 client 不再发新帧，
+// 旧逻辑等「下一帧」会永远等不到，body.showing 挂住 → 窗口铺底色、按钮显隐错乱。
+const SHOW_RELEASE_MS = 320;
 // 右上角 ×（1.4.0，页面→主进程）：只隐藏悬浮窗，不停用模组。重新显示走播放条上的「词」按钮。
 const IPC_CLOSE = 'lyric-float:close';
 // 1.5.1 显示握手（解决「× 关掉再打开时先闪一下旧画面」）：
@@ -369,6 +375,10 @@ const DEFAULT_CONFIG = {
         backdrop: false,
         // 1.7.14：每秒重申置顶 + 重绘一帧，避免被无边框全屏窗口盖住 / 露出来是旧帧。
         keepOnTop: true,
+        // 1.8.1 逐字染色：默认关（1.5.0 那次默认开启的直接后果是「没词级时间的歌看起来像坏了」）。
+        karaoke: false,
+        sungColor: '#7dd3fc',
+        unsungOpacity: 0.55,
     },
     desktop: {
         // 1.6.2 起默认开启：用户要的就是「长句能读完」，默认关的话打开设置也看不出变化。
@@ -424,7 +434,16 @@ const normalizeConfig = (raw) => {
     config.shared.border = sharedSource.border !== false;
     config.shared.pausedDim = sharedSource.pausedDim === true;
     config.shared.backdrop = sharedSource.backdrop === true;
-    config.shared.keepOnTop = sharedSource.keepOnTop !== false;
+    // 1.8.4：置顶改成恒定行为（每秒重申一次），不再提供开关；老存档里的 false 也不再生效。
+    config.shared.keepOnTop = true;
+    // 1.8.1 逐字染色：开关默认关；已唱色只认 #rrggbb；未唱透明度夹在 0.2–1（0 会让整句消失）。
+    config.shared.karaoke = sharedSource.karaoke === true;
+    if (typeof sharedSource.sungColor === 'string') {
+        const sungColor = sharedSource.sungColor.trim().toLowerCase();
+        if (/^#[0-9a-f]{6}$/.test(sungColor)) config.shared.sungColor = sungColor;
+    }
+    const unsungOpacity = toFiniteNumber(sharedSource.unsungOpacity);
+    if (unsungOpacity !== null) config.shared.unsungOpacity = clampNumber(unsungOpacity, 0.2, 1);
     if (desktopSource) config.desktop.marquee = desktopSource.marquee === true;
     return config;
 };
@@ -744,6 +763,18 @@ const WIDGET_HTML = `<!DOCTYPE html>
         font: inherit;
         will-change: transform;
     }
+    /* 1.8.1 逐字染色：每个词一个 span，只在「已唱 / 未唱」两态之间切 class，
+       颜色与透明度都来自 CSS 变量（和 1.5.0 的做法一致，避免每帧写行内样式）。 */
+    .word {
+        transition: color 0.1s linear, opacity 0.1s linear;
+    }
+    .word.is-unsung {
+        opacity: var(--unsung-opacity, 0.55);
+    }
+    .word.is-sung {
+        color: var(--sung-color, #7dd3fc);
+        opacity: 1;
+    }
     /* 滚动中改成左对齐：从句子开头读起，滚到最后一段时刚好停在眼眶里。
        已经滚到底（is-scrolled-end）就交还给居中，免得滚动结束那一刻文字突然跳一下。 */
     .lyric-text.is-scrolling,
@@ -830,11 +861,18 @@ const WIDGET_HTML = `<!DOCTYPE html>
        左侧两组仍然是 flex: 1 等宽，所以正中的固定键依旧严格居中。 */
     #surface {
         margin-left: auto;
-        visibility: hidden;
+        /* 1.8.5：和其它按钮一样用 opacity 淡入淡出。原来用 visibility 切换，
+           visibility 不能过渡、是硬切，所以鼠标一离开窗口它就「先于所有按钮」消失
+           （父级 .controls 是 0.18s 淡出、窗口底色 0.22s），观感很突兀。 */
+        opacity: 0;
         pointer-events: none;
+        transition: opacity 0.18s ease;
     }
-    body.hover:not(.pinned) #surface {
-        visibility: visible;
+    body.hover:not(.pinned) #surface,
+    /* 1.8.6：显示握手期间（body.showing）控制条是提前展开的，如果切换键不跟着展开，
+       就会看到「切回桌面歌词的一瞬间其它按钮都在、只有切换键不在」。两者必须同进同出。 */
+    body.showing:not(.pinned) #surface {
+        opacity: 1;
         pointer-events: auto;
     }
     /* 固定态（按需求）切换键不出现：控制条整条都收起来了，这里也不给任何显示条件。 */
@@ -1044,6 +1082,8 @@ const WIDGET_HTML = `<!DOCTYPE html>
         transition: opacity 0.18s ease;
     }
     body.hover:not(.pinned) #close,
+    /* 1.8.6：同 #surface —— 显示握手期间控制条提前展开，× 也要一起出现，否则「一半按钮在、一半不在」。 */
+    body.showing:not(.pinned) #close,
     body:not(.pinned) #close:focus-visible {
         opacity: 1;
         pointer-events: auto;
@@ -1225,6 +1265,13 @@ const applyConfig = (next) => {
     style.setProperty('--lyric-color', lyricColor);
     if (els.line) els.line.style.color = lyricColor;
     if (els.trans) els.trans.style.color = lyricColor;
+    // 1.8.1 逐字染色：已唱色只认 #rrggbb，未唱透明度夹在 0.2–1（和 main 侧 normalizeConfig 一致）。
+    const sungColor = /^#[0-9a-f]{6}$/i.test(String(current.sungColor || '')) ? String(current.sungColor).toLowerCase() : '#7dd3fc';
+    const unsungOpacity = Number.isFinite(Number(current.unsungOpacity))
+        ? Math.min(1, Math.max(0.2, Number(current.unsungOpacity)))
+        : 0.55;
+    style.setProperty('--sung-color', sungColor);
+    style.setProperty('--unsung-opacity', String(unsungOpacity));
     document.body.dataset.surface = current.surface;
     document.body.dataset.backdrop = String(current.backdrop === true);
     document.body.dataset.pausedDim = String(current.pausedDim === true);
@@ -1236,7 +1283,9 @@ const applyConfig = (next) => {
     // clientWidth / scrollWidth 全是最初那一下的值（往往是 0 或等待文案的宽度），
     // 量出来的滚动量就是错的。强制一次同步排版再量。
     void document.body.offsetHeight;
-    remeasureLyrics();
+    // 1.8.1：改设置（尤其逐字开关、颜色）要立刻反映到当前句上，重渲染一遍最稳。
+    if (lastPayload) render(lastPayload, lastPayloadReceivedAt);
+    else remeasureLyrics();
 };
 
 /** 这份快照里的 position 是「什么时候」的位置：优先用 client 打的 sentAt，缺了才退回收到时刻。 */
@@ -1260,6 +1309,135 @@ const positionNowFrom = (payload, receivedAt) => {
     if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > 30) return base;
     return base + elapsed;
 };
+
+/**
+ * 1.8.1：「现在」的歌词时钟（秒）。
+ * 逐字染色比的是歌词时钟（words.startTime 就是歌词时钟），而 payload.position 是媒体位置，
+ * 两者相差用户自己设的歌词偏移（client 已算好放在 payload.offsetSec）。
+ * 行号由 client 用「媒体位置 - 偏移」求得，页面若拿媒体位置去比词时间，偏移非 0 时必然错位。
+ */
+const lyricNowFrom = (payload, receivedAt) =>
+    positionNowFrom(payload, receivedAt) - (Number(payload && payload.offsetSec) || 0);
+
+// ---- 1.8.1 逐字染色（桌面歌词）----
+// 只在词级时间可用时启用；普通 LRC 一行只有一个词级时间，words 长度 1，直接退回整行渲染。
+let karaoke = null;
+
+const karaokeEnabled = () => config.shared.karaoke === true;
+
+const stopKaraoke = () => {
+    if (karaoke && karaoke.raf) cancelAnimationFrame(karaoke.raf);
+    karaoke = null;
+};
+
+const karaokeNow = () => (karaoke ? karaoke.base + (performance.now() - karaoke.startedAt) / 1000 : 0);
+
+/** 只切「已唱 / 未唱」两个 class，颜色与透明度交给 CSS 变量。 */
+const paintKaraokeAt = (time) => {
+    if (!karaoke) return;
+    for (const item of karaoke.spans) {
+        const sung = time >= item.start;
+        if (sung === item.sung) continue;
+        item.sung = sung;
+        item.el.classList.toggle('is-sung', sung);
+        item.el.classList.toggle('is-unsung', !sung);
+    }
+};
+
+const stepKaraoke = () => {
+    if (!karaoke) return;
+    paintKaraokeAt(karaokeNow());
+    paintSecondFollow(karaokeProgress());
+    karaoke.raf = requestAnimationFrame(stepKaraoke);
+};
+
+/** 两个 #rrggbb 按比例混合（ratio 0 = from，1 = to）。 */
+const mixHex = (from, to, ratio) => {
+    const read = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const a = read(from);
+    const b = read(to);
+    const t = Math.min(1, Math.max(0, ratio));
+    return '#' + a.map((value, index) => Math.round(value + (b[index] - value) * t).toString(16).padStart(2, '0')).join('');
+};
+
+/** 当前句唱到哪了（0–1）：数不出时间就按 0 处理，与逐字染色同一份歌词时钟。 */
+const karaokeProgress = () => {
+    const line = lastPayload && lastPayload.line ? lastPayload.line : null;
+    if (!line) return 0;
+    const start = Number(line.startTime);
+    const end = Number(line.endTime);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+    const now = karaoke ? karaokeNow() : lyricNowFrom(lastPayload, lastPayloadReceivedAt);
+    return Math.min(1, Math.max(0, (now - start) / (end - start)));
+};
+
+/**
+ * 1.8.3（A 方案）：译文 / 罗马音没有词级时间（宿主只给原文的 words），做不了逐字染色。
+ * 这里让第二行「整行跟着当前句的进度渐亮」：颜色从歌词色混到已唱色，透明度从 unsungOpacity 升到 1，
+ * 视觉上和第一行的逐字进度对齐。逐字关掉或第二行是空的时候把内联覆盖清掉，回到 CSS 的默认状态。
+ */
+const paintSecondFollow = (progress) => {
+    if (!els.trans) return;
+    const secondLine = els.transTrack ? els.transTrack.textContent : '';
+    if (!karaokeEnabled() || secondLine === '') {
+        els.trans.style.color = '';
+        els.trans.style.opacity = '';
+        return;
+    }
+    const sungColor = /^#[0-9a-f]{6}$/i.test(String(config.shared.sungColor || '')) ? String(config.shared.sungColor).toLowerCase() : '#7dd3fc';
+    const baseColor = /^#[0-9a-f]{6}$/i.test(String(config.shared.lyricColor || '')) ? String(config.shared.lyricColor).toLowerCase() : '#ffffff';
+    const unsungOpacity = Number.isFinite(Number(config.shared.unsungOpacity))
+        ? Math.min(1, Math.max(0.2, Number(config.shared.unsungOpacity)))
+        : 0.55;
+    const t = Math.min(1, Math.max(0, progress));
+    els.trans.style.color = mixHex(baseColor, sungColor, t);
+    els.trans.style.opacity = String(unsungOpacity + (1 - unsungOpacity) * t);
+};
+
+/** 返回 true 表示这一行已按逐字画好；false 让调用方退回整行文本。 */
+const renderKaraokeLine = (line, payload, receivedAt) => {
+    const words = line && Array.isArray(line.words) ? line.words : null;
+    if (!words || words.length < 2) {
+        stopKaraoke();
+        return false;
+    }
+    const key = String(line.text || '') + '|' + words.map((word) => word.startTime).join(',');
+    if (!karaoke || karaoke.key !== key) {
+        stopKaraoke();
+        els.lineTrack.textContent = '';
+        const spans = [];
+        for (const word of words) {
+            const span = document.createElement('span');
+            span.className = 'word is-unsung';
+            span.textContent = word.text;
+            els.lineTrack.appendChild(span);
+            spans.push({ el: span, start: word.startTime, sung: false });
+        }
+        karaoke = { key, spans, base: lyricNowFrom(payload, receivedAt), startedAt: performance.now(), raf: 0 };
+    } else {
+        // 同一行：拖动进度条 / 暂停恢复 / 改设置重渲染时，用新快照重设基准。
+        const position = lyricNowFrom(payload, receivedAt);
+        if (Math.abs(position - karaokeNow()) > 0.5) {
+            karaoke.base = position;
+            karaoke.startedAt = performance.now();
+        }
+    }
+    paintKaraokeAt(karaokeNow());
+    // 1.8.3：第二行按整句进度同步渐亮（A 方案）。
+    paintSecondFollow(karaokeProgress());
+    if (payload.state === 'playing') {
+        if (!karaoke.raf) karaoke.raf = requestAnimationFrame(stepKaraoke);
+    } else if (karaoke.raf) {
+        cancelAnimationFrame(karaoke.raf);
+        karaoke.raf = 0;
+    }
+    return true;
+};
+
+/** 窗口收起时页面不可见：停掉 rAF，回来按新快照重新接上。 */
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') stopKaraoke();
+});
 
 /**
  * 1.6.1 长句滚动（「走马灯」）。1.6.2 起默认开启；设置里关掉时长句照旧截断（尾部省略号）。
@@ -1460,7 +1638,8 @@ const secondsLeftForLine = (line, payload) => {
     const end = Number(line && line.endTime);
     // 1.6.3：位置取「现在」，不是快照里那个时刻的位置。config 变化后的重量、下一拍补量都会走到这里，
     // 用快照的旧 position 会把剩余时间算长（滚动变慢），甚至算成负数。
-    const position = positionNowFrom(payload, lastPayloadReceivedAt);
+    // 1.8.1：剩余时间按「歌词时钟」算（line.endTime 是歌词时钟，payload.position 是媒体位置）。
+    const position = lyricNowFrom(payload, lastPayloadReceivedAt);
     if (!Number.isFinite(end) || !Number.isFinite(position)) return MARQUEE_DEFAULT_SECONDS;
     const left = end - position;
     // 只有「还没唱完」才用剩余时间反推速度。句间、刚换句时 endTime 可能已经过去（剩余为负），
@@ -1542,7 +1721,11 @@ const render = (payload, receivedAt) => {
         ' title="' + ((payload.song && payload.song.title) || '') + '"',
     );
     // 1.6.7：没歌词 / 还没到第一句时换文案；其余（含空字符串）都用快照里的文本。
-    els.lineTrack.textContent = lyricTextOf(payload);
+    // 1.8.1：逐字染色开启且有词级时间时，轨道里改成「每个词一个 span」；否则整行文本。
+    if (!(karaokeEnabled() && line.index >= 0 && renderKaraokeLine(line, payload, receivedAt))) {
+        stopKaraoke();
+        els.lineTrack.textContent = lyricTextOf(payload);
+    }
     // 暂停变淡要知道播放状态；只认 playing，其他都当暂停。
     document.body.dataset.playback = typeof payload.state === 'string' ? payload.state : 'paused';
     // 1.7.0：暂停时把长句滚动一起停下，恢复播放再从当前位置继续。
@@ -1562,6 +1745,8 @@ const render = (payload, receivedAt) => {
     }
     els.transTrack.textContent = secondLine;
     els.trans.hidden = secondLine === '';
+    // 1.8.3：逐字开启时第二行按进度渐亮；关掉或空行时这里会把内联覆盖清掉，回到 --lyric-color。
+    paintSecondFollow(karaokeProgress());
     // 三行排版（原文 + 译文 + 罗马音）已下线：这一行现在始终留空。
     // 要恢复：① 上面改成 secondLine = translation、并另算 showRoman；② 这里填罗马音；
     // ③ LAYOUT_MODES / LAYOUT_TIPS 和 CSS 的 #layout[data-mode="roman"] 规则各补一态。
@@ -1657,6 +1842,8 @@ els.layout.addEventListener('click', () => {
 let showMark = null;
 let shownPending = false;
 let showTimer = null;
+// 1.8.4：上屏后摘「显示中」铺底的兜底定时器（见 flushShown）。
+let showReleaseTimer = null;
 // 1.5.6 铺底：applyShownStyle 挂上 body.showing（底色 + 控制条提前展开），
 // releaseShownStyle 在上屏之后的第一帧快照里撤掉，交还给悬停规则。
 const applyShownStyle = () => {
@@ -1675,13 +1862,22 @@ const flushShown = () => {
     }
     shownPending = false;
     ipcRenderer.send('${IPC_SHOWN}');
+    // 1.8.4：兜底摘「显示中」铺底。以前只靠「上屏后再来一帧 IPC_DATA」才 releaseShownStyle()，
+    // 暂停 / 停止状态下 client 不会再有新帧，body.showing 就永远挂着 —— 窗口一直铺着底色、
+    // 控制条强制常显但切换键/关闭键又不出来，固定态还会看起来「不透明、不可穿透」。
+    if (showReleaseTimer) clearTimeout(showReleaseTimer);
+    showReleaseTimer = setTimeout(() => {
+        showReleaseTimer = null;
+        showMark = null;
+        releaseShownStyle();
+    }, ${SHOW_RELEASE_MS});
 };
 const syncShownState = () => {
     if (!shownPending || !showMark || !showMark.rendered) return;
-    // 还停在「显示中」那一刻之前的快照：等下一帧到了再回信，否则上屏的会是旧画面。
-    const renderedFrame = Number.isFinite(showMark.renderedFrame) ? showMark.renderedFrame : lastPayloadFrame;
-    if (renderedFrame < showMark.frame) return;
-    // 1.5.6：回信之前先把这一帧的底子铺好（正常路径 C），主进程收到 IPC_SHOWN 就立刻 showInactive。
+    // 1.8.4：判据从「帧号必须大于标记时刻」改成「标记之后收到并画完的任何一帧」——
+    // IPC_SHOW 之前 request-sync 的那一帧可能先在页面里画完、帧号已经≥标记值，
+    // 旧判据会把这次握手判成「永远等不到」，最后走 400ms 兜底、上屏旧句。
+    // 现在 IPC_SHOW 会把旧字清掉，所以标记之后的第一帧一定是新内容。
     applyShownStyle();
     flushShown();
 };
@@ -1694,9 +1890,30 @@ ipcRenderer.on('${IPC_LAYOUT}', (event, value) => {
     if (lastPayload) render(lastPayload);
 });
 // 主进程说「该显示了」：先别让旧画面见人，等当下这一帧到了再回信上屏。
-ipcRenderer.on('${IPC_SHOW}', () => {
+ipcRenderer.on('${IPC_SHOW}', (event, info) => {
     shownPending = true;
-    showMark = { frame: payloadFrame + 1, rendered: false };
+    // 上一次显示留下的兜底定时器要作废，否则它会在这次上屏后提前把「显示中」摘掉。
+    if (showReleaseTimer) {
+        clearTimeout(showReleaseTimer);
+        showReleaseTimer = null;
+    }
+    // 1.8.5：标记时刻用主进程发 IPC_SHOW 之前的时间戳（不是页面收到的时刻）。
+    // 这样「这次显示之后 client 生成的帧」（sentAt >= since）一定能通过判据，
+    // 而显示之前就在路上飞着的旧帧（sentAt 更早）会被挡掉 —— 1.8.4 用「任意一帧」当判据，
+    // 旧帧先到就上屏旧句，所以那个闪是偶发的。
+    const markSince = Number(info && info.since);
+    showMark = {
+        since: Number.isFinite(markSince) ? markSince : Date.now(),
+        rendered: false,
+    };
+    // 1.8.5：只有窗口当时不可见才清字。窗口已经可见时清空就是一次肉眼可见的「闪白」，
+    // 这次显示不需要再藏旧画面（本来就在屏幕上）。
+    const wasVisible = Boolean(info && info.visible);
+    if (!wasVisible) {
+        if (els.lineTrack) els.lineTrack.textContent = '';
+        if (els.transTrack) els.transTrack.textContent = '';
+        if (els.trans) els.trans.hidden = true;
+    }
     // 先把旧画面压住（窗口还没上屏，这一步是防「万一露出来」和「同步 render 重绘后空一帧」）。
     applyShownStyle();
     // 上屏后马上会来一帧新快照，那一帧的 render 会重新量滚动；这里先复位，免得旧句的
@@ -1861,8 +2078,14 @@ ipcRenderer.on('${IPC_DATA}', (event, payload) => {
     if (showMark) showMark.renderedFrame = frameNo;
     // 1.5.2：画完了再看这次显示握手能不能回信（要等的是「显示中」那一刻之后的帧）。
     if (shownPending && showMark) {
-        showMark.rendered = true;
-        syncShownState();
+        // 1.8.5：必须是「这次显示之后生成」的帧才放行（sentAt 由 client 生成快照时打）。
+        // 旧版本只要收到任意一帧就回信，而 request-sync 那一帧和正常轮询帧会竞争，
+        // 旧帧先到就先上屏旧句 —— 这就是「当前句闪」偶发的原因。
+        const sentAt = Number(payload && payload.sentAt);
+        if (!Number.isFinite(sentAt) || sentAt >= showMark.since) {
+            showMark.rendered = true;
+            syncShownState();
+        }
     } else if (showMark) {
         // 1.5.6：握手已经完成（回信已发），这一帧到达说明主进程已按回信上屏过：现在才撤铺底。
         showMark = null;
@@ -2088,6 +2311,12 @@ body[data-desktop="true"] .topbar { visibility: hidden; }
 .row.current { opacity: 1; font-weight: 600; }
 .row.current .row-text { display: inline-block; text-overflow: clip; will-change: transform; }
 .row.current .row-sub { text-overflow: clip; }
+/* 1.8.1：当前句在横向滚动时改成左对齐 —— 居中会把句子开头裁掉，第一秒就看不到从哪开始。 */
+.row.current.is-scrolling { text-align: left; }
+/* 1.8.1 逐字染色：只在「已唱 / 未唱」两态之间切 class，颜色与透明度来自 CSS 变量。 */
+.word { transition: color 0.1s linear, opacity 0.1s linear; }
+.word.is-unsung { opacity: var(--unsung-opacity, 0.55); }
+.word.is-sung { color: var(--sung-color, #7dd3fc); opacity: 1; }
 
 /* 桌面模式（点击穿透）下唯一可点的「退出」键：默认隐藏，光标压上来才亮。 */
 .playlist {
@@ -2221,6 +2450,7 @@ const IPC_POPUP_HOVER = '${IPC_POPUP_HOVER}';
 const IPC_POPUP_LAYOUT = '${IPC_POPUP_LAYOUT}';
 const IPC_POPUP_TOAST = '${IPC_POPUP_TOAST}';
 const IPC_POPUP_PLAYLIST = '${IPC_POPUP_PLAYLIST}';
+const IPC_POPUP_FRAME = '${IPC_POPUP_FRAME}';
 const IPC_POPUP_POINTER_RECT = '${IPC_POPUP_POINTER_RECT}';
 
 const ICONS = ${JSON.stringify(ICON_SVG)};
@@ -2280,7 +2510,7 @@ let volumeDragging = false;
 let volumeTimer = null;
 let lastVolumeSent = null;
 let popupLayout = 'text';
-let config = { shared: { popupFontSize: ${POPUP_FONT_SIZE_DEFAULT}, popupColor: '#eaf6ff' } };
+let config = { shared: { popupFontSize: ${POPUP_FONT_SIZE_DEFAULT}, popupColor: '#eaf6ff', karaoke: false, sungColor: '#7dd3fc', unsungOpacity: 0.55 } };
 // 滚动歌词的几何量：每次 fitLayout 重算。
 let geometry = { size: 24, lineHeight: 36, gap: 23, lineUnit: 36, rows: 1 };
 // 上一次渲染窗口的起点与行数，用来算「这次该往哪边滑」。
@@ -2317,7 +2547,22 @@ const applyConfig = (next) => {
     const color = typeof shared.popupColor === 'string' && /^#[0-9a-f]{6}$/i.test(shared.popupColor.trim())
         ? shared.popupColor.trim().toLowerCase()
         : '#eaf6ff';
-    config = { shared: { popupFontSize: clamped, popupColor: color } };
+    config = {
+        shared: {
+            popupFontSize: clamped,
+            popupColor: color,
+            // 1.8.1：逐字染色沿用同一套设置（两个窗口一起生效）。
+            karaoke: shared.karaoke === true,
+            sungColor: typeof shared.sungColor === 'string' && /^#[0-9a-f]{6}$/i.test(shared.sungColor.trim())
+                ? shared.sungColor.trim().toLowerCase()
+                : '#7dd3fc',
+            unsungOpacity: Number.isFinite(Number(shared.unsungOpacity))
+                ? Math.min(1, Math.max(0.2, Number(shared.unsungOpacity)))
+                : 0.55,
+        },
+    };
+    document.documentElement.style.setProperty('--sung-color', config.shared.sungColor);
+    document.documentElement.style.setProperty('--unsung-opacity', String(config.shared.unsungOpacity));
     applyPopupColor(color);
     fitLayout();
 };
@@ -2334,59 +2579,273 @@ const lyricTextOf = (payload) => {
     return text || WAITING_TEXT;
 };
 
-/** 把「上一句 / 当前句 / 下一句 …」整体上滑或下滑一段，模拟跟唱滚动。 */
-const scrollRows = (deltaLines) => {
+/**
+ * 把「上一句 / 当前句 / 下一句 …」整体上滑或下滑一段，模拟跟唱滚动。
+ * 1.8.1 三处改动（真机反馈「切句动画很突出很刺眼」）：
+ *  - 位移接得上：起点 = 当前实际位置 + 这次该走的量，动画被打断也不会瞬移（旧版只写 delta×step，
+ *    上一段动画没走完就重建 DOM，画面会跳一下）；
+ *  - 跳多行不飞：点歌 / 拖进度 / 尺寸变化时 delta 可能有十几行，整屏飞行非常刺眼 —— 直接落位；
+ *  - 距离越远时长略长：固定 0.24s 走 2 行和走 1 行的瞬时速度差一倍，按距离给 0.13–0.26s。
+ */
+const scrollRows = (deltaLines, lineCount) => {
     if (!els.rows || !deltaLines) return;
+    // 1.8.5（用户 ③）：单行模式（一屏只放得下一句）不做纵向动画 ——
+    // 只有一个行位，纵向位移没有任何「上移一行」的信息量，只会像弹出来。
+    // 单行时换句靠横向走马灯（和桌面歌词同款）表现，纵向直接落位。
+    if (lineCount <= 1) {
+        els.rows.style.transition = 'none';
+        els.rows.style.transform = 'translateY(0)';
+        els.rows.style.opacity = '1';
+        return;
+    }
     const step = geometry.lineUnit + geometry.gap;
-    els.rows.classList.remove('anim');
-    els.rows.style.transform = 'translateY(' + (deltaLines * step) + 'px)';
+    // 1.8.4（用户 ③）：整块重建之后，旧内容已经不在画面里了，把新块按 ±1 行区间再滑回 0，
+    // 视觉上就是「新的当前句从旁边跳出来」。改成轻量 settle：只做 6px 级位移 + 透明度回正，
+    // 读起来像内容轻轻落定，而不是整屏平移。
+    // 1.8.5：多行模式改成「轻推」—— 起点接近一整行高（0.65 行），不加透明度，
+    // 0.18s ease-out 落位，读起来是列表被推了一格，而不是淡入新内容。
+    if (Math.abs(deltaLines) > 1) {
+        els.rows.style.transition = 'none';
+        els.rows.style.transform = 'translateY(0)';
+        els.rows.style.opacity = '1';
+        return;
+    }
+    const direction = deltaLines > 0 ? 1 : -1;
+    const shift = Math.min(step, step * 0.65) * direction;
+    els.rows.style.transition = 'none';
+    els.rows.style.transform = 'translateY(' + shift.toFixed(2) + 'px)';
+    els.rows.style.opacity = '1';
     void els.rows.offsetHeight;
-    els.rows.classList.add('anim');
     requestAnimationFrame(() => {
         if (!els.rows) return;
+        els.rows.style.transition = 'transform 0.18s cubic-bezier(0.22, 0.72, 0.3, 1)';
         els.rows.style.transform = 'translateY(0)';
+        els.rows.style.opacity = '1';
     });
 };
 
-/** 当前句太长时横向缓慢滚动（速度保守，46px/s）。 */
+/* ---- 1.8.1：当前句横向滚动（改成和桌面歌词同一套节奏）----
+ * 1.7.8 那版速度写死 46px/s、滚到底硬跳回开头再滚一遍 —— 真机上就是「一抖一抖」。
+ * 现在和桌面歌词共用同一套参数：
+ *  - 句首留 MARQUEE_LEAD_IN 秒让人读完，句尾留 MARQUEE_TAIL 秒；
+ *  - 速度 = max(按剩余可唱时间反推, 溢出 ÷ MARQUEE_SCROLL_SECONDS)，上限 MARQUEE_MAX_SPEED；
+ *  - 滚到底就停住（保持最后一段可见），不回头；
+ *  - 暂停时收掉 rAF，恢复播放从当前偏移接着走。
+ */
+const MARQUEE_LEAD_IN = 1.2;
+const MARQUEE_TAIL = 0.15;
+const MARQUEE_MAX_SPEED = 190;
+const MARQUEE_MIN_OVERFLOW = 6;
+const MARQUEE_SCROLL_SECONDS = 0.2;
+const MARQUEE_DEFAULT_SECONDS = 8;
+
+/** 把「快照位置」折算成现在的歌词时钟（秒）：媒体位置 - 用户偏移 + 已流逝时间。 */
+const popupLyricNow = (payload) => {
+    const base = Number(payload && payload.position);
+    const offset = Number(payload && payload.offsetSec) || 0;
+    if (!Number.isFinite(base)) return 0;
+    if (!payload || payload.state !== 'playing') return base - offset;
+    const sentAt = Number(payload.sentAt);
+    const anchor = Number.isFinite(sentAt) && sentAt > 0 ? sentAt : Date.now();
+    const elapsed = (Date.now() - anchor) / 1000;
+    const now = Number.isFinite(elapsed) && elapsed >= 0 && elapsed <= 30 ? base + elapsed : base;
+    return now - offset;
+};
+
 const stopMarquee = () => {
-    if (marqueeState) {
-        if (marqueeState.raf) cancelAnimationFrame(marqueeState.raf);
-        marqueeState = null;
+    if (!marqueeState) return;
+    if (marqueeState.raf) cancelAnimationFrame(marqueeState.raf);
+    if (marqueeState.view) marqueeState.view.classList.remove('is-scrolling');
+    if (marqueeState.el) marqueeState.el.style.transform = '';
+    marqueeState = null;
+};
+
+const stepMarquee = (now) => {
+    if (!marqueeState) return;
+    const state = marqueeState;
+    // 暂停：收掉循环；恢复播放时由 ensureMarqueeStep 从当前偏移继续。
+    if (!lastPayload || lastPayload.state !== 'playing') {
+        state.raf = 0;
+        state.lastAt = 0;
+        return;
     }
+    const dt = state.lastAt ? Math.min(0.1, (now - state.lastAt) / 1000) : 0;
+    state.lastAt = now;
+    if (state.delay > 0) {
+        state.delay = Math.max(0, state.delay - dt);
+        state.raf = requestAnimationFrame(stepMarquee);
+        return;
+    }
+    state.offset = Math.min(state.overflow, state.offset + state.speed * dt);
+    state.el.style.transform = 'translateX(' + (-state.offset).toFixed(2) + 'px)';
+    if (state.offset >= state.overflow) {
+        // 滚到底停住：保持最后一段露在眼眶里，不跳回开头。
+        state.done = true;
+        state.raf = 0;
+        return;
+    }
+    state.raf = requestAnimationFrame(stepMarquee);
+};
+
+const ensureMarqueeStep = () => {
+    if (!marqueeState || marqueeState.done || marqueeState.raf) return;
+    if (!lastPayload || lastPayload.state !== 'playing') return;
+    marqueeState.lastAt = 0;
+    marqueeState.raf = requestAnimationFrame(stepMarquee);
 };
 
 const measureMarquee = () => {
     stopMarquee();
-    const current = els.rows && els.rows.querySelector('.row.current .row-text');
-    if (!current) return;
-    current.style.transform = 'translateX(0)';
-    const overflow = current.scrollWidth - current.parentElement.clientWidth;
-    if (!Number.isFinite(overflow) || overflow < 8) return;
-    marqueeState = { overflow, offset: 0, raf: 0, lastAt: 0, holdUntil: performance.now() + 1400 };
-    const step = (now) => {
-        if (!marqueeState) return;
-        const state = marqueeState;
-        if (!state.lastAt) state.lastAt = now;
-        const dt = Math.min(0.1, (now - state.lastAt) / 1000);
-        state.lastAt = now;
-        if (lastPayload && lastPayload.state !== 'playing') {
-            state.raf = requestAnimationFrame(step);
-            return;
-        }
-        if (now < state.holdUntil) {
-            state.raf = requestAnimationFrame(step);
-            return;
-        }
-        state.offset += 46 * dt;
-        if (state.offset >= state.overflow) {
-            state.offset = 0;
-            state.holdUntil = now + 1200;
-        }
-        current.style.transform = 'translateX(' + (-state.offset).toFixed(2) + 'px)';
-        state.raf = requestAnimationFrame(step);
+    const view = els.rows && els.rows.querySelector('.row.current');
+    const el = view && view.querySelector('.row-text');
+    if (!view || !el) return;
+    const available = view.clientWidth;
+    if (!available) return;
+    const overflow = el.scrollWidth - available;
+    if (!Number.isFinite(overflow) || overflow < MARQUEE_MIN_OVERFLOW) return;
+    // 这一句还剩多少秒可唱：算不出来（句间 / 时间戳缺失 / 已过）就给宽裕值，
+    // 否则预算会被夹到 0.9 秒、速度顶到上限，肉眼看就是「闪一下没了」。
+    let availableSeconds = MARQUEE_DEFAULT_SECONDS;
+    const end = Number(lastPayload && lastPayload.line && lastPayload.line.endTime);
+    if (Number.isFinite(end)) {
+        const left = end - popupLyricNow(lastPayload);
+        if (left > 0) availableSeconds = left;
+    }
+    const budget = Math.max(0.9, availableSeconds - MARQUEE_LEAD_IN - MARQUEE_TAIL);
+    const needed = overflow / budget;
+    const neededSlow = overflow / MARQUEE_SCROLL_SECONDS;
+    marqueeState = {
+        view,
+        el,
+        overflow,
+        offset: 0,
+        speed: Math.min(MARQUEE_MAX_SPEED, Math.max(needed, neededSlow)),
+        delay: MARQUEE_LEAD_IN,
+        done: false,
+        raf: 0,
+        lastAt: 0,
     };
-    marqueeState.raf = requestAnimationFrame(step);
+    view.classList.add('is-scrolling');
+    el.style.transform = 'translateX(0)';
+    ensureMarqueeStep();
+};
+
+// ---- 1.8.1 逐字染色（悬浮窗当前句）----
+let popupKaraoke = null;
+
+const stopPopupKaraoke = () => {
+    if (popupKaraoke && popupKaraoke.raf) cancelAnimationFrame(popupKaraoke.raf);
+    popupKaraoke = null;
+};
+
+const popupKaraokeNow = () => (popupKaraoke ? popupKaraoke.base + (performance.now() - popupKaraoke.startedAt) / 1000 : 0);
+
+const paintPopupKaraokeAt = (time) => {
+    if (!popupKaraoke) return;
+    for (const item of popupKaraoke.spans) {
+        const sung = time >= item.start;
+        if (sung === item.sung) continue;
+        item.sung = sung;
+        item.el.classList.toggle('is-sung', sung);
+        item.el.classList.toggle('is-unsung', !sung);
+    }
+};
+
+const stepPopupKaraoke = () => {
+    if (!popupKaraoke) return;
+    paintPopupKaraokeAt(popupKaraokeNow());
+    paintPopupSecondFollow(popupKaraokeProgress());
+    if (!lastPayload || lastPayload.state !== 'playing') {
+        popupKaraoke.raf = 0;
+        return;
+    }
+    popupKaraoke.raf = requestAnimationFrame(stepPopupKaraoke);
+};
+
+/** 两个 #rrggbb 按比例混合（与桌面歌词同一套算法）。 */
+const mixHex = (from, to, ratio) => {
+    const read = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const a = read(from);
+    const b = read(to);
+    const t = Math.min(1, Math.max(0, ratio));
+    return '#' + a.map((value, index) => Math.round(value + (b[index] - value) * t).toString(16).padStart(2, '0')).join('');
+};
+
+/** 当前句唱到哪了（0–1），用悬浮窗自己的歌词时钟。 */
+const popupKaraokeProgress = () => {
+    const line = lastPayload && lastPayload.line ? lastPayload.line : null;
+    if (!line) return 0;
+    const start = Number(line.startTime);
+    const end = Number(line.endTime);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+    const now = popupKaraoke ? popupKaraokeNow() : popupLyricNow(lastPayload);
+    return Math.min(1, Math.max(0, (now - start) / (end - start)));
+};
+
+/**
+ * 1.8.3（A 方案）：当前句的译文 / 罗马音没有词级时间，改成整行跟着进度渐亮。
+ * 颜色从悬浮窗文字色混到已唱色，透明度从 unsungOpacity 升到 1；逐字关掉时清掉内联覆盖。
+ */
+const paintPopupSecondFollow = (progress) => {
+    const row = els.rows ? els.rows.querySelector('.row.current .row-sub') : null;
+    if (!row) return;
+    if (config.shared.karaoke !== true || !row.textContent) {
+        row.style.color = '';
+        row.style.opacity = '';
+        return;
+    }
+    const sungColor = /^#[0-9a-f]{6}$/i.test(String(config.shared.sungColor || '')) ? String(config.shared.sungColor).toLowerCase() : '#7dd3fc';
+    const baseColor = /^#[0-9a-f]{6}$/i.test(String(config.shared.popupColor || '')) ? String(config.shared.popupColor).toLowerCase() : '#eaf6ff';
+    const unsungOpacity = Number.isFinite(Number(config.shared.unsungOpacity))
+        ? Math.min(1, Math.max(0.2, Number(config.shared.unsungOpacity)))
+        : 0.55;
+    const t = Math.min(1, Math.max(0, progress));
+    row.style.color = mixHex(baseColor, sungColor, t);
+    row.style.opacity = String(unsungOpacity + (1 - unsungOpacity) * t);
+};
+
+/** 把当前行的文本换成「每个词一个 span」；没词级时间就保持整行文本。 */
+const paintCurrentKaraoke = (payload) => {
+    stopPopupKaraoke();
+    if (config.shared.karaoke !== true) return;
+    const line = payload && payload.line ? payload.line : null;
+    const words = line && Array.isArray(line.words) ? line.words : null;
+    if (!words || words.length < 2) return;
+    const view = els.rows && els.rows.querySelector('.row.current');
+    const el = view && view.querySelector('.row-text');
+    if (!el) return;
+    el.textContent = '';
+    const spans = [];
+    for (const word of words) {
+        const span = document.createElement('span');
+        span.className = 'word is-unsung';
+        span.textContent = word.text;
+        el.appendChild(span);
+        spans.push({ el: span, start: word.startTime, sung: false });
+    }
+    popupKaraoke = { spans, base: popupLyricNow(payload), startedAt: performance.now(), raf: 0 };
+    paintPopupKaraokeAt(popupKaraoke.base);
+    if (payload.state === 'playing') popupKaraoke.raf = requestAnimationFrame(stepPopupKaraoke);
+};
+
+/** 播放状态变化时同步：暂停收掉 rAF，恢复且还没滚完就接着走。 */
+const syncPopupMotion = () => {
+    if (!lastPayload || lastPayload.state !== 'playing') {
+        if (popupKaraoke && popupKaraoke.raf) {
+            cancelAnimationFrame(popupKaraoke.raf);
+            popupKaraoke.raf = 0;
+        }
+        if (marqueeState && marqueeState.raf) {
+            cancelAnimationFrame(marqueeState.raf);
+            marqueeState.raf = 0;
+            marqueeState.lastAt = 0;
+        }
+        return;
+    }
+    ensureMarqueeStep();
+    if (popupKaraoke && !popupKaraoke.raf) {
+        popupKaraoke.raf = requestAnimationFrame(stepPopupKaraoke);
+    }
 };
 
 /**
@@ -2416,6 +2875,7 @@ const paintRows = (payload) => {
         const textNode = els.rows.querySelector('.row-text');
         if (textNode) textNode.textContent = lyricTextOf(payload);
         lastWindow = { offset: 0, count: 1, step: 0 };
+        stopPopupKaraoke();
         return;
     }
     const currentIndex = payload.line && Number.isFinite(payload.line.index) ? payload.line.index : -1;
@@ -2423,7 +2883,18 @@ const paintRows = (payload) => {
     for (let i = 0; i < lines.length; i += 1) {
         if (lines[i] && lines[i].index === currentIndex) currentPos = i;
     }
-    if (currentPos < 0) currentPos = Math.min(lines.length - 1, Math.max(0, 0));
+    if (currentPos < 0) {
+        // 1.8.5：当前句不在 context.lines 里（前奏/插曲，payload.line.index = -1）。
+        // 旧版这里把窗口第一行当当前句，于是 00:00 时桌面歌词显示「……」（upcoming），
+        // 悬浮窗却显示第二句「编曲:…」—— 两个窗口不一致。现在跟桌面走同一套文案。
+        els.rows.innerHTML = '<div class="row current"><span class="row-text"></span></div>';
+        const textNode = els.rows.querySelector('.row-text');
+        if (textNode) textNode.textContent = lyricTextOf(payload);
+        lastWindow = { offset: 0, count: 1, step: 0 };
+        stopPopupKaraoke();
+        requestAnimationFrame(measureMarquee);
+        return;
+    }
     const available = els.lyrics ? els.lyrics.clientHeight : 0;
     // 行数算出来后再兜一次底：真实渲染高度可能略有出入，用 scrollHeight 回退一行。
     let win = computeWindow(lines.length, currentPos, available, 0);
@@ -2455,10 +2926,14 @@ const paintRows = (payload) => {
     geoUpdate: {
         // 只有「起点变了」才做滑动；换句但起点没变说明是在同一屏里换高亮，不需要动。
         const delta = lastWindow.count > 0 ? win.offset - lastWindow.offset : 0;
-        if (delta !== 0) scrollRows(delta);
+        if (delta !== 0) scrollRows(delta, win.count);
         break geoUpdate;
     }
     lastWindow = { offset: win.offset, count: win.count, step: geometry.lineUnit + geometry.gap };
+    // 1.8.1：当前句换成 span 后再量滚动（重建 DOM 之后量，宽度才准）。
+    paintCurrentKaraoke(payload);
+    // 1.8.3：第二行（译文 / 罗马音）按整句进度渐亮；逐字关掉时这里会把内联覆盖清掉。
+    paintPopupSecondFollow(popupKaraokeProgress());
     requestAnimationFrame(measureMarquee);
 };
 
@@ -2466,6 +2941,8 @@ const render = (payload) => {
     if (!payload || typeof payload !== 'object') return;
     lastPayload = payload;
     paintRows(payload);
+    // 1.8.1：暂停时收掉横向滚动与逐字染色的 rAF，恢复播放接着走。
+    syncPopupMotion();
     const playing = payload.state === 'playing';
     setIcon(els.toggle, playing ? 'pause' : 'play');
     els.toggle.title = playing ? '暂停' : '播放';
@@ -2584,7 +3061,12 @@ if (els.volume) {
 
 /* ---- 主进程 → 页面 ---- */
 
-ipcRenderer.on(IPC_DATA, (event, payload) => render(payload));
+ipcRenderer.on(IPC_DATA, (event, payload) => {
+    render(payload);
+    // 1.8.3：显示握手 —— 这一帧画完后回信，主进程收到才让窗口上屏，
+    // 这样切形态时不会先露出上一份快照（真机上的「闪回」）。
+    ipcRenderer.send(IPC_POPUP_FRAME, {});
+});
 ipcRenderer.on(IPC_CONFIG, (event, payload) => applyConfig(payload));
 let toastTimer = null;
 /** 一次性提示（播放列表打不开之类），2.4 秒后自动淡出。 */
@@ -2599,8 +3081,28 @@ const showToast = (text) => {
     }, 2400);
 };
 /** 1.7.12：播放列表面板。数据由 client 读宿主队列后经主进程转过来（IPC_POPUP_PLAYLIST）。 */
+// 1.8.1：面板刷新时的定位状态。
+//  - playlistFocusPending：刚打开面板 → 第一次拿到数据要滚到当前歌；
+//  - playlistLastCurrent：上一次渲染时的当前歌下标，用来判断「当前歌变了」还是「只是刷新」。
+let playlistFocusPending = false;
+let playlistLastCurrent = -2;
+
+/** 把某一行的中线对齐到列表中线（不依赖 offsetParent，position 怎么改都成立）。 */
+const centerPlaylistRow = (row) => {
+    const list = els.playlistList;
+    if (!list || !row) return;
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const offset = rowRect.top - listRect.top;
+    list.scrollTop += offset - (list.clientHeight - rowRect.height) / 2;
+};
+
 const renderPlaylist = (data) => {
     if (!els.playlistList) return;
+    const previousScrollTop = els.playlistList.scrollTop;
+    const currentIndex = data && Number.isFinite(data.currentIndex) ? data.currentIndex : -1;
+    // 刷新（当前歌没变）时保留用户自己的滚动位置，别每次都弹回当前歌。
+    const keepScroll = !playlistFocusPending && currentIndex === playlistLastCurrent;
     els.playlistList.textContent = '';
     const items = data && Array.isArray(data.items) ? data.items : [];
     if (!items.length) {
@@ -2608,12 +3110,22 @@ const renderPlaylist = (data) => {
         empty.className = 'playlist-empty';
         empty.textContent = data && data.kind === 'stage' ? '外部播放中，无队列' : '播放队列是空的';
         els.playlistList.appendChild(empty);
+        playlistLastCurrent = currentIndex;
+        playlistFocusPending = false;
         return;
     }
-    const currentIndex = data && Number.isFinite(data.currentIndex) ? data.currentIndex : -1;
+    // 1.8.1：当前歌不在队列里（外部舞台 / FM / 队列被清空）时给一行提示，别让用户以为没高亮是坏了。
+    if (currentIndex < 0) {
+        const hint = document.createElement('div');
+        hint.className = 'playlist-empty';
+        hint.textContent = '当前播放不在队列中';
+        els.playlistList.appendChild(hint);
+    }
+    let currentRow = null;
     for (const item of items) {
         const row = document.createElement('div');
         row.className = 'playlist-item' + (item.index === currentIndex ? ' current' : '');
+        if (item.index === currentIndex) currentRow = row;
         const num = document.createElement('span');
         num.className = 'pl-index';
         num.textContent = String(item.index + 1);
@@ -2634,17 +3146,29 @@ const renderPlaylist = (data) => {
                 node.classList.remove('current');
             }
             row.classList.add('current');
+            // 点中的行自己滚到中间：用户点的大概率离视野中心不远，这一步只是确认。
+            centerPlaylistRow(row);
             setTimeout(() => {
                 if (els.playlistPanel && !els.playlistPanel.hidden) sendCommand({ type: 'playlist' });
             }, 500);
         });
         els.playlistList.appendChild(row);
     }
+    playlistLastCurrent = currentIndex;
+    if (keepScroll) {
+        els.playlistList.scrollTop = previousScrollTop;
+    } else if (currentRow) {
+        // 1.8.1：打开面板 / 换歌之后滚到当前歌，原来永远停在第一行。
+        centerPlaylistRow(currentRow);
+    }
+    playlistFocusPending = false;
 };
 
 const openPlaylistPanel = () => {
     if (!els.playlistPanel) return;
     els.playlistPanel.hidden = false;
+    // 1.8.1：每次打开都重新定位到当前歌（而不是记住上次的滚动位置）。
+    playlistFocusPending = true;
     if (els.playlistList) {
         els.playlistList.textContent = '';
         const loading = document.createElement('div');
@@ -2794,6 +3318,9 @@ module.exports = function activate(api) {
         popupIgnore: null,
         // 1.7.11：拖动阻尼正在 setBounds（防 'move' 重入，见 createPopupWindow 里的 dampPopupOvershoot）。
         popupDamping: false,
+        // 1.8.3：显示握手中（等页面画完一帧再上屏）与兜底定时器。
+        popupShowPending: false,
+        popupShowTimer: null,
         // 1.7.11：最近一次形态切换时刻 / 最近一次显隐请求的来源（真机排查「窗口自己消失」用）。
         surfaceSwitchedAt: 0,
         lastVisibilitySource: null,
@@ -2806,6 +3333,8 @@ module.exports = function activate(api) {
         reportedDesktop: null,
         // 1.7.14：置顶重申 / 强制重绘的定时器（见 startTopmostWatch）。
         topmostTick: null,
+        // 1.8.2：焦点监听是否已挂上（启动、重新上屏都会调 startTopmostWatch，靠它避免重复挂）。
+        focusBound: false,
         // 正在 new 悬浮窗歌词窗口：构造期会同步触发 browser-window-created，用它把自己排除掉。
         creatingPopup: false,
     };
@@ -3310,12 +3839,18 @@ module.exports = function activate(api) {
                     // 1.5.2：显示分两段。这里只做「让页面先准备好」：请 client 绕过去重发一帧当下这一句，
                     // 但**不**补发旧快照（旧快照 = 关窗那一刻的画面，闪旧句就是从它来的），
                     // 也先不上屏。页面画完新帧回 IPC_SHOWN，才由 showWidgetWindow 上屏。
+                    // 1.8.5：标记时刻要在发 request-sync 之前取 —— 页面用「sentAt >= since」
+                    // 判断这一帧是不是这次显示之后生成的，晚于发给 client 的请求时刻才不会被误挡。
+                    const showSince = Date.now();
                     sendActionToClient({ action: 'request-sync' });
                     // 隐藏期间可能改过字号：上屏前按当前配置定一次高度。
                     applyWindowSize();
                     // 窗口可能已销毁 / 页面没加载完：拿不到握手就兜底上屏。
                     try {
-                        widgetWindow.webContents.send(IPC_SHOW);
+                        widgetWindow.webContents.send(IPC_SHOW, {
+                            since: showSince,
+                            visible: widgetWindow.isVisible(),
+                        });
                     } catch (error) {
                         api.log.warn(LOG_PREFIX + ' 通知页面准备显示失败', error);
                     }
@@ -3342,9 +3877,6 @@ module.exports = function activate(api) {
     const showWidgetWindow = (force) => {
         const widgetWindow = state.win;
         cancelShownWait();
-        // 1.7.14：停掉置顶重申定时器与焦点监听。
-        stopTopmostWatch();
-        app.removeListener('browser-window-focus', onAppFocus);
         // 期间被关掉 / 被销毁 / 模组已停用：不再上屏。
         if (!widgetWindow || widgetWindow.isDestroyed() || !state.widgetOpen || state.disposed) return;
         try {
@@ -3360,6 +3892,11 @@ module.exports = function activate(api) {
         } catch (error) {
             api.log.warn(LOG_PREFIX + ' 显示悬浮窗失败', error);
         }
+        // 1.8.2：这里原来挂着 stopTopmostWatch()（1.7.14 的清理逻辑被放错了位置），
+        // 于是窗口每显示一次，每秒重申置顶 + 重绘的定时器就被停掉、再也没人启动 →
+        // 之后再被别的置顶窗口压住就不回来了（真机上表现为「点固定后窗口消失」）。
+        // 现在改成：显示之后确保定时器在跑（startTopmostWatch 自己幂等）。
+        startTopmostWatch();
     };
 
     /** 等页面回 IPC_SHOWN；超时就兜底上屏，宁可闪一下也不能让「词」按钮点了没反应。 */
@@ -3500,7 +4037,10 @@ module.exports = function activate(api) {
      * 独占全屏（D3D exclusive）绕开合成器，任何窗口都盖不上去 —— 那种情况只能让路。
      */
     const reassertTopmost = () => {
-        if (!state.config || !state.config.shared.keepOnTop) return;
+        // 1.8.4：改成「永远置顶」——用户要求无论锁定与否都保持顶置，不再跟随设置开关。
+        // 每秒重申一次置顶 + 强制重绘：moveTop() 是 SWP_NOACTIVATE（不抢焦点、不改尺寸），
+        // 重绘是给透明分层窗口补帧（被完全遮挡期间 DWM 可能停更，露出来会显示旧画面）。
+        // 独占全屏（D3D exclusive）绕开合成器，任何窗口都盖不上去 —— 那种情况只能让路。
         for (const target of [state.win, state.popup]) {
             if (!target || target.isDestroyed() || !target.isVisible()) continue;
             try {
@@ -3518,6 +4058,11 @@ module.exports = function activate(api) {
             clearInterval(state.topmostTick);
             state.topmostTick = null;
         }
+        // 1.8.2：焦点监听跟定时器一起登记、一起撤，避免重复挂监听。
+        if (state.focusBound) {
+            app.removeListener('browser-window-focus', onAppFocus);
+            state.focusBound = false;
+        }
     };
 
     const startTopmostWatch = () => {
@@ -3529,6 +4074,10 @@ module.exports = function activate(api) {
             }
             reassertTopmost();
         }, TOPMOST_REFRESH_MS);
+        if (!state.focusBound) {
+            app.on('browser-window-focus', onAppFocus);
+            state.focusBound = true;
+        }
     };
 
     /** 应用/窗口重新获得焦点时立刻补一次：alt-tab 回来、全屏应用退出后能马上回到最上层。 */
@@ -3587,9 +4136,17 @@ module.exports = function activate(api) {
                     && point.x >= bounds.x && point.x < bounds.x + bounds.width
                     && point.y >= bounds.y && point.y < bounds.y + bounds.height;
                 // 部分点击穿透：固定状态整窗不吃鼠标，只有解锁按钮那块恢复可点。
-                // 固定但还没收到按钮矩形时保持可点（宁可挡一下，也别把人锁在外面解不开）。
-                const rect = state.pinRect;
-                if (hover && rect) {
+                // 1.8.4：页面没来得及上报按钮矩形（切形态后页面刚显示、或上报丢了）时，
+                // 以前会退化成「整窗可点」= 用户以为「穿透没用」。现在用一个保守兜底矩形
+                // （控制条正中、解锁键所在的那一块），保证固定态永远能穿透、也永远解得开锁。
+                const reported = state.pinRect;
+                const rect = reported || {
+                    x: Math.round(bounds.width / 2) - 48,
+                    y: 0,
+                    width: 96,
+                    height: 58,
+                };
+                if (hover) {
                     const left = bounds.x + rect.x - PIN_HIT_PADDING;
                     const top = bounds.y + rect.y - PIN_HIT_PADDING;
                     overPin = point.x >= left && point.x < left + rect.width + PIN_HIT_PADDING * 2
@@ -3597,7 +4154,7 @@ module.exports = function activate(api) {
                 }
                 // 1.5.2：窗口没上屏时（显示握手中）整窗忽略鼠标——它随时可能露出来，露出来也不能吃点击。
                 // 页面已经自己设过穿透（ignore-hint）时这一帧跳过，不用多等一次轮询。
-                const wantIgnore = !widgetWindow.isVisible() || (state.pinned && !!rect && !overPin);
+                const wantIgnore = !widgetWindow.isVisible() || (state.pinned && !overPin);
                 const pageAlreadySet = !widgetWindow.isVisible() && state.ignoreHint === true;
                 setIgnore(pageAlreadySet ? null : wantIgnore);
                 failCount = 0;
@@ -3743,6 +4300,11 @@ module.exports = function activate(api) {
             rememberWindowPosition(widgetWindow);
             scheduleSave();
         });
+        // 1.8.3：拖完 / 系统移动窗口后立刻重算一次悬停与穿透，不等下一轮 80ms 轮询 ——
+        // 否则松手那一刻页面可能还停在「悬停中」或「穿透」的旧状态，看起来像偶发 bug。
+        widgetWindow.on('moved', () => {
+            if (state.hoverTick) state.hoverTick();
+        });
 
         // 页面只该是这一份 data URL：禁止页面自己导航、禁止开新窗口。
         widgetWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -3762,7 +4324,15 @@ module.exports = function activate(api) {
             // showInactive：悬浮歌词不该把键盘焦点从主窗口/别的应用抢走。
             // 1.4.0：上次退出时是「关掉」状态就别显示，窗口建好先留着（播放条「词」按钮随时叫醒）。
             // 1.7.0：当前形态是悬浮窗歌词时也不上屏，由 applySurface / 启动逻辑负责摆窗口。
-            if (!widgetWindow.isDestroyed() && state.widgetOpen && state.surface === SURFACE_DESKTOP) widgetWindow.showInactive();
+            const shouldShow = !widgetWindow.isDestroyed() && state.widgetOpen && state.surface === SURFACE_DESKTOP;
+            // 1.8.2：启动时就该上屏却不上屏，是「窗口消失」的高频原因，把判断依据记下来。
+            api.log.info(LOG_PREFIX + ' 悬浮窗就绪', JSON.stringify({
+                shouldShow,
+                widgetOpen: state.widgetOpen,
+                surface: state.surface,
+                pinned: state.pinned,
+            }));
+            if (shouldShow) widgetWindow.showInactive();
             // 恢复的坐标可能正好压在任务栏上：立刻提升一次，别等 500ms 后的第一次轮询。
             if (taskbarGuard && !widgetWindow.isDestroyed()) taskbarGuard.tick();
         });
@@ -4250,9 +4820,15 @@ module.exports = function activate(api) {
         popup.on('moved', () => {
             state.popupDamping = false;
             clampPopupBounds();
+            // 1.8.3：移动结束立刻重算悬停/穿透，避免拖完那一刻面板或退出键状态是旧的。
+            popupHoverStep();
         });
         popup.on('resize', savePopupBounds);
-        popup.on('resized', clampPopupBounds);
+        popup.on('resized', () => {
+            clampPopupBounds();
+            // 同理：尺寸变化会改变光标命中的位置，立刻重算一次。
+            popupHoverStep();
+        });
 
         popup.webContents.on('did-finish-load', () => {
             api.log.info(LOG_PREFIX + ' 悬浮窗歌词页面 did-finish-load');
@@ -4273,6 +4849,8 @@ module.exports = function activate(api) {
         popup.once('ready-to-show', () => {
             if (state.disposed || popup.isDestroyed()) return;
             if (!state.widgetOpen || state.surface !== SURFACE_POPUP) return;
+            // 1.8.3：握手中（等页面画完一帧）就不要在这里抢着上屏，否则又变成「先露旧画面」。
+            if (state.popupShowPending) return;
             try {
                 state.popupIgnore = null;
                 setPopupIgnore(state.popupDesktop, true);
@@ -4333,13 +4911,11 @@ module.exports = function activate(api) {
         return popupAlive();
     };
 
-    const showPopupWindow = () => {
-        if (state.disposed || !state.widgetOpen || state.surface !== SURFACE_POPUP) return;
-        const popup = ensurePopupWindow();
-        if (!popup) return;
+    /** 1.8.3：真正上屏（只在「页面已经画好一帧」之后调用）。 */
+    const revealPopup = () => {
+        const popup = popupAlive();
+        if (!popup || state.disposed || !state.widgetOpen || state.surface !== SURFACE_POPUP) return;
         try {
-            startPopupHoverWatch();
-            // 页面还在加载就先不上屏（否则露空白窗），交给 once('ready-to-show') 上屏。
             if (popup.webContents.isLoading()) return;
             // 桌面（穿透）模式下上屏也要保持穿透，否则开关一重启就变成可点，用户点两下就点乱了。
             state.popupIgnore = null;
@@ -4349,6 +4925,51 @@ module.exports = function activate(api) {
         } catch (error) {
             api.log.warn(LOG_PREFIX + ' 显示悬浮窗歌词失败', error);
         }
+    };
+
+    /**
+     * 1.8.3：切到悬浮窗时不再「先 show 再发数据」。
+     * 先让页面收到新快照、画完回一封 popup-frame，再上屏 —— 否则上屏那一帧露的是页面里残留的旧快照。
+     * 320ms 没等到回信就照常上屏兜底（页面异常也不能把窗口永久藏起来）。
+     */
+    const requestPopupShow = () => {
+        const popup = ensurePopupWindow();
+        if (!popup) return;
+        try {
+            startPopupHoverWatch();
+        } catch (error) {
+            // 轮询挂了不影响上屏，下一次显示会重试。
+        }
+        if (popup.webContents.isLoading()) return;
+        state.popupShowPending = true;
+        if (state.popupShowTimer) clearTimeout(state.popupShowTimer);
+        state.popupShowTimer = setTimeout(() => {
+            state.popupShowTimer = null;
+            state.popupShowPending = false;
+            if (state.lastPayload) sendPayloadToPopup(state.lastPayload);
+            revealPopup();
+        }, POPUP_SHOW_FALLBACK_MS);
+        sendActionToClient({ action: 'request-sync' });
+    };
+
+    const showPopupWindow = () => {
+        if (state.disposed || !state.widgetOpen || state.surface !== SURFACE_POPUP) return;
+        const popup = ensurePopupWindow();
+        if (!popup) return;
+        try {
+            startPopupHoverWatch();
+        } catch (error) {
+            // 同上：轮询失败不影响上屏。
+        }
+        // 页面还在加载就先不上屏（否则露空白窗），交给 ready-to-show / 显示握手负责。
+        try {
+            if (popup.webContents.isLoading()) return;
+        } catch (error) {
+            return;
+        }
+        // 握手期间等页面回信（见 ipcMain.on(IPC_POPUP_FRAME)），不要抢着先 show。
+        if (state.popupShowPending) return;
+        revealPopup();
     };
 
     const hidePopupWindow = () => {
@@ -4407,7 +5028,8 @@ module.exports = function activate(api) {
             // 切到悬浮窗：桌面歌词先藏起来（不销毁，切回来立刻能画），再按需建 / 显示悬浮窗。
             hideWidgetWindow();
             if (state.widgetOpen) {
-                showPopupWindow();
+                // 1.8.3：先发数据、等页面画完回信再上屏（见 requestPopupShow），不再先 show 后发。
+                requestPopupShow();
                 if (state.lastPayload) sendPayloadToPopup(state.lastPayload);
             }
         } else {
@@ -4420,14 +5042,20 @@ module.exports = function activate(api) {
                         // 1.7.11：切回桌面歌词走完整显示握手（和「词」按钮同一条路径）——
                         // 之前直接 showInactive()，页面还是旧帧、悬停状态也可能停在穿透态，
                         // 真机上会看到「闪旧句 / 窗口像消失了一样不可交互」。
+                        // 1.8.5：同 setWidgetOpen，since 必须在 request-sync 之前取。
+                        const showSince = Date.now();
                         sendActionToClient({ action: 'request-sync' });
                         applyWindowSize();
-                        widgetWindow.webContents.send(IPC_SHOW);
+                        widgetWindow.webContents.send(IPC_SHOW, {
+                            since: showSince,
+                            visible: widgetWindow.isVisible(),
+                        });
                         waitForShown();
                     } catch (error) {
                         api.log.warn(LOG_PREFIX + ' 切回桌面歌词时显示窗口失败', error);
                     }
-                    if (state.lastPayload) sendPayloadToWindow(state.lastPayload);
+                    // 1.8.3：不再在这里补发旧快照 —— 上面已经 request-sync，等新帧再上屏；
+                    // 这里再塞一份旧 payload，页面就会先画旧的（真机上的「闪回」）。
                 }
             }
         }
@@ -4703,7 +5331,24 @@ module.exports = function activate(api) {
         if (state.hoverTick) state.hoverTick();
         // 固定/解锁之后立刻补一帧重绘：老版本在真机上「点固定键窗口就消失」，
         // 现象更像合成面没刷新而不是窗口被关掉（日志里没有任何隐藏/销毁记录）。
+        const wasOnTop = state.win.isAlwaysOnTop();
+        const wasVisible = state.win.isVisible();
         nudgeWidgetRepaint();
+        // 1.8.2：顺手立刻重申一次置顶（原来是等每秒的周期 tick，最多要等 1 秒）。
+        reassertTopmost();
+        // 1.8.2：把现场记进日志。真机上「点固定键窗口消失」有两条互斥的可能——
+        // ①合成面没刷新（窗口还在、还置顶，只是不画）②窗口被别的置顶窗口压住 / 被隐藏。
+        // 没有这几行就分不清是哪种，只能猜。
+        api.log.info(LOG_PREFIX + ' 固定状态变更', JSON.stringify({
+            pinned: state.pinned,
+            wasVisible,
+            visible: !state.win.isDestroyed() && state.win.isVisible(),
+            wasOnTop,
+            onTop: !state.win.isDestroyed() && state.win.isAlwaysOnTop(),
+            surface: state.surface,
+            keepOnTop: !!(state.config && state.config.shared.keepOnTop),
+            topmostWatch: !!state.topmostTick,
+        }));
         if (!state.persisted) return;
         state.persisted.pinned = state.pinned;
         savePersistedState();
@@ -4789,6 +5434,15 @@ module.exports = function activate(api) {
         const popup = popupAlive();
         if (!popup) return { ok: false };
         try {
+            // 1.8.3：把分页元信息打进日志 —— 队列超过一页时，用它确认「当前歌在第几首、这一页从哪开始」，
+            // 歌单不够长没法真机验的场景就靠这行。
+            api.log.info(LOG_PREFIX + ' 播放列表数据', JSON.stringify({
+                length: payload && payload.length,
+                currentIndex: payload && payload.currentIndex,
+                offset: payload && payload.offset,
+                items: payload && Array.isArray(payload.items) ? payload.items.length : 0,
+                kind: payload && payload.kind,
+            }));
             popup.webContents.send(IPC_POPUP_PLAYLIST, payload);
             return { ok: true };
         } catch (error) {
@@ -4864,6 +5518,18 @@ module.exports = function activate(api) {
     // 1.7.0：悬浮窗歌词自己的控制通道（上一曲/播放/音量/循环/固定/桌面模式/播放列表/关闭）。
     ipcMain.on(IPC_POPUP_COMMAND, onPopupCommand);
     ipcMain.on(IPC_POPUP_POINTER_RECT, onPopupPointerRect);
+    // 1.8.3：悬浮窗页面画完一帧的回信 —— 显示握手里收到这条才真的上屏。
+    ipcMain.on(IPC_POPUP_FRAME, (event, payload) => {
+        const popup = popupAlive();
+        if (!popup || event.sender !== popup.webContents) return;
+        if (!state.popupShowPending) return;
+        state.popupShowPending = false;
+        if (state.popupShowTimer) {
+            clearTimeout(state.popupShowTimer);
+            state.popupShowTimer = null;
+        }
+        revealPopup();
+    });
     ipcMain.on(IPC_TOGGLE_SURFACE, onToggleSurfaceFromWindow);
     app.on('browser-window-created', onBrowserWindowCreated);
 
@@ -4880,6 +5546,20 @@ module.exports = function activate(api) {
         }
         // 1.5.1：停用时不留下「等握手」的计时器，否则 300ms 后会去 show 一个已销毁的窗口。
         cancelShownWait();
+        // 1.8.2：停掉每秒「重申置顶 + 重绘」的定时器与焦点监听。
+        // （1.7.14 这段清理被放错到了 showWidgetWindow 里，导致窗口每显示一次就永久失去置顶重申。）
+        try {
+            if (state.topmostTick) {
+                clearInterval(state.topmostTick);
+                state.topmostTick = null;
+            }
+            if (state.focusBound) {
+                app.removeListener('browser-window-focus', onAppFocus);
+                state.focusBound = false;
+            }
+        } catch (error) {
+            // 清理失败不影响停用流程。
+        }
         // 停用模组时窗口可能还活着：把当前位置落盘再关。
         if (state.win && !state.win.isDestroyed()) rememberWindowPosition(state.win);
         savePersistedState();
@@ -4930,9 +5610,8 @@ module.exports = function activate(api) {
         // 1.7.0：形态与桌面（穿透）模式也各推一次，播放条按钮靠它们高亮。
         reportSurface(true);
         reportPopupDesktop(true);
-        // 1.7.14：每秒重申置顶 + 重绘，并把「应用获得焦点」也接上（见 reassertTopmost）。
+        // 1.7.14：每秒重申置顶 + 重绘；1.8.2 起焦点监听也由它一起登记（见 startTopmostWatch）。
         startTopmostWatch();
-        app.on('browser-window-focus', onAppFocus);
         // 1.5.1：入口（重新）建起来就要配置。这条覆盖「主进程重载、client 没重跑」和
         // 「页面比 client 先加载完所以那次要早了」两种情况；client 侧做了合并，重复要不会抖动。
         requestConfigFromClient();
