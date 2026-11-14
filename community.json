@@ -572,6 +572,18 @@
       "addedAt": "2026-11-06",
       "updatedAt": "2026-11-06"
     },
+    "video-background": {
+      "owners": [
+        "WSW-POT"
+      ],
+      "submission": 152,
+      "source": "https://github.com/WSW-POT/folia-video-background",
+      "path": "",
+      "commit": "eddcfb9a47c53f16d8e401253dd5d3f2cff1219f",
+      "version": "0.6.6",
+      "addedAt": "2026-11-14",
+      "updatedAt": "2026-11-14"
+    },
     "vinyl-disc": {
       "owners": [
         "Zhangyx0824"

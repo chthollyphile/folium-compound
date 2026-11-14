@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "video-background",
+  "modVersion": "0.6.6",
+  "digest": "sha256:cff2306b7011a5a0902443de410455f4ceea8561ca9ff11c29fa65bd75867e9a",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-11-14T01:08:30.884Z",
+  "signature": "40xZgczb3lwrmrLUFZ3JA/tE4umpxP2/DDs24hQNLnea80kWGe/UVQ8Y43ovIe6RphktxNlQ2TslhRIAvnvWBA=="
+}

@@ -994,6 +994,24 @@
       "sourceCommit": "a1cf0bebbdc57068abbf9a0ab80e10b31e1b6903"
     },
     {
+      "id": "video-background",
+      "name": "视频背景",
+      "version": "0.6.6",
+      "author": "Potrest",
+      "description": "将背景改为视频播放，适用于从B站下载的视频与音频结合，增加了两种歌词方式，无歌词与电影字幕歌词，开启此模组后在侧边面板配置每个音乐对应的背景视频，因为是AI Coding，所以bug会比较多",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/video-background",
+      "digest": "sha256:cff2306b7011a5a0902443de410455f4ceea8561ca9ff11c29fa65bd75867e9a",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-11-14T01:08:30.884Z",
+      "owners": [
+        "WSW-POT"
+      ],
+      "source": "https://github.com/WSW-POT/folia-video-background",
+      "sourceCommit": "eddcfb9a47c53f16d8e401253dd5d3f2cff1219f"
+    },
+    {
       "id": "we-wallpaper",
       "name": "Wallpaper Engine 原生联动",
       "version": "0.3.5",

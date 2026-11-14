@@ -1,0 +1,13 @@
+{
+  "folium": 1,
+  "id": "video-background",
+  "name": "视频背景",
+  "version": "0.6.6",
+  "author": "Potrest",
+  "description": "将背景改为视频播放，适用于从B站下载的视频与音频结合，增加了两种歌词方式，无歌词与电影字幕歌词，开启此模组后在侧边面板配置每个音乐对应的背景视频，因为是AI Coding，所以bug会比较多",
+  "preview": "preview.png",
+  "client": "client.mjs",
+  "main": "main.cjs",
+  "permissions": ["filesystem.data", "net.embed", "visualizer.mode"],
+  "embedOrigins": ["https://player.bilibili.com"]
+}
