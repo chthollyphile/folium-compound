@@ -490,6 +490,24 @@
       "sourceCommit": "87980c8e6c1ac66bb46acfab51b44f1367baff23"
     },
     {
+      "id": "random-pool-plus",
+      "name": "随机池＋",
+      "version": "1.1.2",
+      "author": "hy123-2",
+      "description": "宿主自带的「每首歌随机歌词动画」只在内建样式里挑，模组新增的歌词样式进不了池。本模组用 listModes 拿全部已注册样式，自建一套随机池：勾选任意样式（含模组样式），切歌时自动换一种。抽签走洗牌袋（一轮内每个样式各出现一次），再挡最近三首不重复，同一个样式的间隔稳定，不再隔两三首又撞上；播放器面板里有「随机池＋」标签可随时改池，命令面板里能重抽一次或暂停接管。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/random-pool-plus",
+      "digest": "sha256:e68c9a810fd5f43a540dfd4e6358bc04b1a86d8ed1a8beaca78ec3dde1394f43",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-14T01:08:22.033Z",
+      "owners": [
+        "hy123-2"
+      ],
+      "source": "https://github.com/hy123-2/random-pool-plus",
+      "sourceCommit": "038f5732c4648b5bfafe4c86519ab8f77f694bcd"
+    },
+    {
       "id": "song-comments",
       "name": "歌曲评论",
       "version": "1.0.2",

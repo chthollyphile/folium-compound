@@ -1,0 +1,12 @@
+{
+  "folium": 1,
+  "id": "random-pool-plus",
+  "name": "随机池＋",
+  "version": "1.1.2",
+  "author": "hy123-2",
+  "description": "宿主自带的「每首歌随机歌词动画」只在内建样式里挑，模组新增的歌词样式进不了池。本模组用 listModes 拿全部已注册样式，自建一套随机池：勾选任意样式（含模组样式），切歌时自动换一种。抽签走洗牌袋（一轮内每个样式各出现一次），再挡最近三首不重复，同一个样式的间隔稳定，不再隔两三首又撞上；播放器面板里有「随机池＋」标签可随时改池，命令面板里能重抽一次或暂停接管。",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": ["visualizer.mode", "filesystem.data"],
+  "folia": ">=0.7.22 <0.8.0"
+}

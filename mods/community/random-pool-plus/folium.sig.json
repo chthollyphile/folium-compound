@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "random-pool-plus",
+  "modVersion": "1.1.2",
+  "digest": "sha256:e68c9a810fd5f43a540dfd4e6358bc04b1a86d8ed1a8beaca78ec3dde1394f43",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-14T01:08:22.033Z",
+  "signature": "j5AetjBXLBgqRn3tXCMN924d3UvZKQBo2afsAZbonDMkBsZLwo9oZd9YPRL+rTzYQUwm1upx6GdHwaGbRvzcAQ=="
+}

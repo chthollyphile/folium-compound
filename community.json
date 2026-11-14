@@ -447,6 +447,18 @@
       "updatedAt": "2026-11-04",
       "lastIssue": 117
     },
+    "random-pool-plus": {
+      "owners": [
+        "hy123-2"
+      ],
+      "submission": 149,
+      "source": "https://github.com/hy123-2/random-pool-plus",
+      "path": "",
+      "commit": "038f5732c4648b5bfafe4c86519ab8f77f694bcd",
+      "version": "1.1.2",
+      "addedAt": "2026-11-14",
+      "updatedAt": "2026-11-14"
+    },
     "remote-window-edge": {
       "owners": [
         "miaowu104-gif"
