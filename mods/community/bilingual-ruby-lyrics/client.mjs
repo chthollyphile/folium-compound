@@ -5,8 +5,6 @@ const TIME_KEYS = new Set(["startTime", "endTime"]);
 // Hiragana and katakana letters only: the middle dot and the long-vowel mark also appear in
 // Chinese transliterations of foreign names, and must not make a translation look Japanese.
 const JAPANESE_KANA = /[\u3041-\u3096\u30a1-\u30fa]/u;
-const DEFAULT_TRANSLATION_LANGUAGE = "zh-Hans";
-const DEFAULT_ORIGINAL_LANGUAGE = "ja";
 
 const roundSeconds = value => Math.round(value * 1e6) / 1e6;
 
@@ -207,15 +205,6 @@ function foldSecondVoices(lines, endOf) {
 function unfoldVocals(lines) {
   return lines.flatMap(line => [line, ...(line.backgroundVocals || []).map(({ text, ...vocal }) => ({ ...vocal, fullText: text, vocal: true }))])
     .sort((a, b) => a.startTime - b.startTime);
-}
-
-function metadataText(metadata, key) {
-  const candidates = [metadata?.[key], metadata?.song?.[key], metadata?.lyrics?.[key]];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.length > 0) return candidate;
-    if (Array.isArray(candidate) && typeof candidate[0] === "string") return candidate[0];
-  }
-  return undefined;
 }
 return { shiftLines, pairBilingual, secondVoiceOf, foldSecondVoices, unfoldVocals };
 })();
@@ -450,6 +439,8 @@ function hostSubtitleCss(theme, captionShown = false) {
 // How strongly a unit glows at `time`, 0 to 1, with the host's timing for its poster lyrics: the
 // glow eases up until a little after the unit has been sung (1.18 times its length), then eases
 // away until the line is over, or for about a second if that is later.
+// Adapted from Folia's resolveMonetGlow (src/components/visualizer/monet/monetLyricMotion.ts,
+// AGPL-3.0, https://github.com/chthollyphile/folia-major).
 const smooth = value => { const t = Math.min(1, Math.max(0, value)); return t * t * (3 - 2 * t); };
 function glowAt(time, start, end, lineEnd) {
   if (time <= start) return 0;
@@ -473,6 +464,7 @@ const COUNTDOWN_REST = 4;
 // "国Agyp" fit across it. The budget is fixed so that the size does not change from line to line.
 // The rows under the next line are this mod's own, so with them the size comes out smaller than
 // the host's.
+// Adapted from Folia's resolveLatticeTypography (latticeLyricLayout.ts, AGPL-3.0).
 function fitPoster(doc, width, height, font, weight, subFont, subWeight, withSub) {
   const pen = doc.createElement('canvas').getContext('2d');
   if (!pen) return null;
@@ -1006,8 +998,8 @@ function readUslt(payload) {
 }
 
 function parseId3(bytes) {
-  const header = id3Header(bytes), frames = [], lyrics = [];
-  if (!header.totalSize) return { ...header, frames, lyrics };
+  const header = id3Header(bytes), lyrics = [];
+  if (!header.totalSize) return { ...header, lyrics };
   if (bytes.length < header.totalSize) throw new Error('ID3 标签不完整');
   let body = bytes.subarray(10, 10 + header.bodySize);
   if (header.version < 4 && header.flags & 128) body = deunsync(body);
@@ -1029,8 +1021,6 @@ function parseId3(bytes) {
     if (end > body.length) throw new Error('ID3 帧长度无效');
     if (!size) { at = end; continue; } // an empty frame is skipped, not fatal
     const flags = header.version === 2 ? 0 : body[at+9];
-    const frame = { id, flags, raw: body.slice(at, end) };
-    frames.push(frame);
     if (id === 'USLT' || id === 'ULT') {
       let payload = body.subarray(at+width, end);
       const unsupported = header.version === 3 ? flags & 192 : flags & 12;
@@ -1038,20 +1028,18 @@ function parseId3(bytes) {
       if (header.version === 4 && (header.flags & 128 || flags & 2)) payload = deunsync(payload);
       if (flags & (header.version === 3 ? 32 : 64)) payload = payload.subarray(1);
       if (header.version === 4 && flags & 1) payload = payload.subarray(4);
-      try { const lyric = readUslt(payload); frame.lyric = lyric; lyrics.push(lyric); } catch { /* one undecodable lyric frame does not hide the others */ }
+      try { lyrics.push(readUslt(payload)); } catch { /* one undecodable lyric frame does not hide the others */ }
     }
     at = end;
   }
-  return { ...header, frames, lyrics };
+  return { ...header, lyrics };
 }
 
-function embeddedVersions(lyrics, name = 'MP3') {
+function embeddedVersions(lyrics) {
   const hasRuby = text => /^@Ruby\d+=/m.test(text);
   const usable = lyrics.filter(item => /\[\d+:\d{2}(?:[:.]\d{2,3})?\]/.test(item.text));
-  return usable.map(item => ({ ...item, format: 'lrc', embedded: true,
-    kind: hasRuby(item.text) ? 'ruby' : 'plain',
-    name: name + ' · ' + (hasRuby(item.text) ? '内嵌 Ruby LRC' : '内嵌普通 LRC'),
-  })).sort((a, b) => (a.kind === 'ruby' ? 0 : a.descriptor === '' ? 1 : 2) - (b.kind === 'ruby' ? 0 : b.descriptor === '' ? 1 : 2));
+  // the version with readings first, then the default (unnamed) lyrics
+  return usable.map(item => ({ ...item, kind: hasRuby(item.text) ? 'ruby' : 'plain' })).sort((a, b) => (a.kind === 'ruby' ? 0 : a.descriptor === '' ? 1 : 2) - (b.kind === 'ruby' ? 0 : b.descriptor === '' ? 1 : 2));
 }
 return { MAX_TAG_BYTES, id3Header, parseId3, embeddedVersions };
 })();
@@ -1445,7 +1433,7 @@ async function readLocalEmbedded(record, rpc, getHandles = hostHandles) {
   const { directory, fileName } = await audioDirectory(record, getHandles);
   const file = await (await directory.getFileHandle(fileName)).getFile();
   const read = async (offset, length) => new Uint8Array(await file.slice(offset, offset + length).arrayBuffer());
-  return embeddedVersions(await readEmbeddedLyrics(read, file.size), fileName);
+  return embeddedVersions(await readEmbeddedLyrics(read, file.size));
 }
 return { findLocalRecords, isAbsoluteAudioPath, readLocalEmbedded };
 })();
@@ -1518,8 +1506,7 @@ function annotateInside(line, base, reading, start, end) {
 function parseFaKara(text) {
   // TimeTag/NicoKara: the @Ruby footer, or (a song without readings) lines timed with [MM:SS:CC]
   const nico = /^@Ruby\d+=/m.test(text) || /^\[\d+:\d{2}:\d{2,3}\]/m.test(text);
-  const rhythmica = /\[(?:1|10)\|\d+:\d{2}:\d{2,3}\]/.test(text);
-  if (!nico && !rhythmica) return null;
+  if (!nico) return null;
   const lines = [];
   if (nico) {
     for (const row of text.split(/\r?\n/)) {
@@ -1550,32 +1537,6 @@ function parseFaKara(text) {
       // (知らない / 不知道: the 知 of the translation is not read し).
       if (rule.hit && rule.end - rule.start < .001) continue;
       for (const line of lines) annotateInside(line, rule.base, rule.reading, rule.start, rule.end);
-    }
-  } else {
-    for (const row of text.split(/\r?\n/)) {
-      const tokenRegex = /\{([^{}|]+)\|([^{}]+)\}|\[(?:1|10)\|\d+:\d{2}[:.]\d{2,3}\][^{\[]*/g;
-      const tokens = [...row.matchAll(tokenRegex)];
-      const words = [], boundaries = [];
-      for (const token of tokens) {
-        const annotated = token[1] !== undefined;
-        const body = (annotated ? token[2] : token[0]).replace(/\[(\d+)\|/g, '[');
-        const starts = times(body), start = starts[0]?.time;
-        if (start == null) continue;
-        boundaries.push(start);
-        const surface = annotated ? token[1] : body.slice(starts[0].length);
-        if (!surface) continue;
-        words.push({ text: surface, startTime: start, endTime: start, ...(annotated ? { syllables: [{ text: surface, startTime: start, endTime: start, ruby: timedParts(body) }] } : {}) });
-      }
-      for (const word of words) {
-        const next = boundaries.find(value => value > word.startTime) ?? word.startTime;
-        word.endTime = next;
-        if (word.syllables) {
-          word.syllables[0].endTime = next;
-          const ruby = word.syllables[0].ruby;
-          ruby.at(-1).endTime = Math.max(ruby.at(-1).startTime, next);
-        }
-      }
-      if (words.length) lines.push({ fullText: words.map(word => word.text).join(''), words, startTime: words[0].startTime, endTime: words.at(-1).endTime });
     }
   }
   if (!lines.length) throw new Error('FA-Kara 歌词中没有有效的时间轴');
@@ -1877,10 +1838,16 @@ function createIntegration(folium, {readEmbedded = record => readLocalEmbedded(r
       // leaves is still the player's song.
       const playing=folium.playback?.getState?.();
       const seconds=keyOf(playing?.song)===key ? playing.duration || 0 : 0;
+      // A file that cannot be read (moved, its folder's permission lapsed) does not hide another
+      // file of the same song; only when no readings were found is the lookup tried again.
       const readAll = async records => {
-        const found=[];
-        for (const record of records.slice(0,8)) {
-          for (const source of await readEmbedded(record)) {
+        const found=[], tried=records.slice(0,8);
+        let failure=null;
+        for (const record of tried) {
+          let sources;
+          try {sources=await readEmbedded(record);}
+          catch (error) {failure=error;continue;}
+          for (const source of sources) {
             // Ordinary embedded lyrics are already Folia's.
             if (!isTimeTag(source.text)) continue;
             try {
@@ -1889,6 +1856,7 @@ function createIntegration(folium, {readEmbedded = record => readLocalEmbedded(r
             } catch { /* a malformed extension: the host's normal lyrics stay */ }
           }
         }
+        if (failure && !found.length) throw failure;
         return found;
       };
       let found;

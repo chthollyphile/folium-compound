@@ -55,8 +55,8 @@ function readUslt(payload) {
 }
 
 function parseId3(bytes) {
-  const header = id3Header(bytes), frames = [], lyrics = [];
-  if (!header.totalSize) return { ...header, frames, lyrics };
+  const header = id3Header(bytes), lyrics = [];
+  if (!header.totalSize) return { ...header, lyrics };
   if (bytes.length < header.totalSize) throw new Error('ID3 标签不完整');
   let body = bytes.subarray(10, 10 + header.bodySize);
   if (header.version < 4 && header.flags & 128) body = deunsync(body);
@@ -78,8 +78,6 @@ function parseId3(bytes) {
     if (end > body.length) throw new Error('ID3 帧长度无效');
     if (!size) { at = end; continue; } // an empty frame is skipped, not fatal
     const flags = header.version === 2 ? 0 : body[at+9];
-    const frame = { id, flags, raw: body.slice(at, end) };
-    frames.push(frame);
     if (id === 'USLT' || id === 'ULT') {
       let payload = body.subarray(at+width, end);
       const unsupported = header.version === 3 ? flags & 192 : flags & 12;
@@ -87,20 +85,18 @@ function parseId3(bytes) {
       if (header.version === 4 && (header.flags & 128 || flags & 2)) payload = deunsync(payload);
       if (flags & (header.version === 3 ? 32 : 64)) payload = payload.subarray(1);
       if (header.version === 4 && flags & 1) payload = payload.subarray(4);
-      try { const lyric = readUslt(payload); frame.lyric = lyric; lyrics.push(lyric); } catch { /* one undecodable lyric frame does not hide the others */ }
+      try { lyrics.push(readUslt(payload)); } catch { /* one undecodable lyric frame does not hide the others */ }
     }
     at = end;
   }
-  return { ...header, frames, lyrics };
+  return { ...header, lyrics };
 }
 
-function embeddedVersions(lyrics, name = 'MP3') {
+function embeddedVersions(lyrics) {
   const hasRuby = text => /^@Ruby\d+=/m.test(text);
   const usable = lyrics.filter(item => /\[\d+:\d{2}(?:[:.]\d{2,3})?\]/.test(item.text));
-  return usable.map(item => ({ ...item, format: 'lrc', embedded: true,
-    kind: hasRuby(item.text) ? 'ruby' : 'plain',
-    name: name + ' · ' + (hasRuby(item.text) ? '内嵌 Ruby LRC' : '内嵌普通 LRC'),
-  })).sort((a, b) => (a.kind === 'ruby' ? 0 : a.descriptor === '' ? 1 : 2) - (b.kind === 'ruby' ? 0 : b.descriptor === '' ? 1 : 2));
+  // the version with readings first, then the default (unnamed) lyrics
+  return usable.map(item => ({ ...item, kind: hasRuby(item.text) ? 'ruby' : 'plain' })).sort((a, b) => (a.kind === 'ruby' ? 0 : a.descriptor === '' ? 1 : 2) - (b.kind === 'ruby' ? 0 : b.descriptor === '' ? 1 : 2));
 }
 return { MAX_TAG_BYTES, id3Header, parseId3, embeddedVersions };
 })();
@@ -408,7 +404,7 @@ module.exports = function activate(api) {
         return bytes.subarray(0, bytesRead);
       };
       const { size } = await file.stat();
-      return __id3.embeddedVersions(await __tags.readEmbeddedLyrics(read, size), path.basename(audioPath));
+      return __id3.embeddedVersions(await __tags.readEmbeddedLyrics(read, size));
     } finally {
       await file.close();
     }
