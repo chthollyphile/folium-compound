@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "liked-cover",
+  "modVersion": "1.0.0",
+  "digest": "sha256:165e7d36e1dcf88e152112c24031f185bc9fdd856c18effed9126a60975a1d34",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-16T01:08:36.919Z",
+  "signature": "u04K/2+SWCf/GE8Jp78ASqoFYfOcPVa+GhGno+Ky3CBx+zPtuNnPBkL6w3PktBHZ4NczUNMDovgTaf8nuFqyBQ=="
+}

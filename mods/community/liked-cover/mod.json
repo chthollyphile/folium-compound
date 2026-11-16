@@ -1,0 +1,12 @@
+{
+  "folium": 1,
+  "id": "liked-cover",
+  "name": "「我喜欢」封面",
+  "version": "1.0.0",
+  "author": "for 4399",
+  "description": "给资料库里的「我喜欢」换一张自己的封面，替掉 QQ 音乐那颗大爱心。",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "permissions": ["filesystem.data"],
+  "folia": ">=0.7.20 <0.8.0"
+}

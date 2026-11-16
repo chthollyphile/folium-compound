@@ -260,6 +260,18 @@
       "addedAt": "2026-11-12",
       "updatedAt": "2026-11-12"
     },
+    "liked-cover": {
+      "owners": [
+        "tianxiashoucang"
+      ],
+      "submission": 159,
+      "source": "https://github.com/tianxiashoucang/liked-cover",
+      "path": "",
+      "commit": "b1303865bbcfa6360130030448c8aa72b1c5f9c8",
+      "version": "1.0.0",
+      "addedAt": "2026-11-16",
+      "updatedAt": "2026-11-16"
+    },
     "listening-archive": {
       "owners": [
         "imicola"
