@@ -112,6 +112,24 @@
       "sourceCommit": "8148e3dd28b0c43c390692af621f8b1b8e455b23"
     },
     {
+      "id": "bili-mv-window",
+      "name": "B站 MV 小窗",
+      "version": "1.9.3",
+      "author": "junxiang255",
+      "description": "换歌时自动在哔哩哔哩搜索这首歌的 MV，用可拖动的小窗播放，也可以铺成播放页背景；跟随歌曲的播放进度与暂停，可调高斯模糊与音画偏移。只取 B 站 DASH 的纯视频轨（音视频本来就分离），所以画面里物理上没有声音，是纯视频流。搜错了可以从按匹配度排序的 5 个候选里自己挑。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/bili-mv-window",
+      "digest": "sha256:f6057f5d5b5ddea30d33f8fe06be6ac1e1c7c73aecc210ac46b46e26e1eef1d8",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-16T01:08:11.186Z",
+      "owners": [
+        "junxiang255"
+      ],
+      "source": "https://github.com/junxiang255/bili-mv-window",
+      "sourceCommit": "46376cd8b199e91bbd1190a79a8a307cf00ea65e"
+    },
+    {
       "id": "bilingual-ruby-lyrics",
       "name": "双语 · 注音歌词",
       "version": "1.6.2",

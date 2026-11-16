@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "bili-mv-window",
+  "modVersion": "1.9.3",
+  "digest": "sha256:f6057f5d5b5ddea30d33f8fe06be6ac1e1c7c73aecc210ac46b46e26e1eef1d8",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-16T01:08:11.186Z",
+  "signature": "FYT6f9utQ/pjpTUmlICiBS737zAyG4YJk+xchWhHpN9vPFwBNGxVflERBAxOLdDkLJo3qF+mlQZuC9CLtvKCDA=="
+}
