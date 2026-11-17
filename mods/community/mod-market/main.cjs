@@ -23,13 +23,32 @@ const CATALOG_FORMAT = 'folium-market-catalog';
 
 // 与宿主的安装上限一致：超过 64MB 的包宿主也不会收，提前拒掉省一次下载。
 const MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
-const FETCH_TIMEOUT_MS = 20000;
+// 读目录不该让人干等：9 秒还没回应就算这次失败，让界面上的「重试」能立刻再来一次。
+const FETCH_TIMEOUT_MS = 9000;
 const DOWNLOAD_TIMEOUT_MS = 120000;
 // catalog 的 Cache-Control 是 300 秒，本地缓存比它稍长一点，避免每次开面板都打一次网。
 const LOCAL_TTL_MS = 10 * 60 * 1000;
 const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 const isObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/*
+ * 读目录失败时自动再试一次：网络抖一下、DNS 慢半拍都很常见，让人手动点重试太笨。
+ * 只有「被主动中止」（模组停用 / 超时）才不重试。
+ */
+const fetchWithRetry = async (url, init, attempts = 2) => {
+    let lastError = null;
+    for (let index = 0; index < attempts; index += 1) {
+        try {
+            return await fetch(url, init);
+        } catch (error) {
+            lastError = error;
+            if (init && init.signal && init.signal.aborted) break;
+            if (index < attempts - 1) await new Promise((resolve) => setTimeout(resolve, 2200));
+        }
+    }
+    throw lastError;
+};
 
 const readJson = (file) => {
     try {
@@ -180,7 +199,7 @@ module.exports = function activate(api) {
             if (cached?.etag) {
                 headers['if-none-match'] = cached.etag;
             }
-            const response = await fetch(CATALOG_URL, { headers, signal: controller.signal, cache: 'no-store' });
+            const response = await fetchWithRetry(CATALOG_URL, { headers, signal: controller.signal, cache: 'no-store' });
 
             if (response.status === 304 && cached) {
                 writeJson(catalogCacheFile(), { ...cached, fetchedAt: Date.now() });

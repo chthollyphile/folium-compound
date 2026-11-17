@@ -453,10 +453,11 @@
       "submission": 131,
       "source": "https://github.com/zaixiaxingzhang/folia-mod-market",
       "path": "",
-      "commit": "fba4e16223a833b39768d4fcf2c0f6522168903a",
-      "version": "1.0.1",
+      "commit": "93db0324705dcf885069dfa5f3d0d48866229298",
+      "version": "1.0.2",
       "addedAt": "2026-11-07",
-      "updatedAt": "2026-11-07"
+      "updatedAt": "2026-11-17",
+      "lastIssue": 162
     },
     "opencc-traditional-lyrics": {
       "owners": [

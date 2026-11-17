@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "mod-market",
-  "modVersion": "1.0.1",
-  "digest": "sha256:59c6d0d3ac50d1664af45e0f99f5b81d56a8018fd5ecc494ff5ae1c0392e1a63",
+  "modVersion": "1.0.2",
+  "digest": "sha256:af008112ab26e371c8e4576420598a22fb58d01f99febb672539cb95db8802dc",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-11-07T06:19:42.744Z",
-  "signature": "C2Bfa44K8yI5L0/W41XES44X7FbtMTINummQgwxWm5wd83HzEnXm5n77xUBcHndNdMq+EFFJaH3BaA1SD4IbDA=="
+  "signedAt": "2026-11-17T01:08:42.710Z",
+  "signature": "SDgLoSmkWTRqgBAXwdjbughLz/sVr3eFK5vqpA7JpXPjOmrAbvy9oSxi9LIZeqx8rl6d7Nged5TE0lKupRVYBw=="
 }
