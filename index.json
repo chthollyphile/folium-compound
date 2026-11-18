@@ -850,6 +850,24 @@
       "sourceCommit": "ca7fa4cc3bd87c300faca8cef8d1a44ff6054d1b"
     },
     {
+      "id": "jiafee-together-listen",
+      "name": "Jiafee 一起听",
+      "version": "1.4.5",
+      "author": "JiafeeJF",
+      "description": "使用现有 Mineradio 一起听协议，在 Folia 中连接或创建双人同步房间。",
+      "origin": "beta",
+      "channel": "beta",
+      "path": "mods/beta/jiafee-together-listen",
+      "digest": "sha256:c813561953b6096fb49348dbd35375e1e1b9e5e9ffa135ce2ae809ba23227c0a",
+      "keyId": "folium-beta-2026-1",
+      "signedAt": "2026-11-18T01:07:46.842Z",
+      "owners": [
+        "JiafeeJF"
+      ],
+      "source": "https://github.com/JiafeeJF/folia-jiafee-together-listen",
+      "sourceCommit": "3ee2c4354da3a9b9708e7cb5bf7c64cabaa6dff2"
+    },
+    {
       "id": "just-enough-setting",
       "name": "Just Enough Setting（SMTC / Steam）",
       "version": "1.3.1",

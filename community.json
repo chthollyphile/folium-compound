@@ -248,6 +248,18 @@
       "updatedAt": "2026-11-08",
       "lastIssue": 137
     },
+    "jiafee-together-listen": {
+      "owners": [
+        "JiafeeJF"
+      ],
+      "submission": 163,
+      "source": "https://github.com/JiafeeJF/folia-jiafee-together-listen",
+      "path": "",
+      "commit": "3ee2c4354da3a9b9708e7cb5bf7c64cabaa6dff2",
+      "version": "1.4.5",
+      "addedAt": "2026-11-18",
+      "updatedAt": "2026-11-18"
+    },
     "just-enough-setting": {
       "owners": [
         "minecraftmc22"
