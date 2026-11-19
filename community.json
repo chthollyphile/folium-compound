@@ -13,6 +13,18 @@
       "updatedAt": "2026-11-19",
       "lastIssue": 174
     },
+    "album-play": {
+      "owners": [
+        "45steel"
+      ],
+      "submission": 172,
+      "source": "https://github.com/45steel/folia-album-play",
+      "path": "album-play",
+      "commit": "cdb6b527b31c76d7b867a07e97dbd82080245ed3",
+      "version": "0.3.2",
+      "addedAt": "2026-11-19",
+      "updatedAt": "2026-11-19"
+    },
     "amll-desktop-lyric": {
       "owners": [
         "TypeDreamMoon"

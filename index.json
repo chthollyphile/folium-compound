@@ -94,6 +94,24 @@
       "signedAt": "2026-09-24T19:10:07.806Z"
     },
     {
+      "id": "album-play",
+      "name": "专辑随机与专辑循环",
+      "version": "0.3.2",
+      "author": "45steel",
+      "description": "给播放队列加上专辑级随机（整张专辑作为一个单位洗牌）、「循环这张专辑」和上一张/下一张专辑跳转；提供命令、播放器面板标签页与设置项。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/album-play",
+      "digest": "sha256:974fc053e0cd6d46755c170d7bba2d1434a237286f2f6d0e3963aa4f4761d586",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-19T01:08:29.646Z",
+      "owners": [
+        "45steel"
+      ],
+      "source": "https://github.com/45steel/folia-album-play",
+      "sourceCommit": "cdb6b527b31c76d7b867a07e97dbd82080245ed3"
+    },
+    {
       "id": "auto-skip",
       "name": "Auto skip",
       "version": "1.4.0",

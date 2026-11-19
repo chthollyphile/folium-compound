@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "album-play",
+  "modVersion": "0.3.2",
+  "digest": "sha256:974fc053e0cd6d46755c170d7bba2d1434a237286f2f6d0e3963aa4f4761d586",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-19T01:08:29.646Z",
+  "signature": "gZZ4/4UWPwKgHZkMfE01Qb9wrc+Uk3Puws6Jm6ftL+hNoETRR1hgWfPyVuV3tG2Abp1SduKF7+GmXjkultRcBQ=="
+}
