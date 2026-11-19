@@ -1,6 +1,6 @@
-import { PlaybackSession } from './playbackSession.mjs?v=1.4.5';
-import { getLocalUserProfile } from './accountSync.mjs?v=1.4.5';
-import { mountTogetherOverlay, mountTogetherPanelEntry } from './overlay-ui.mjs?v=1.4.5';
+import { PlaybackSession } from './playbackSession.mjs?v=1.4.6';
+import { getLocalUserProfile } from './accountSync.mjs?v=1.4.6';
+import { mountTogetherOverlay, mountTogetherPanelEntry } from './overlay-ui.mjs?v=1.4.6';
 
 // UI/RPC composition; playback state belongs to PlaybackSession.
 export class FoliaTogetherBridge {
@@ -86,7 +86,8 @@ export class FoliaTogetherBridge {
         else if (event.kind === 'error') {
             this.session.pendingTrack = '';
             this.session.core.rejectPrediction(event.operationId);
-            this.report(new Error('联机错误：' + event.code));
+            if (event.code === 'ROOM_CLOSED') this.folium.ui.toast('房主断开连接，房间自动退出', { type: 'info' });
+            else this.report(new Error('联机错误：' + event.code));
         }
         this.notify();
     }

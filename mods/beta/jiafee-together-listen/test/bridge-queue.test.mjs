@@ -36,7 +36,7 @@ function fixture() {
 const room = (extra = {}) => ({ serverId: 'test', sessionEpoch: 2, version: 1, members: [{ senderId: 'a' }, { senderId: 'b' }],
     queue: [], currentIndex: -1, currentTrackId: '', playing: false, position: 0, mode: 'loop', lastAction: 'SESSION_RESET', ...extra });
 
-test('solo room never takes control; pairing clears queue and pauses once', async t => {
+test('solo room never takes control; legacy pairing clears the queue and pauses once', async t => {
     const f = fixture(); t.after(() => f.session.dispose());
     await f.session.accept({ state: room({ members: [{ senderId: 'a' }] }) }, true, 'a');
     assert.equal(f.calls.length, 0);
@@ -57,6 +57,7 @@ test('explicit selection seeds one paused song then NEXT playing, once', async t
     const f = fixture(); t.after(() => f.session.dispose());
     await f.session.accept({ state: room() }, true, 'a');
     const song = { source: 'netease', id: 'new', ref: 'new' };
+    f.session.beforePlay({ song, cancel: () => assert.fail('the first selection should be allowed') });
     f.select(song);
     await Promise.all([f.session.song(song), f.session.song(song)]);
     assert.deepEqual(f.sent.map(item => item[0]), ['RESYNC', 'NEXT']);
@@ -172,6 +173,17 @@ test('account priority, logout fallback, avatar safety and no installation key d
     accounts.qq.status = 'signed-out';
     assert.equal(getLocalUserProfile(api).name, '未登录用户');
 });
+test('room closed displays a friendly disconnect notice instead of the protocol error', t => {
+    const f = fixture();
+    const toasts = [];
+    f.folium.ui.toast = (...args) => toasts.push(args);
+    f.folium.rpc = { call: async () => {} };
+    const bridge = new FoliaTogetherBridge(f.folium);
+    t.after(() => { bridge.dispose(); f.session.dispose(); });
+    bridge.handleMainEvent({ kind: 'error', code: 'ROOM_CLOSED' });
+    assert.deepEqual(toasts, [['房主断开连接，房间自动退出', { type: 'info' }]]);
+});
+
 test('profile refresh publishes changed account presentation without a second login', async () => {
     const calls = [];
     const f = fixture();

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { once } = require('node:events');
 const { RoomService } = require('../lib/room-service.cjs');
+const { AuthoritativeRoom } = require('../lib/authoritative-room.cjs');
 const { TogetherListenManager, MAX_RECONNECT_ATTEMPTS } = require('../lib/manager.cjs');
 const { TYPES, sanitizeTrack, validateEnvelope } = require('../lib/protocol.cjs');
 
@@ -43,6 +44,47 @@ test('track and envelope validation keep the 2.3.0 wire shape', () => {
     assert.equal(checked.value.type, TYPES.PLAY);
     assert.equal(validateEnvelope({ action: TYPES.PLAY, senderId: 'client-a' }).error, 'MISSING_OPERATION_ID');
     assert.equal(MAX_RECONNECT_ATTEMPTS, 3);
+});
+
+test('a guest can leave and join again and is not tied to a replaced room at the same address', async (t) => {
+    const firstRoom = new RoomService({ serverId: 'original-room', name: 'Original', authorizationCode: '482731', port: 0 });
+    await firstRoom.start();
+    const guest = manager('Guest');
+    const replacement = new RoomService({ serverId: 'replacement-room', name: 'Replacement', authorizationCode: '641829', port: firstRoom.port });
+    t.after(async () => {
+        await guest.close();
+        await Promise.all([firstRoom.stop(), replacement.stop()]);
+    });
+    const address = `127.0.0.1:${firstRoom.port}`;
+    await guest.connect(address, { authorizationCode: '482731' });
+    await guest.leave();
+    await guest.connect(address, { authorizationCode: '482731' });
+    assert.equal(guest.status().room.serverId, 'original-room');
+
+    const reconnecting = nextEvent(guest, 'status', event => event.status.connectionState === 'reconnecting');
+    guest.socket.terminate();
+    await reconnecting;
+    await firstRoom.stop();
+    await replacement.start();
+    await assert.rejects(guest.connect(address, { authorizationCode: '482731' }), /授权码错误/);
+    const joined = await guest.connect(address, { authorizationCode: '641829' });
+    assert.equal(joined.connectionState, 'connected');
+    assert.equal(joined.room.serverId, 'replacement-room');
+});
+
+test('a host closing the room clears the guest session without reconnecting', async (t) => {
+    const service = new RoomService({ serverId: 'closing-room', authorizationCode: '482731', port: 0 });
+    await service.start();
+    const guest = manager('Guest');
+    t.after(async () => { await guest.close(); await service.stop(); });
+    await guest.connect(`127.0.0.1:${service.port}`, { authorizationCode: '482731' });
+    assert.ok(guest.status().room);
+    const closing = nextEvent(guest, 'error', event => event.code === 'ROOM_CLOSED');
+    const idle = nextEvent(guest, 'status', event => event.status.connectionState === 'idle');
+    const [, event] = await Promise.all([closing, idle, service.stop()]);
+    assert.equal(event.status.room, null);
+    assert.equal(event.status.target, '');
+    assert.equal(guest.reconnectTimer, null);
 });
 
 test('two native TCP clients authorize, synchronize authority and exchange chat', async (t) => {
@@ -135,6 +177,23 @@ test('paired room stays empty until explicit first song and both READY before GO
     const started = (await go).state;
     assert.equal(started.playing, true);
     assert.equal(started.position, 0);
+});
+
+test('a missing peer cannot turn a single READY into GO', () => {
+    const room = new AuthoritativeRoom({ serverId: 'room', name: 'Room' });
+    const host = { senderId: 'host' }, guest = { senderId: 'guest' };
+    const track = { trackId: 'netease:100', provider: 'netease', providerId: '100', name: 'One' };
+    const apply = (type, senderId, operationId, payload) => room.apply({ type, senderId, operationId, payload });
+    room.setMembers([host, guest]);
+    apply(TYPES.RESYNC, 'host', 'seed', { snapshot: { queue: [track], currentIndex: 0, playing: false } });
+    apply(TYPES.NEXT, 'host', 'next', { targetTrackId: track.trackId });
+    const ready = { phase: 'loaded', transitionId: 'next', targetTrackId: track.trackId };
+    assert.equal(apply(TYPES.READY, 'host', 'host-ready', ready).go, false);
+    assert.equal(room.setMembers([host]).go, false);
+    assert.equal(apply(TYPES.READY, 'host', 'host-repeat-ready', ready).go, false);
+    assert.equal(room.state.playing, false);
+    assert.equal(room.setMembers([host, guest]).go, false);
+    assert.equal(apply(TYPES.READY, 'guest', 'guest-ready', ready).go, true);
 });
 
 test('saved server data never contains an authorization code', async () => {

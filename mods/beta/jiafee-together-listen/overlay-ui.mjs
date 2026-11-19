@@ -1,5 +1,5 @@
-import { authoritativePosition } from './playback-core.mjs?v=1.4.5';
-import { OVERLAY_STYLE, PANEL_ENTRY_STYLE } from './styles.mjs?v=1.4.5';
+import { authoritativePosition } from './playback-core.mjs?v=1.4.6';
+import { OVERLAY_STYLE, PANEL_ENTRY_STYLE } from './styles.mjs?v=1.4.6';
 
 const node = (tag, className, text) => {
   const element = document.createElement(tag);
@@ -58,47 +58,6 @@ function renderAvatar(element, avatar, name) {
   }
 }
 
-function compressAvatar(file) {
-  const supported = file && (/^image\/(?:png|jpeg|webp)$/i.test(file.type || '') || /\.(?:png|jpe?g|webp)$/i.test(file.name || ''));
-  if (!supported) return Promise.reject(new Error('请选择 PNG、JPG 或 WebP 图片'));
-  if (file.size > 10 * 1024 * 1024) return Promise.reject(new Error('头像原图不能超过 10 MB'));
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      try {
-        let data = '';
-        for (const size of [96, 80, 64]) {
-          const canvas = document.createElement('canvas');
-          canvas.width = size;
-          canvas.height = size;
-          const context = canvas.getContext('2d');
-          const scale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
-          const width = image.naturalWidth * scale;
-          const height = image.naturalHeight * scale;
-          context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
-          for (const quality of [.78, .64, .5, .38, .28]) {
-            data = canvas.toDataURL('image/webp', quality);
-            if (data.length <= 22000) break;
-          }
-          if (data.length <= 22000) break;
-        }
-        URL.revokeObjectURL(url);
-        if (!data || data.length > 24000) reject(new Error('头像压缩后仍然过大'));
-        else resolve(data);
-      } catch (error) {
-        URL.revokeObjectURL(url);
-        reject(error);
-      }
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('头像图片无法读取'));
-    };
-    image.src = url;
-  });
-}
-
 function memberStatusText(member) {
   const labels = {
     idle: '在线', loading: '正在加载', ready: '已准备', playing: '正在播放', paused: '已暂停',
@@ -120,8 +79,8 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
           <div class="together-message" data-role="message" aria-live="polite"></div>
           <div class="together-lobby-view" data-view="lobby">
             <section class="together-section together-profile-section">
-              <div class="together-section-head"><div><h3>我的联机资料</h3><p>自动同步 Folia 账号 · 网易云优先，其次 QQ</p></div><button class="together-secondary-btn" data-action="profile-save" type="button">保存</button></div>
-              <div class="together-profile-editor"><button class="together-profile-avatar default-signal" data-role="profile-avatar" type="button" title="上传头像" aria-label="上传头像"></button><label><span>显示名称</span><input data-role="profile-name" maxlength="48" placeholder="Folia 听众"></label><div class="together-avatar-presets" role="group" aria-label="默认头像"><button type="button" data-avatar-preset="default:signal" title="信号"></button><button type="button" data-avatar-preset="default:rose" title="玫瑰"></button><button type="button" data-avatar-preset="default:mono" title="黑白"></button><button type="button" data-avatar-preset="default:mint" title="薄荷"></button><button data-action="avatar-upload" type="button">上传图片</button></div></div>
+              <div class="together-section-head"><h3>我的联机资料</h3></div>
+              <div class="together-profile-summary"><div class="together-profile-avatar default-signal" data-role="profile-avatar" role="img" aria-label="账号头像"></div><div class="together-profile-copy"><strong data-role="profile-name"></strong><p>自动同步 Folia 账号 · 网易云优先，其次 QQ</p></div></div>
             </section>
             <section class="together-section together-create-section">
               <div class="together-section-head"><div><h3>创建一起听世界</h3><p>在本机开启一个双人同步服务器</p></div></div>
@@ -144,7 +103,7 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
           <div class="together-room-view" data-view="room" hidden>
             <section class="together-room-summary"><div><h3 data-role="room-name">一起听服务器</h3><p data-role="room-state">0/2 · idle</p></div><div class="together-room-meta"><span class="together-network-quality" data-role="quality" data-quality="measuring"><i></i><span data-role="quality-text">检测线路</span></span><div class="together-members" data-role="members-label">等待成员</div></div></section>
             <section class="together-host-info" data-role="host" hidden><div class="together-host-details"><span>TCP 一起听服务器已开启 · 加入均需授权码</span><code data-role="host-address"></code><small>FRP 必须使用 type=tcp</small></div><div class="together-host-code"><span>授权码</span><strong data-role="host-code">------</strong></div><div class="together-host-actions"><button class="together-secondary-btn" data-action="copy-address" type="button">复制地址</button><button class="together-secondary-btn" data-action="copy-code" type="button">复制授权码</button></div></section>
-            <section class="together-now-playing"><div class="together-now-copy"><span>当前同步状态</span><h3 data-role="track-title">等待播放第一首歌</h3><p data-role="track-artist">请使用 Folia 原生播放器开始播放</p></div><div class="together-room-progress"><i data-role="progress"></i></div></section>
+            <section class="together-now-playing"><div class="together-now-copy"><span>当前同步状态</span><h3 data-role="track-title">等待播放第一首歌</h3><p data-role="track-artist"></p></div><div class="together-room-progress"><i data-role="progress"></i></div></section>
             <div class="together-room-footer"><span>断线后将自动重连并获取最新状态</span><button class="together-danger-btn" data-action="leave" type="button">断开连接</button></div>
           </div>
         </section>
@@ -157,8 +116,7 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
       </div>
       <div class="together-expression-controls" data-role="chat"><button class="together-expression-toggle" data-action="chat-toggle" type="button" aria-expanded="true" title="收起聊天输入" aria-label="收起聊天输入"><span data-icon="chat-toggle"></span></button><form class="together-expression-form" data-role="chat-form"><input data-role="chat-input" maxlength="50" autocomplete="off" placeholder="分享此刻感受…" aria-label="发送一句感受"><button type="submit" title="发送" aria-label="发送"><span data-icon="send">发送</span></button></form></div>
     </section>
-    </div>
-    <input data-role="avatar-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>`;
+    </div>`;
   container.append(style, root);
 
   const paintTheme = () => applyTheme(root, ctx);
@@ -175,7 +133,7 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
     ...root.querySelectorAll(selector),
     ...(controller.panelHost?.querySelectorAll(selector) || []),
   ];
-  let selectedAvatar = '';
+  let profileAvatarKey = '';
   let rooms = [];
   let busy = false;
   let menuOpen = false;
@@ -321,11 +279,13 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
 
     const profile = status.profile || { name: 'Folia 听众', avatar: 'default:signal' };
     const profileName = q('[data-role=profile-name]');
-    // The native panel moves this input into a different ShadowRoot from the stage overlay.
-    profileName.value = profile.name || '';
-    selectedAvatar = profile.avatar || 'default:signal';
-    renderAvatar(q('[data-role=profile-avatar]'), selectedAvatar, profile.name);
-    qa('[data-avatar-preset]').forEach((item) => item.classList.toggle('is-selected', item.dataset.avatarPreset === selectedAvatar));
+    profileName.textContent = profile.name || 'Folia 听众';
+    const avatarKey = JSON.stringify([profile.avatar, profile.name]);
+    // Keep the image node across status refreshes; account changes still refresh it.
+    if (avatarKey !== profileAvatarKey) {
+      profileAvatarKey = avatarKey;
+      renderAvatar(q('[data-role=profile-avatar]'), profile.avatar || 'default:signal', profile.name);
+    }
 
     const saved = status.savedServers || [];
     q('[data-role=saved-list]').replaceChildren(...(saved.length ? saved.map((item) => makeServerRow(item, () => run(async () => {
@@ -368,7 +328,13 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
       displayedPosition = authoritativePosition(room);
     }
     q('[data-role=track-title]').textContent = displayedTrack?.name || '等待播放第一首歌';
-    q('[data-role=track-artist]').textContent = displayedTrack?.artist || '请使用 Folia 原生播放器开始播放';
+    let trackDetail = displayedTrack?.artist || '';
+    if (!displayedTrack) {
+      if (bridge.session.isWaitingForFirstTrack()) trackDetail = '请选择第一首歌：从搜索结果或歌单中点播。';
+      else if (switching) trackDetail = '正在同步曲目…';
+      else if (connected) trackDetail = '好友加入后即可开始一起听。';
+    }
+    q('[data-role=track-artist]').textContent = trackDetail;
     q('[data-role=progress]').style.width = `${displayedTrack?.duration ? Math.min(100, displayedPosition / displayedTrack.duration * 100) : 0}%`;
     const members = [...(room.members || [])].sort((a, b) => a.senderId === status.clientId ? -1 : b.senderId === status.clientId ? 1 : 0);
     renderMember(0, members[0], '等待成员', switching);
@@ -401,12 +367,6 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
     await bridge.call('saveServer', { name: value, address: value });
     bridge.status.savedServers = await bridge.call('listSaved');
   }));
-  q('[data-role=profile-name]').readOnly = true;
-  q('[data-role=profile-name]').title = '自动同步 Folia 已登录账号';
-  q('[data-action=profile-save]').hidden = true;
-  q('[data-role=profile-avatar]').disabled = true;
-  q('[data-role=profile-avatar]').title = '自动同步账号头像';
-  qa('[data-avatar-preset], [data-action=avatar-upload]').forEach(item => { item.hidden = true; });
   q('[data-presence-slot="0"] [data-role=presence-avatar]').disabled = true;
   q('[data-action=copy-address]').addEventListener('click', () => run(async () => {
     await navigator.clipboard.writeText(q('[data-role=host-address]').textContent);

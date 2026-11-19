@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "jiafee-together-listen",
-  "modVersion": "1.4.5",
-  "digest": "sha256:c813561953b6096fb49348dbd35375e1e1b9e5e9ffa135ce2ae809ba23227c0a",
+  "modVersion": "1.4.6",
+  "digest": "sha256:7a8efc3c72ebfc1ef27c80d0cc6784626da2605d57d9ed4f73d3050c2b7f6464",
   "keyId": "folium-beta-2026-1",
-  "signedAt": "2026-11-18T01:07:46.842Z",
-  "signature": "WXocM0lQBfutgX3nErAZdedxIQw5TNQKKAicUIFrc/jc9qgaOpZkB+KwvKQDd46a0JOMPU3fOfHthdMsQhy4DA=="
+  "signedAt": "2026-11-19T01:07:42.977Z",
+  "signature": "fdYbQU50JfVCwK8yIpv9xZWiKtU/25FnCKHNV2SADyCGy/nCrSpktcSpH6Z5l76A6J7CqmtpC0RP4A5ga4hABA=="
 }

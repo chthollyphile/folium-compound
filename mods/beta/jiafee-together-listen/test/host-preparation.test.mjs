@@ -7,12 +7,19 @@ import { PlaybackSession } from '../playbackSession.mjs';
 function fixture(t, { refusesPause = false } = {}) {
     const song = { source: 'netease', id: 'test', ref: 'test' };
     let state = 'playing', position = 21, advancingSince = Date.now(), pauseTimer;
+    let queue = [{ index: 0, song }], queueVersion = 1, muted = false;
     const calls = [];
     const readPosition = () => position + (advancingSince === null ? 0 : (Date.now() - advancingSince) / 1000);
     const host = {
         getState: () => ({ song, state, position: readPosition(), duration: 240 }),
-        getQueue: () => ({ items: [{ index: 0, song }], length: 1, currentIndex: 0, version: '1' }),
+        getQueue: () => ({ items: queue, length: queue.length, currentIndex: queue.length ? 0 : -1, version: String(queueVersion) }),
+        replaceQueue: async songs => {
+            queue = songs.map((item, index) => ({ index, song: item }));
+            return { status: 'replaced', length: queue.length, version: String(++queueVersion) };
+        },
         getLoopMode: () => 'all', setLoopMode() {},
+        getVolume: () => ({ volume: 0.7, muted }),
+        setMuted: value => { muted = value; calls.push(['muted', value]); },
         seek: value => {
             clearTimeout(pauseTimer); position = value; advancingSince = Date.now(); state = 'playing';
             calls.push(['seek', value]); return true;
@@ -35,6 +42,73 @@ function fixture(t, { refusesPause = false } = {}) {
     t.after(() => clearTimeout(pauseTimer));
     return { folium, host, calls, setPosition: value => { position = value; advancingSince = null; } };
 }
+
+test('the second member clears both current songs and local queues once', async t => {
+    const sessions = [true, { ok: true }].map(result => {
+        const f = fixture(t), read = f.host.getState, errors = [];
+        let cleared = false;
+        f.host.getState = () => cleared ? { song: null, state: 'stopped', position: 0 } : read();
+        f.host.clearCurrent = () => {
+            cleared = true;
+            f.calls.push(['clearCurrent']);
+            return result;
+        };
+        const session = new PlaybackSession(f.folium, () => assert.fail('no playback command expected'), error => errors.push(error));
+        t.after(() => session.dispose());
+        return { ...f, session, errors };
+    });
+    const owner = { senderId: 'owner' }, guest = { senderId: 'guest' };
+    const idle = { serverId: 'room', sessionEpoch: 1, version: 2, status: 'idle',
+        members: [owner, guest], queue: [], currentIndex: -1, currentTrackId: '', playing: false, position: 0 };
+
+    await sessions[0].session.accept({ state: { ...idle, version: 1, members: [owner] } }, true, owner.senderId);
+    assert.deepEqual(sessions[0].calls, []);
+    assert.equal(sessions[0].host.getQueue().length, 1);
+    for (const [index, f] of sessions.entries()) {
+        const { senderId } = idle.members[index];
+        await f.session.accept({ action: 'SESSION_RESET', state: idle }, true, senderId);
+        await f.session.accept({ state: { ...idle, version: 3 } }, true, senderId);
+        assert.deepEqual(f.calls, [['clearCurrent']]);
+        assert.deepEqual(f.host.getState(), { song: null, state: 'stopped', position: 0 });
+        assert.deepEqual(f.host.getQueue(), { items: [], length: 0, currentIndex: -1, version: '2' });
+        assert.equal(f.session.core.machine.state.status, 'idle');
+        assert.deepEqual(f.errors, []);
+    }
+});
+
+test('legacy and refused clears reset the queue and ignore the previous song until a new selection', async t => {
+    for (const clearCurrent of [undefined, () => false]) {
+        const f = fixture(t), sent = [], notices = [];
+        f.host.clearCurrent = clearCurrent;
+        f.folium.ui.toast = message => notices.push(message);
+        const session = new PlaybackSession(f.folium, action => { sent.push(action); }, assert.fail);
+        t.after(() => session.dispose());
+        const room = { serverId: 'room', sessionEpoch: 1, version: 1, status: 'idle',
+            members: [{ senderId: 'a' }, { senderId: 'b' }], queue: [], currentIndex: -1,
+            currentTrackId: '', playing: false, position: 0 };
+        const song = f.host.getState().song;
+        assert.equal(session.isWaitingForFirstTrack(), false);
+        await session.accept({ state: room }, true, 'a');
+        assert.equal(session.isWaitingForFirstTrack(), true);
+        assert.deepEqual(f.calls, [['seek', 0], ['pause']]);
+        assert.equal(f.host.getQueue().length, 0);
+        assert.equal(session.core.machine.state.position, 0);
+        f.host.play();
+        await session.state('playing');
+        assert.equal(f.host.getState().state, 'paused');
+        f.host.play();
+        await session.state('playing');
+        assert.equal(f.host.getState().state, 'paused');
+        assert.deepEqual(notices, ['请选择第一首歌']);
+        await session.song(song);
+        assert.deepEqual(sent, []);
+
+        session.beforePlay({ song, cancel: () => assert.fail('the first selection should be allowed') });
+        assert.equal(session.isWaitingForFirstTrack(), false);
+        await session.song(song);
+        assert.deepEqual(sent, ['RESYNC', 'NEXT']);
+    }
+});
 
 test('prepare survives seek-resumes and waits for the actual pause fade to settle', async t => {
     const f = fixture(t), adapter = new FoliumPlayerAdapter(f.folium, () => null);
@@ -119,17 +193,59 @@ test('prepared GO removes fade drift once; subsequent PLAY does not rewind', asy
     assert.deepEqual(errors, []);
     assert.equal(sent.filter(item => item[0] === 'READY').length, 1);
     assert.equal(f.host.getState().state, 'paused');
-    const go = { ...preparing, version: 3, playing: true, lastAction: 'GO',
+    assert.equal(f.host.getVolume().muted, true, 'remain muted after READY');
+    await session.accept({ state: { ...preparing, version: 3 }, action: 'READY' }, true, 'a');
+    assert.equal(f.calls.filter(item => item[0] === 'seek').length, 1, 'READY feedback must not restart preparation');
+    assert.equal(sent.filter(item => item[0] === 'READY').length, 1);
+    assert.equal(f.host.getVolume().muted, true);
+    const go = { ...preparing, version: 4, playing: true, lastAction: 'GO',
         transition: { id: 'next-1', phase: 'go' }, serverTimestamp: Date.now() };
     await session.accept({ state: go }, true, 'a');
     assert.equal(f.host.getState().state, 'playing');
     assert.ok(f.host.getState().position < 0.1, 'GO must remove the pause fade offset');
     assert.equal(f.calls.filter(item => item[0] === 'seek').length, 2);
+    assert.equal(f.host.getVolume().muted, false);
+    assert.deepEqual(f.calls.slice(-2).map(call => call[0]), ['seek', 'muted'], 'restore output only after starting playback');
     f.setPosition(34);
-    await session.accept({ state: { ...go, version: 4, lastAction: 'PLAY', position: 34,
+    await session.accept({ state: { ...go, version: 5, lastAction: 'PLAY', position: 34,
         serverTimestamp: Date.now() } }, true, 'a');
     assert.equal(f.calls.filter(item => item[0] === 'seek').length, 2);
     assert.equal(f.host.getState().position, 34);
+});
+
+test('an unexpected GO keeps playback muted while waiting for local media preparation', async t => {
+    const f = fixture(t), errors = [];
+    const session = new PlaybackSession(f.folium, assert.fail, error => errors.push(error));
+    t.after(() => session.dispose());
+    const go = { serverId: 'test', sessionEpoch: 1, version: 2, members: [{ senderId: 'a' }, { senderId: 'b' }],
+        queue: [{ trackId: 'netease:test', provider: 'netease', providerId: 'test' }], currentIndex: 0,
+        currentTrackId: 'netease:test', playing: true, position: 0, serverTimestamp: Date.now(),
+        transition: { id: 'early-go', phase: 'go' } };
+    const acceptance = session.accept({ state: go }, true, 'a');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.host.getVolume().muted, true);
+    assert.equal(f.host.getState().state, 'paused');
+    await acceptance;
+    assert.equal(f.host.getVolume().muted, false);
+    assert.equal(f.host.getState().state, 'playing');
+    assert.deepEqual(errors, []);
+});
+
+test('aborted preparation restores owned mute after pausing and preserves pre-existing mute', async t => {
+    const f = fixture(t), adapter = new FoliumPlayerAdapter(f.folium, () => null);
+    t.after(() => adapter.dispose());
+    adapter.holdPreparationAudio();
+    adapter.abortPreparationAudio();
+    assert.equal(f.host.getVolume().muted, true);
+    assert.equal(f.host.getState().state, 'paused');
+    await new Promise(resolve => setTimeout(resolve, 275));
+    assert.equal(f.host.getVolume().muted, false);
+    f.host.setMuted(true);
+    const count = f.calls.length;
+    adapter.holdPreparationAudio();
+    adapter.releasePreparationAudio();
+    assert.equal(f.host.getVolume().muted, true);
+    assert.equal(f.calls.length, count);
 });
 
 test('a new song that starts before playQueueItem resolves is paused immediately', async t => {

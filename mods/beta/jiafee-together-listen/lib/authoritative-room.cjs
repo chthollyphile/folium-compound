@@ -97,6 +97,9 @@ class AuthoritativeRoom {
     }));
     const transition = this.state.transition;
     if (!transition) return { go: false };
+    const activeSenders = new Set(this.state.members.map((member) => member.senderId));
+    transition.readySenderIds = transition.readySenderIds.filter((senderId) => activeSenders.has(senderId));
+    transition.endedSenderIds = transition.endedSenderIds.filter((senderId) => activeSenders.has(senderId));
     if (transition.phase === 'awaiting-end' && this.allMembersReady(transition.endedSenderIds)) {
       this.beginPreparing(transition);
       this.state.version += 1;
@@ -113,7 +116,7 @@ class AuthoritativeRoom {
 
   allMembersReady(senderIds) {
     const required = this.state.members.map((member) => member.senderId).filter(Boolean);
-    return required.length > 0 && required.every((senderId) => senderIds.includes(senderId));
+    return required.length === 2 && required.every((senderId) => senderIds.includes(senderId));
   }
 
   clearTransition() {

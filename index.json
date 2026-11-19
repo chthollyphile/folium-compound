@@ -852,20 +852,20 @@
     {
       "id": "jiafee-together-listen",
       "name": "Jiafee 一起听",
-      "version": "1.4.5",
+      "version": "1.4.6",
       "author": "JiafeeJF",
       "description": "使用现有 Mineradio 一起听协议，在 Folia 中连接或创建双人同步房间。",
       "origin": "beta",
       "channel": "beta",
       "path": "mods/beta/jiafee-together-listen",
-      "digest": "sha256:c813561953b6096fb49348dbd35375e1e1b9e5e9ffa135ce2ae809ba23227c0a",
+      "digest": "sha256:7a8efc3c72ebfc1ef27c80d0cc6784626da2605d57d9ed4f73d3050c2b7f6464",
       "keyId": "folium-beta-2026-1",
-      "signedAt": "2026-11-18T01:07:46.842Z",
+      "signedAt": "2026-11-19T01:07:42.977Z",
       "owners": [
         "JiafeeJF"
       ],
       "source": "https://github.com/JiafeeJF/folia-jiafee-together-listen",
-      "sourceCommit": "3ee2c4354da3a9b9708e7cb5bf7c64cabaa6dff2"
+      "sourceCommit": "b35ef42dfc8ae0b2954df25664361d1fe605eccd"
     },
     {
       "id": "just-enough-setting",

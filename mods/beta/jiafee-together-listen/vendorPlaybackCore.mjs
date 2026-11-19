@@ -218,6 +218,7 @@ const core = (() => {
       return self.applyAuthority(authority, event, epoch);
     }).catch(function (error) {
       if (!self.isCurrentAuthority(epoch, version)) return { ignored: true, reason: 'stale-error' };
+      if (typeof self.adapter.abortPreparationAudio === 'function') self.adapter.abortPreparationAudio();
       self.machine.transition({ status: 'error', version: Math.max(version, self.machine.state.version), lastOperationId: operationId }, 'system');
       self.onError(error);
       return { error: error };
@@ -243,7 +244,7 @@ const core = (() => {
       if (typeof this.adapter.resetPlaybackRate === 'function' && (!authority.playing || (transition && transition.phase !== 'go'))) this.adapter.resetPlaybackRate();
       var sessionKey = String(authority.serverId || '') + ':' + String(Math.max(0, Number(authority.sessionEpoch) || 0));
       if (sessionKey !== ':0' && sessionKey !== this.appliedSessionKey) {
-        if (typeof this.adapter.resetSessionPlayback === 'function') await this.adapter.resetSessionPlayback(authority);
+        if (!targetTrackId && typeof this.adapter.resetSessionPlayback === 'function') await this.adapter.resetSessionPlayback(authority);
         if (!this.isCurrentAuthority(epoch, version)) return { ignored: true, reason: 'superseded-during-session-reset' };
         this.appliedSessionKey = sessionKey;
         this.startedTransitionId = '';
@@ -255,6 +256,10 @@ const core = (() => {
       if (authority.mode) this.adapter.setMode(authority.mode);
       var actual = this.adapter.readState();
       var trackChanged = !!targetTrackId && actual.trackId !== targetTrackId;
+      var startingGo = transition && transition.phase === 'go' && authority.playing
+        && this.startedTransitionId !== transition.id;
+      if ((trackChanged || startingGo || (transition && transition.phase === 'preparing'))
+          && typeof this.adapter.holdPreparationAudio === 'function') this.adapter.holdPreparationAudio();
       if (trackChanged) {
         this.endedTrackId = '';
         this.machine.transition({ status: 'switching', trackId: targetTrackId, position: 0, version: version, lastOperationId: operationId }, source);
@@ -269,6 +274,10 @@ const core = (() => {
       }
 
       if (transition && transition.phase === 'preparing') {
+        if (!trackChanged && this.readyTransitions.has(transition.id)) {
+          if (this.adapter.readState().playing) await this.adapter.pause();
+          return { ready: true };
+        }
         this.machine.transition({ status: 'loading', trackId: targetTrackId, position: 0, version: version, lastOperationId: operationId }, source);
         var ready = await this.adapter.waitUntilReady(targetTrackId, function () { return version === this.acceptedVersion; }.bind(this));
         if (!this.isCurrentAuthority(epoch, version)) return { ignored: true, reason: 'superseded-during-load' };
@@ -282,11 +291,16 @@ const core = (() => {
         return { ready: true };
       }
 
-      if (transition && transition.phase === 'go' && authority.playing
-          && this.readyTransitions.has(transition.id) && this.startedTransitionId !== transition.id) {
+      if (startingGo) {
+        if (!this.readyTransitions.has(transition.id) || trackChanged) {
+          var locallyReady = await this.adapter.waitUntilReady(targetTrackId, function () {
+            return this.isCurrentAuthority(epoch, version);
+          }.bind(this));
+          if (!this.isCurrentAuthority(epoch, version)) return { ignored: true, reason: 'superseded-before-go' };
+          if (!locallyReady) throw new Error('PLAYBACK_TRACK_NOT_READY');
+        }
         // Folia pause fades advance the deck slightly. Correct once at GO, when seek's
         // resume side effect is wanted. Ordinary PLAY and later snapshots never rewind.
-        this.startedTransitionId = transition.id;
         await this.adapter.seek(this.authoritativePosition(authority));
         if (!this.isCurrentAuthority(epoch, version)) return { ignored: true, reason: 'superseded-at-go' };
       } else if (String(authority.lastAction || event.action || '') === 'SEEK') {
@@ -306,11 +320,13 @@ const core = (() => {
         await this.adapter.pause();
       }
       if (!this.isCurrentAuthority(epoch, version)) return { ignored: true, reason: 'superseded-after-play-state' };
+      if (startingGo) this.startedTransitionId = transition.id;
+      if (typeof this.adapter.releasePreparationAudio === 'function') this.adapter.releasePreparationAudio(!authority.playing);
       actual = this.adapter.readState();
       this.machine.transition({
         status: !targetTrackId ? 'idle' : (authority.playing ? (actual.playing ? 'playing' : 'buffering') : 'paused'),
         trackId: targetTrackId,
-        position: Number(actual.position) || Number(authority.position) || 0,
+        position: targetTrackId ? Number(actual.position) || Number(authority.position) || 0 : 0,
         version: version,
         lastOperationId: operationId,
       }, source);

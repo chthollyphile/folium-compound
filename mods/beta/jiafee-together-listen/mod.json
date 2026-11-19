@@ -2,7 +2,7 @@
   "folium": 1,
   "id": "jiafee-together-listen",
   "name": "Jiafee 一起听",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "author": "JiafeeJF",
   "description": "使用现有 Mineradio 一起听协议，在 Folia 中连接或创建双人同步房间。",
   "preview": "preview.jpg",

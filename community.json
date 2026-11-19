@@ -255,10 +255,11 @@
       "submission": 163,
       "source": "https://github.com/JiafeeJF/folia-jiafee-together-listen",
       "path": "",
-      "commit": "3ee2c4354da3a9b9708e7cb5bf7c64cabaa6dff2",
-      "version": "1.4.5",
+      "commit": "b35ef42dfc8ae0b2954df25664361d1fe605eccd",
+      "version": "1.4.6",
       "addedAt": "2026-11-18",
-      "updatedAt": "2026-11-18"
+      "updatedAt": "2026-11-19",
+      "lastIssue": 175
     },
     "just-enough-setting": {
       "owners": [

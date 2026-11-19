@@ -1,22 +1,27 @@
-import { canonicalSongKey, foliumLoopMode } from './playback-core.mjs?v=1.4.5';
-import { QueueSync } from './queue-sync.mjs?v=1.4.5';
+import { canonicalSongKey, foliumLoopMode } from './playback-core.mjs?v=1.4.6';
+import { QueueSync } from './queue-sync.mjs?v=1.4.6';
 
 // All host access is through the stable Folium playback and Omni services.
 // Official 0.7.28 pauses media after a fixed 200ms fade + 15ms timer grace.
 // A paused snapshot is not media-ready: also wait for its position to settle.
 const PAUSE_SETTLE_MS = 700;
+const PAUSE_OUTPUT_SETTLE_MS = 250;
 const START_FADE_TOLERANCE_SECONDS = 0.5;
 const PREPARATION_TIMEOUT_MS = 8000;
 const MAX_PREPARATION_REBASES = 2;
 
 export class FoliumPlayerAdapter {
-    constructor(folium, currentRoom, permitSelection = () => () => {}) {
+    constructor(folium, currentRoom, permitSelection = () => () => {}, isSelecting = () => false) {
         this.host = folium.playback;
         this.currentRoom = currentRoom;
         this.permitSelection = permitSelection;
+        this.isSelecting = isSelecting;
+        this.log = folium.log;
         this.generation = 0;
         this.preparationTimeoutMs = PREPARATION_TIMEOUT_MS;
         this.lastSeek = null;
+        this.ownsPreparationMute = false;
+        this.preparationMuteRelease = null;
         this.queue = new QueueSync({ playback: this.host, omni: folium.omni,
             notice: message => folium.ui.toast(message, { type: 'error' }), log: folium.log,
             isCurrent: room => this.currentRoom()?.sessionEpoch === room.sessionEpoch
@@ -29,6 +34,33 @@ export class FoliumPlayerAdapter {
     }
     pause() { this.host.pause(); }
     play() { this.host.play(); }
+    holdPreparationAudio() {
+        clearTimeout(this.preparationMuteRelease);
+        this.preparationMuteRelease = null;
+        if (this.ownsPreparationMute || typeof this.host.getVolume !== 'function'
+            || typeof this.host.setMuted !== 'function' || this.host.getVolume().muted) return;
+        this.host.setMuted(true);
+        this.ownsPreparationMute = true;
+    }
+    releasePreparationAudio(waitForPause = false, force = false) {
+        if (!this.ownsPreparationMute || (!force && this.isSelecting())) return;
+        clearTimeout(this.preparationMuteRelease);
+        if (waitForPause) {
+            this.preparationMuteRelease = setTimeout(() => {
+                try { this.releasePreparationAudio(false, force); }
+                catch (error) { this.log.warn('[Together] mute restoration failed', error); }
+            }, PAUSE_OUTPUT_SETTLE_MS);
+            return;
+        }
+        this.preparationMuteRelease = null;
+        this.ownsPreparationMute = false;
+        this.host.setMuted(false);
+    }
+    abortPreparationAudio() {
+        if (!this.ownsPreparationMute) return;
+        try { if (this.readState().playing) this.pause(); }
+        finally { this.releasePreparationAudio(true, true); }
+    }
     seek(position) {
         this.lastSeek = { position, until: Date.now() + 1000 };
         this.host.seek(position);
@@ -44,7 +76,17 @@ export class FoliumPlayerAdapter {
     }
     cancelPendingWait() { this.generation++; this.queue.cancel(); }
     async resetSessionPlayback(room) {
-        this.pauseAtStart();
+        this.lastSeek = null;
+        let cleared = false;
+        if (typeof this.host.clearCurrent === 'function') {
+            const result = await this.host.clearCurrent();
+            cleared = result === true || result?.ok === true;
+        }
+        if (!cleared) {
+            const current = this.readState();
+            if (current.trackId) this.pauseAtStart();
+            else if (current.playing) this.pause();
+        }
         await this.replace({ ...room, queue: [] });
     }
     async replace(room) {

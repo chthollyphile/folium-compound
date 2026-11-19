@@ -270,11 +270,12 @@ class TogetherListenManager extends EventEmitter {
   send(message) {
     if (!this.socket || this.socket.readyState !== OPEN || !this.target) return false;
     const action = String(message.action || message.type || '').toUpperCase();
-    const version = this.roomState ? Number(this.roomState.version) || 0 : 0;
+    const admitting = action === TYPES.HELLO && this.pendingAdmission?.socket === this.socket;
+    const version = !admitting && this.roomState ? Number(this.roomState.version) || 0 : 0;
     const envelope = {
       id: String(message.id || id(12)),
       operationId: String(message.operationId || ''),
-      serverId: this.target.serverId || (this.roomState && this.roomState.serverId) || '',
+      serverId: admitting ? '' : this.target.serverId || (this.roomState && this.roomState.serverId) || '',
       senderId: this.clientId,
       timestamp: Number(message.timestamp) || Date.now(),
       version,
@@ -403,6 +404,13 @@ class TogetherListenManager extends EventEmitter {
     if (this.pendingAdmission && this.pendingAdmission.socket === ws) this.pendingAdmission.finish(new Error('连接在房间接纳前关闭'));
     this.socket = null;
     this.stopHeartbeat();
+    if (this.explicitClose) {
+      this.roomState = null;
+      this.processedOperations.clear();
+      this.target = null;
+      this.reconnectAttempt = 0;
+      this.latencyMs = 0;
+    }
     this.connectionState = this.explicitClose ? 'idle' : 'disconnected';
     this.emitEvent('status', { status: this.status(), closeCode: code, reason: reason.toString() });
     if (!this.explicitClose && this.target) this.scheduleReconnect();
