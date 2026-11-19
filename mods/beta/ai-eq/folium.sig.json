@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "ai-eq",
-  "modVersion": "2.1.0",
-  "digest": "sha256:75e02381ae401cb7d7bed257bf9c8ba9791a67b32c36a592c0a39bd9ee8e5b83",
+  "modVersion": "2.3.0",
+  "digest": "sha256:3decd8750b320b47e3f56fae1af5fc6ba80e4f7d3ab3274eaf7b166fa7145ab4",
   "keyId": "folium-beta-2026-1",
-  "signedAt": "2026-11-04T17:01:49.214Z",
-  "signature": "TnRCQaNiTcA6t0cCijwJ9wyfCIZpD+jn4JXTEG+jOH4XcbI4nd1vL7CtK5Bsic8HzAVKTzEe9ntQg9t6jPoTDQ=="
+  "signedAt": "2026-11-19T01:07:52.668Z",
+  "signature": "Il/oVAwKmqo/1C/sDuhMVWVbjtKsOHR7foT3QxwANJlB+VjhYBonSyeiowkAQ/1RJ9qAdJNZGYSX7UVk/rOcDQ=="
 }

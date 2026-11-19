@@ -7,10 +7,11 @@
       "submission": 113,
       "source": "https://github.com/cbylq23/ai-eq",
       "path": "ai-eq",
-      "commit": "389b9783770d82457f7741eb8ab20d3a0729a766",
-      "version": "2.1.0",
+      "commit": "ad7051788e94f2ff3e03a86609f8e1441b0744da",
+      "version": "2.3.0",
       "addedAt": "2026-11-04",
-      "updatedAt": "2026-11-04"
+      "updatedAt": "2026-11-19",
+      "lastIssue": 174
     },
     "amll-desktop-lyric": {
       "owners": [
