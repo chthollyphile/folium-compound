@@ -586,6 +586,18 @@
       "updatedAt": "2026-11-08",
       "lastIssue": 134
     },
+    "taskbar-controls": {
+      "owners": [
+        "q13244583628"
+      ],
+      "submission": 170,
+      "source": "https://github.com/q13244583628/folia-",
+      "path": "",
+      "commit": "f4ed885c7e3d39d87804f61f60078f44eb8ba0c9",
+      "version": "1.5.0",
+      "addedAt": "2026-11-20",
+      "updatedAt": "2026-11-20"
+    },
     "taskbar-lyrics": {
       "owners": [
         "moneker"

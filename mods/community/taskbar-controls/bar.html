@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:" />
+    <title>Folia 任务栏控制条</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            /* 关键：高度不能锁死成窗口高度，否则量出来的永远是当前高度，窗口长不大 */
+            height: auto;
+            /* 关键：全透明像素在 Windows 上会穿透点击（分层窗口逐像素命中），
+               所以垫一层肉眼看不见的极低透明度底色，让整条都能吃到鼠标 */
+            background: rgba(0, 0, 0, 0.004);
+            overflow: hidden;
+            font-family: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+            user-select: none;
+            cursor: default;
+        }
+
+        #root {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            width: 100%;
+            height: auto;
+            padding: 0 6px;
+            box-sizing: border-box;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 1px;
+            height: 40px;
+        }
+
+        button {
+            all: unset;
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            height: 28px;
+            min-width: 28px;
+            padding: 0 4px;
+            border-radius: 6px;
+            color: #f2f4f7;
+            cursor: pointer;
+            transition: background-color 0.12s ease, color 0.12s ease;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.85));
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.16);
+        }
+
+        button:active {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        button.on {
+            color: #7dd3fc;
+        }
+
+        button.liked {
+            color: #fb7185;
+        }
+
+        button:disabled {
+            opacity: 0.35;
+            cursor: default;
+            background: none;
+        }
+
+        button svg {
+            width: 16px;
+            height: 16px;
+            display: block;
+        }
+
+        .spacer {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        /* 第二排：标题、时间、进度 */
+        #detail {
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+            padding: 0 2px 2px;
+        }
+
+        body.expanded #detail {
+            display: flex;
+        }
+
+        /* 窗口现在可以拿到焦点，把它自己的焦点描边关掉，免得看着像被框住 */
+        button:focus,
+        input:focus,
+        #root:focus {
+            outline: none;
+        }
+
+        .line1 {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            height: 18px;
+            overflow: hidden;
+            white-space: nowrap;
+            color: #e8eaee;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+            font-size: 12px;
+            line-height: 18px;
+        }
+
+        #title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
+            font-weight: 600;
+        }
+
+        #artist {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
+            color: #b6bcc6;
+            font-size: 11px;
+        }
+
+        #time {
+            margin-left: auto;
+            color: #c8ccd4;
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #progressTrack {
+            position: relative;
+            height: 3px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.18);
+            cursor: pointer;
+        }
+
+        #progressFill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 0%;
+            border-radius: 2px;
+            background: #7dd3fc;
+            box-shadow: 0 0 6px rgba(125, 211, 252, 0.7);
+        }
+
+        #volume {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 72px;
+            height: 14px;
+            background: transparent;
+            cursor: pointer;
+            margin: 0 2px;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+        }
+
+        #volume::-webkit-slider-runnable-track {
+            height: 3px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.28);
+        }
+
+        #volume::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 10px;
+            height: 10px;
+            margin-top: -3.5px;
+            border-radius: 50%;
+            background: #f2f4f7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+        }
+
+        #volumeIconBtn {
+            min-width: 24px;
+            height: 24px;
+        }
+
+        #volumeIconBtn svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        /* 自检行：链路状态 + 点击计数 + 最后动作 */
+        #debug {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            height: 14px;
+            padding: 0 3px 2px;
+            font-size: 10px;
+            line-height: 14px;
+            color: #a9b0bb;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        #linkDot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex: 0 0 auto;
+            background: #ef4444;
+        }
+
+        #linkDot.ok {
+            background: #22c55e;
+        }
+
+        #linkDot.stale {
+            background: #f59e0b;
+        }
+
+        #debugText {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 点击瞬间的反馈，用来判断窗口到底有没有收到鼠标 */
+        button.flash {
+            background: rgba(125, 211, 252, 0.45) !important;
+        }
+
+        /* 收起状态里的迷你自检：状态点 + 点击计数 */
+        #mini {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 0 3px 0 4px;
+            font-size: 9px;
+            line-height: 1;
+            color: #cfd4dc;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+            font-variant-numeric: tabular-nums;
+        }
+
+        #miniDot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        #miniDot.ok {
+            background: #22c55e;
+        }
+
+        #miniDot.stale {
+            background: #f59e0b;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root">
+        <div class="row" id="mainRow">
+            <button id="prev" title="上一首">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="19 20 9 12 19 4 19 20" fill="currentColor" stroke="none" />
+                    <line x1="5" y1="19" x2="5" y2="5" />
+                </svg>
+            </button>
+            <button id="playPause" title="播放 / 暂停">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon id="playIcon" points="6 3 20 12 6 21 6 3" fill="currentColor" stroke="none" />
+                    <g id="pauseIcon" style="display:none">
+                        <rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none" />
+                        <rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none" />
+                    </g>
+                </svg>
+            </button>
+            <button id="next" title="下一首">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 4 15 12 5 20 5 4" fill="currentColor" stroke="none" />
+                    <line x1="19" y1="5" x2="19" y2="19" />
+                </svg>
+            </button>
+
+            <div class="spacer"></div>
+
+            <button id="loop" title="循环模式">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 2l4 4-4 4" />
+                    <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+                    <path d="M7 22l-4-4 4-4" />
+                    <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+                </svg>
+            </button>
+            <button id="like" title="喜欢">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+                </svg>
+            </button>
+            <button id="panel" title="打开播放器侧边面板">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <line x1="15" y1="4" x2="15" y2="20" />
+                </svg>
+            </button>
+            <span id="mini" title="状态点：绿=与 Folia 连通；右侧数字=窗口收到的点击次数">
+                <span id="miniDot"></span>
+                <span id="miniCount">0</span>
+            </span>
+            <button id="expand" title="展开 / 收起">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline id="chevron" points="6 15 12 9 18 15" />
+                </svg>
+            </button>
+        </div>
+
+        <div id="detail">
+            <div class="line1">
+                <span id="title">—</span>
+                <span id="artist"></span>
+                <span id="time">0:00 / 0:00</span>
+            </div>
+            <div id="progressTrack">
+                <div id="progressFill"></div>
+            </div>
+            <div class="row" style="height:26px;">
+                <button id="mute" title="静音">
+                    <svg id="volIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" />
+                        <path d="M19.1 4.9a10 10 0 0 1 0 14.2" />
+                        <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                    </svg>
+                </button>
+                <input id="volume" type="range" min="0" max="1" step="0.01" value="1" title="音量" />
+                <div class="spacer"></div>
+                <button id="back" title="返回一层（等同 Esc）">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 14 4 9l5-5" />
+                        <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+                    </svg>
+                </button>
+            </div>
+            <div id="debug">
+                <span id="linkDot"></span>
+                <span id="debugText">正在等待 Folia…</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        // 控制条窗口不开 Node：ipcRenderer 拿不到，所有通信走 preload 暴露的 window.tb
+        const bridge = window.tb || null;
+
+        const root = document.getElementById('root');
+        const els = {
+            prev: document.getElementById('prev'),
+            playPause: document.getElementById('playPause'),
+            playIcon: document.getElementById('playIcon'),
+            pauseIcon: document.getElementById('pauseIcon'),
+            next: document.getElementById('next'),
+            loop: document.getElementById('loop'),
+            like: document.getElementById('like'),
+            panel: document.getElementById('panel'),
+            expand: document.getElementById('expand'),
+            chevron: document.getElementById('chevron'),
+            title: document.getElementById('title'),
+            artist: document.getElementById('artist'),
+            time: document.getElementById('time'),
+            track: document.getElementById('progressTrack'),
+            fill: document.getElementById('progressFill'),
+            volume: document.getElementById('volume'),
+            mute: document.getElementById('mute'),
+            volIcon: document.getElementById('volIcon'),
+            back: document.getElementById('back'),
+            linkDot: document.getElementById('linkDot'),
+            debugText: document.getElementById('debugText'),
+            miniDot: document.getElementById('miniDot'),
+            miniCount: document.getElementById('miniCount'),
+        };
+
+        const send = (action, value) => {
+            if (bridge) bridge.send(action, value);
+        };
+        if (!bridge) {
+            // preload 没生效时按钮会全部静默失效，把原因直接写在状态行上
+            els.debugText.textContent = '控制条未能初始化，请重新启用模组';
+        }
+
+        let expanded = false;
+        let snapshot = null;
+
+        // ---- 连接状态：这行小字告诉用户控制条有没有接上 Folia 的播放器
+        let lastStateAt = 0;
+        let lastError = '';
+        let lastErrorAt = 0;
+
+        const renderStatus = () => {
+            if (!bridge) return;
+            if (lastError && Date.now() - lastErrorAt < 8000) {
+                els.debugText.textContent = lastError;
+                els.linkDot.className = 'stale';
+                els.miniDot.className = 'stale';
+                return;
+            }
+            const age = lastStateAt ? Math.round((Date.now() - lastStateAt) / 1000) : -1;
+            const live = age >= 0 && age <= 15;
+            els.linkDot.className = live ? 'ok' : '';
+            els.miniDot.className = live ? 'ok' : '';
+            els.miniCount.textContent = '';
+            els.debugText.textContent = live ? '已连接 Folia 播放器' : '未连接到 Folia 播放器';
+        };
+        setInterval(renderStatus, 1000);
+
+        document.addEventListener(
+            'pointerdown',
+            (event) => {
+                const target = event.target.closest('button');
+                if (!target) return;
+                target.classList.add('flash');
+                setTimeout(() => target.classList.remove('flash'), 160);
+            },
+            true,
+        );
+
+        if (bridge) {
+            bridge.onError((payload) => {
+                if (!payload) return;
+                lastError = String(payload.message || '操作没有生效');
+                lastErrorAt = Date.now();
+                renderStatus();
+            });
+        }
+
+        const formatTime = (seconds) => {
+            const total = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+            const m = Math.floor(total / 60);
+            const s = total % 60;
+            return `${m}:${String(s).padStart(2, '0')}`;
+        };
+
+        // ---- 通知主进程调整窗口高度（底部对齐）
+        let lastHeight = 0;
+        const reportHeight = () => {
+            requestAnimationFrame(() => {
+                // scrollHeight 是内容真实高度，不受窗口当前高度限制；
+                // 用根节点量，展开时才能把窗口一起撑高。
+                const content = Math.ceil(root.scrollHeight || 0);
+                const wanted = Math.max(40, content);
+                if (wanted === lastHeight) return;
+                lastHeight = wanted;
+                if (bridge) bridge.resize(wanted);
+            });
+        };
+
+        const setExpanded = (next) => {
+            expanded = next;
+            document.body.classList.toggle('expanded', expanded);
+            els.chevron.setAttribute('points', expanded ? '6 9 12 15 18 9' : '6 15 12 9 18 15');
+            reportHeight();
+        };
+
+        // ---- 渲染
+        const VOLUME_SVG = {
+            muted: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" /><path d="M23 9l-6 6" /><path d="M17 9l6 6" />',
+            low: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" /><path d="M15.5 8.5a5 5 0 0 1 0 7" />',
+            high: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M19.1 4.9a10 10 0 0 1 0 14.2" />',
+        };
+
+        const render = (data) => {
+            snapshot = data;
+            lastStateAt = Date.now();
+            renderStatus();
+            if (!data) return;
+
+            const playing = data.state === 'playing';
+            els.playIcon.style.display = playing ? 'none' : '';
+            els.pauseIcon.style.display = playing ? '' : 'none';
+            els.playPause.title = playing ? '暂停' : '播放';
+
+            els.loop.classList.toggle('on', data.loop && data.loop !== 'off');
+            els.loop.title = data.loop === 'one' ? '单曲循环' : data.loop === 'all' ? '列表循环' : '不循环';
+
+            els.like.classList.toggle('liked', Boolean(data.liked));
+            els.like.disabled = !data.canLike;
+
+            if (data.showTitle === false) {
+                els.title.textContent = '—';
+                els.artist.textContent = '';
+            } else {
+                els.title.textContent = data.title || '—';
+                els.artist.textContent = data.artist || '';
+            }
+
+            const duration = Number(data.duration) || 0;
+            const position = Number(data.position) || 0;
+            els.time.textContent = `${formatTime(position)} / ${formatTime(duration)}`;
+            const ratio = duration > 0 ? Math.min(1, Math.max(0, position / duration)) : 0;
+            els.fill.style.width = `${(ratio * 100).toFixed(2)}%`;
+
+            if (document.activeElement !== els.volume) {
+                els.volume.value = String(Number(data.volume) || 0);
+            }
+            const volume = Number(data.volume) || 0;
+            els.volIcon.innerHTML = data.muted
+                ? VOLUME_SVG.muted
+                : volume < 0.4 ? VOLUME_SVG.low : VOLUME_SVG.high;
+            els.mute.title = data.muted ? '取消静音' : '静音';
+        };
+
+        // ---- 交互
+        els.prev.addEventListener('click', () => send('previous'));
+        els.next.addEventListener('click', () => send('next'));
+        els.playPause.addEventListener('click', () => send('toggle'));
+        els.loop.addEventListener('click', () => send('loop'));
+        els.like.addEventListener('click', () => send('like'));
+        els.panel.addEventListener('click', () => send('panel'));
+        els.back.addEventListener('click', () => send('back'));
+        els.mute.addEventListener('click', () => send('mute'));
+        els.expand.addEventListener('click', () => setExpanded(!expanded));
+
+        els.volume.addEventListener('input', () => {
+            send('volume', Number(els.volume.value));
+        });
+
+        els.track.addEventListener('pointerdown', (event) => {
+            const rect = els.track.getBoundingClientRect();
+            const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+            if (snapshot && Number(snapshot.duration) > 0) {
+                send('seek', ratio * Number(snapshot.duration));
+            }
+        });
+
+        if (bridge) bridge.onState((data) => render(data));
+        // 主动拉状态：主进程缓存了最新快照，回发一次就能立刻显示（不怕丢消息）
+        setInterval(() => send('sync'), 3000);
+
+        // 双击控制条空白处也能展开
+        root.addEventListener('dblclick', (event) => {
+            if (event.target.closest('button') || event.target.closest('#progressTrack')) return;
+            setExpanded(!expanded);
+        });
+
+        // 标题变长、字体加载完，内容高度都会变
+        try {
+            new ResizeObserver(() => reportHeight()).observe(root);
+        } catch (error) {
+            /* 忽略：老版本内核没有 ResizeObserver */
+        }
+
+        // ---- 主进程重建窗口后，按 URL 参数恢复展开状态
+        const startExpanded = new URLSearchParams(location.search).get('expanded') === '1';
+
+        reportHeight();
+        if (startExpanded) setExpanded(true);
+        window.addEventListener('resize', reportHeight);
+    </script>
+</body>
+
+</html>

@@ -634,6 +634,24 @@
       "sourceCommit": "c931c6ec94dadcca8265ef0d816de884bf57c8f6"
     },
     {
+      "id": "taskbar-controls",
+      "name": "任务栏控制条",
+      "version": "1.5.0",
+      "author": "sunweijian",
+      "description": "在屏幕底部任务栏左下角浮出一条透明控制条：上一首 / 播放暂停 / 下一首 / 循环 / 喜欢 / 音量 / 打开播放器侧边面板。可点击箭头展开第二排控件；背景全透明，只保留图标与文字。Folia 窗口进入全屏时自动隐藏，退出后恢复；另提供「隐藏 / 显示」和「贴回左下角」两个命令。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/taskbar-controls",
+      "digest": "sha256:cf36f9b6d7ad8e7cf0e10420f6330cc59794ad7d6528b95f4c9ca62ffbb90e18",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-20T01:07:27.993Z",
+      "owners": [
+        "q13244583628"
+      ],
+      "source": "https://github.com/q13244583628/folia-",
+      "sourceCommit": "f4ed885c7e3d39d87804f61f60078f44eb8ba0c9"
+    },
+    {
       "id": "taskbar-lyrics",
       "name": "任务栏抽屉歌词",
       "version": "1.0.6",

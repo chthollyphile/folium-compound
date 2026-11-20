@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "taskbar-controls",
+  "modVersion": "1.5.0",
+  "digest": "sha256:cf36f9b6d7ad8e7cf0e10420f6330cc59794ad7d6528b95f4c9ca62ffbb90e18",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-20T01:07:27.993Z",
+  "signature": "vQ0MUeR8HhKWFH77VJ4pTSSUS4g5xMBLVUJ9SVjifU6YaNkJG5kkLkMZgidE6m7B7ZvSZgG7qnQL9oQAgeAJCg=="
+}
