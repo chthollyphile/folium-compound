@@ -1,0 +1,17 @@
+{
+    "folium": 1,
+    "id": "music-notes",
+    "name": "音乐笔记",
+    "version": "1.2.3",
+    "author": "setobox",
+    "description": "给歌曲打标签，记录喜欢的时刻，支持导入已登录账号的歌单与本地备份。",
+    "folia": ">=0.7.29 <0.8.0",
+    "client": "client.mjs",
+    "permissions": [
+        "playback.control"
+    ],
+    "experimental": [
+        "ponder.targets"
+    ],
+    "preview": "preview.png"
+}

@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "music-notes",
+  "modVersion": "1.2.3",
+  "digest": "sha256:f0f1a2a315150b86be3ab00fabc3d6c5f68c4bbe375b3608a8e63251cfad4325",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-22T02:25:14.804Z",
+  "signature": "jKaoc5vhmNUQH8YvGn0wZDIzZ4hDdmadgG+Y3XzXYIHp0RJfX8/Yzwp/d8RgRB6fJRSogTm3qjLJfFQwUYoFBg=="
+}

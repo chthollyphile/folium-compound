@@ -526,6 +526,24 @@
       "sourceCommit": "93db0324705dcf885069dfa5f3d0d48866229298"
     },
     {
+      "id": "music-notes",
+      "name": "音乐笔记",
+      "version": "1.2.3",
+      "author": "setobox",
+      "description": "给歌曲打标签，记录喜欢的时刻，支持导入已登录账号的歌单与本地备份。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/music-notes",
+      "digest": "sha256:f0f1a2a315150b86be3ab00fabc3d6c5f68c4bbe375b3608a8e63251cfad4325",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-22T02:25:14.804Z",
+      "owners": [
+        "setobox"
+      ],
+      "source": "https://github.com/setobox/folia-music-notes",
+      "sourceCommit": "bdae818c666171c022076e0c83ca40d6b992ba76"
+    },
+    {
       "id": "opencc-traditional-lyrics",
       "name": "OpenCC 繁體字幕",
       "version": "1.1.6",

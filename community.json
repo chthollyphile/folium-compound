@@ -485,6 +485,18 @@
       "updatedAt": "2026-11-17",
       "lastIssue": 162
     },
+    "music-notes": {
+      "owners": [
+        "setobox"
+      ],
+      "submission": 177,
+      "source": "https://github.com/setobox/folia-music-notes",
+      "path": "music-notes",
+      "commit": "bdae818c666171c022076e0c83ca40d6b992ba76",
+      "version": "1.2.3",
+      "addedAt": "2026-11-22",
+      "updatedAt": "2026-11-22"
+    },
     "opencc-traditional-lyrics": {
       "owners": [
         "Fringetw"
