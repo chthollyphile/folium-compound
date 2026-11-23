@@ -16,11 +16,45 @@ import { createRequire } from 'node:module';
 import { SIGNATURE_FILE, collectSignedFiles } from '../../lib/signing.mjs';
 import { isValidRef, normalizeModPath, normalizeRepositoryUrl } from './source.mjs';
 import { checkPreview } from '../../lib/image.mjs';
+import { parseCategory } from '../../lib/categories.mjs';
 
 const require = createRequire(import.meta.url);
-const { validateManifest, parseDependency } = require('../../vendor/folia-manifest.cjs');
+const { validateManifest, parseDependency, classifyHostRange } = require('../../vendor/folia-manifest.cjs');
 
 export const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+
+// Where works that are not kept in this repository are listed (Awesome-Folia, the `awesome-entry` issue form).
+export const AWESOME_FORM_URL = 'https://github.com/chthollyphile/folium-compound/issues/new?template=awesome-entry.yml';
+
+/*
+ * Source mods (Folium 2 `sources`, or the Folium 1.x experimental `omni.providers`) are not taken into the
+ * repository: they reach the market as Awesome-Folia links to the author's own repository. The official
+ * source packages (mods/official, by the maintainers) are not submissions and are not checked here.
+ * Returns the error, or null.
+ */
+export const sourceModRefusal = (manifest) => {
+    const sources = Array.isArray(manifest?.sources) && manifest.sources.length > 0;
+    const providers = Array.isArray(manifest?.experimental) && manifest.experimental.includes('omni.providers');
+    if (!sources && !providers) return null;
+    return `音源模组（mod.json 带 \`${sources ? 'sources' : 'experimental: omni.providers'}\`）不收录进本仓库，请改为登记到 Awesome-Folia：${AWESOME_FORM_URL} 。登记后它会以外部链接的形式出现在模组市场里，用户从你的仓库安装 / Source mods are listed in Awesome-Folia instead of being kept here`;
+};
+
+/*
+ * A note for a `folia` range with an upper bound that the next Folia minor release already leaves
+ * (`<0.8.0` on 0.7.x; with no `hostVersion`, any upper bound): the app then holds the mod back until the user
+ * lets it through. Folium keeps its interface within a major version, so a lower bound is usually all a mod
+ * needs. Null when there is nothing to say.
+ */
+export const hostRangeUpperBoundNote = (manifest, hostVersion = null) => {
+    const range = typeof manifest?.folia === 'string' ? manifest.folia.trim() : '';
+    if (!range || !/<|\^|~/.test(range)) return null;
+    const probe = (() => {
+        const match = /^(\d+)\.(\d+)\.\d+/.exec(hostVersion ?? '');
+        return match ? `${match[1]}.${Number(match[2]) + 1}.0` : null;
+    })();
+    if (probe && classifyHostRange(probe, range) !== 'expired') return null;
+    return `mod.json 的 \`folia\` 写了上界（\`${range}\`）：Folia 的版本超过它以后，模组在应用里会显示为「版本声明已过期」，要用户手动放行才加载。Folium 在同一个大版本内只加不改，一般只写下界（如 \`>=0.7.29\`）就够了`;
+};
 
 // Community mods are source trees; tighter than the signed digest's own caps.
 export const COMMUNITY_LIMITS = { maxFiles: 300, maxTotalBytes: 16 * 1024 * 1024 };
@@ -36,6 +70,9 @@ export const LABELS = {
     needsChanges: 'needs-changes',
     signed: 'signed',
     duplicate: 'duplicate',
+    // Awesome-Folia: a work kept elsewhere, listed by `/list` (tools/ci/list-awesome.mjs).
+    awesome: 'awesome-entry',
+    listed: 'listed',
 };
 
 // Headings of the issue forms (.github/ISSUE_TEMPLATE/mod-submission.yml and
@@ -50,6 +87,7 @@ export const FORM_FIELDS = {
     license: '许可证 / License',
     changes: '更新说明 / What changed',
     channel: '发布渠道 / Channel',
+    category: '分类 / Category',
     screenshot: '运行截图 / Screenshot',
     confirmations: '确认 / Confirmations',
 };
@@ -77,24 +115,26 @@ export const parseChannel = (value) => {
     return undefined;
 };
 
-/** Which form an issue is: 'submission', 'update' or null, by its labels. */
+/** Which form an issue is: 'submission', 'update', 'awesome' or null, by its labels. */
 export const issueKind = (issue) => {
     const names = (issue?.labels ?? []).map((label) => (typeof label === 'string' ? label : label.name));
     if (names.includes(LABELS.update)) return 'update';
     if (names.includes(LABELS.submission)) return 'submission';
+    if (names.includes(LABELS.awesome)) return 'awesome';
     return null;
 };
 
 // Title prefixes the issue templates fill in; the author has to add the mod's name after it.
-export const TITLE_PREFIXES = { submission: '[模组提交]', update: '[模组更新]' };
+export const TITLE_PREFIXES = { submission: '[模组提交]', update: '[模组更新]', awesome: '[Awesome-Folia]' };
 
 /*
  * An error when the title is only the template prefix (or empty), else null.
  * Full-width brackets count as the same prefix.
  */
 export const checkIssueTitle = (title, kind) => {
-    const rest = String(title ?? '').trim().replace(/^[[【]\s*模组(?:提交|更新)\s*[\]】]/, '').trim();
-    return rest ? null : `issue 标题不能只有「${TITLE_PREFIXES[kind]}」，请在后面写上模组的名字，例如「${TITLE_PREFIXES[kind]} 我的可视化」`;
+    const rest = String(title ?? '').trim().replace(/^[[【]\s*(?:模组(?:提交|更新)|awesome-folia)\s*[\]】]/i, '').trim();
+    const [noun, example] = kind === 'awesome' ? ['作品', '我的音源'] : ['模组', '我的可视化'];
+    return rest ? null : `issue 标题不能只有「${TITLE_PREFIXES[kind]}」，请在后面写上${noun}的名字，例如「${TITLE_PREFIXES[kind]} ${example}」`;
 };
 
 /*
@@ -148,7 +188,12 @@ export const parseSubmissionIssue = (body, kind = 'submission') => {
     if (!isValidRef(ref)) errors.push(`「${FORM_FIELDS.ref}」必须是 tag、分支名或完整的 40 位 commit，当前是 \`${ref || '空'}\``);
     const channel = parseChannel(sections[FORM_FIELDS.channel]);
     if (channel === undefined) errors.push(`「${FORM_FIELDS.channel}」只能是「正式发布」或「先行测试」`);
-    const fields = { modId, ref, channel: channel ?? null };
+    // A new mod picks its category; an update may change it or keep it (empty for issues from before the field).
+    const category = parseCategory(sections[FORM_FIELDS.category]);
+    if (category === undefined || (kind === 'submission' && FORM_FIELDS.category in sections && category === null)) {
+        errors.push(`「${FORM_FIELDS.category}」请从列表里选一个分类`);
+    }
+    const fields = { modId, ref, channel: channel ?? null, category: category ?? null };
     if (kind === 'submission') {
         const repository = normalizeRepositoryUrl(sections[FORM_FIELDS.repository]);
         if (!repository) errors.push(`「${FORM_FIELDS.repository}」必须是公开仓库的 https 地址（如 https://github.com/you/my-mod）`);

@@ -23,7 +23,9 @@ index.json               由 tools/build-index.mjs 生成：所有模组的 id�
 site/assets/             模组市场页面的样式、脚本和图标（页面由 tools/site/ 在构建时生成）
 tools/                   签名、校验、生成索引、生成密钥的脚本（只依赖 Node 20+，无第三方依赖）
 test/                    签名格式的测试向量、CI 规则、站点构建，以及对整个仓库的校验
-community.json           社区模组的 owner 与来源（源码仓库、目录、commit）
+community.json           社区模组的 owner、分类与来源（源码仓库、目录、commit）
+official-meta.json       官方模组的分类
+awesome.json             Awesome-Folia：不收进本仓库、以外部链接登记的作品（AWESOME.md 由它生成）
 ```
 
 `official` 和 `community` 的模组用正式发布的密钥签名，在应用里都显示为「官方认证」；这两个目录只记录来源，写进 `index.json`。
@@ -37,15 +39,47 @@ community.json           社区模组的 owner 与来源（源码仓库、目录
 | 正式发布 | `mods/community/` | `folium-ci-2026-1` | 安全审查 + 功能审查 | 官方认证 |
 | 先行测试 | `mods/beta/` | `folium-beta-2026-1`（`trusted-keys.json` 里标 `"channel": "beta"`） | 仅安全审查 | 先行测试 |
 
-先行测试的定位：**仅通过了安全审查，不保证功能实现的整洁，甚至功能可能完全无法工作。主要用于给社区开发者进行创意实验，
-普通用户请勿轻易下载使用。** 模组市场默认不显示它们，只在「先行测试」标签页里列出，并附上这段警示（浏览器禁用脚本时，
-它们连同警示排在正式发布的模组之后）。
+先行测试的定位：**仅通过了安全审查，不保证功能实现的整洁，甚至功能可能完全无法工作。主要用于给社区开发者进行创意实验。**
+模组市场里它们和正式发布的模组排在同一片瀑布流里，只在卡片上加一个「先行测试」角标，详情里附一句说明；筛选「先行测试」
+可以只看它们。
 
 目录和密钥必须对得上：`mods/beta/` 里的模组只能用先行测试密钥签名，其他目录只能用正式发布的密钥签名。签错渠道的签名
 即使本身有效，校验也会失败（`wrong-channel`），不会被发布。所以维护者把模组在 `community/` 和 `beta/` 之间移动并推送，
 `resign.yml` 就会用对应渠道的密钥重签，这就是手动升降级。
 
 Folia 0.7.20 之前的版本不认识先行测试密钥，会把先行测试模组显示为「签名不匹配」（`unknown-key`）。
+
+## 分类与标签
+
+每个模组归在一个分类里，分类表在 `tools/lib/categories.mjs`（歌词动画、歌词显示、播放与队列、音效、界面与交互、背景与壁纸、
+系统集成、数据与统计、AI、开发样例、其他）。分类登记在仓库侧：社区模组写在 `community.json` 的 `category`（作者在提交表单里选，
+「模组更新」表单可以改，维护者也可以直接改），官方模组写在 `official-meta.json`。`test/repository.test.mjs` 核对每个模组都有分类、
+且分类在表里。分类 id 发布后不改名：Folia 的应用内市场也按它分组。
+
+标签不用登记，构建时由 `mod.json` 推出（`autoTagsOf`）：`node`（有 main 入口）、`network`（net.fetch）、`embed`（嵌入网页）、
+`visualizer`（歌词样式相关）、`stage`（播放页图层）、`export`（视频导出）、`equalizer`、`queue`（改播放队列）、`platform`
+（平台账号）、`experimental`（用到实验接口）。
+
+## 音源模组与 Awesome-Folia
+
+**音源模组不收进本仓库。** `mod.json` 带 `sources`（Folium 2 的音源模组），或 `experimental` 里有 `omni.providers`（Folium 1.x 的
+实验接口）的提交，格式检查不通过，回复里给出 Awesome-Folia 的登记表单。`mods/official/` 不受这条限制：Folia 维护者用
+`sources:pack` 打的官方音源包仍可以放进去。`test/repository.test.mjs` 核对 `community/` 和 `beta/` 里没有音源模组。
+
+外部音源只经 Awesome-Folia 进入模组市场。Awesome-Folia（`awesome.json`，给 GitHub 读者看的清单是 `AWESOME.md`）登记不进本仓库的
+Folia 相关作品：音源模组、系统插件、外部程序、开发工具等。一条登记只是名称、简介、作者和链接：
+
+1. 作者按「Awesome-Folia 登记」模板开 issue（登记 id、名称、类型、链接、简介、作者、分类、许可证）。
+2. CI（`submission-check.yml`）**只检查表单**：链接是 https、id 不与模组或已登记的条目冲突（同一个 id 只有原作者能更新）、
+   类型和分类在表里、文字长度。作者的仓库不会被取回，更不会被执行。
+3. 维护者看过后评论格式检查评论里给出的 **`/list <校验码>`**（校验码是条目内容的指纹，issue 在检查之后被改过就对不上、会被拒绝）：`list.yml` 确认评论者有 write 及以上权限、重新检查表单，写入 `awesome.json` 并重新生成
+   `AWESOME.md`，推送 main（被别的推送抢先时在新的 main 上重做），然后回复、加标签 `listed` 并关闭 issue。
+4. 删除或改动条目：维护者直接改 `awesome.json`，并重新生成 `AWESOME.md`（`writeAwesome`；仓库测试会核对两者一致）。
+
+登记的作品不经过 Folium 签名。模组市场里它们显示为「外部链接」，按钮是「前往仓库」，不提供下载；问题引到作者的仓库。
+
+2026-11 起原先收在 `mods/beta/` 的三个音源模组（`lx-source`、`soda-music`、`folia-lx-music-mod`）移出仓库，改为 awesome 登记。
+已经装了它们的用户不受影响，只是不再从市场收到更新。
 
 ## 常用命令
 
@@ -71,10 +105,15 @@ npm test                          # 测试向量、CI 规则、站点构建 + �
 1. 在自己的仓库里准备好模组（可以在仓库根目录，也可以在某个子目录），打一个 tag（推荐）。模组必须带一张介绍图片：
    在 `mod.json` 里写 `"preview": "preview.jpg"`，指向模组目录里的 PNG / JPG / WebP，推荐 1280×720（接近 16:9，
    至少 640×360，不超过 1 MB），它会显示在模组市场的卡片顶部，也随模组一起签名。
-   `mod.json` 的 `folia` 范围要包含模组用到的接口所在的版本：用到 Folium 1.7 的接口（`folium.omni`、`folium.equalizer`、
-   `replaceQueue`、`folium.account`、密钥设置、`globalShortcut` 命令、`api.rpc.send`、实验接口 `platform.raw`）写 `>=0.7.22`，
-   用到 1.5 的接口写 `>=0.7.20`；也可以用 `folium.host.folium.minor` 做功能探测，在旧版本上降级。
-2. 按「模组提交」模板开 issue，标题在「[模组提交]」后面写上模组的名字（只有前缀的标题检查不通过）。表单填写模组 id、源码仓库地址、版本（tag / 分支 / 完整 commit）、模组目录、**发布渠道**（正式发布 / 先行测试）、
+   `mod.json` 的 `folia` 范围要包含模组用到的接口所在的版本，**一般只写下界**：用到 Folium 2 的接口写 `>=0.7.29`，
+   用到 Folium 1.7 的接口（`folium.omni`、`folium.equalizer`、`replaceQueue`、`folium.account`、密钥设置、`globalShortcut` 命令、
+   `api.rpc.send`、实验接口 `platform.raw`）写 `>=0.7.22`，用到 1.5 的接口写 `>=0.7.20`；也可以用 `folium.host.folium.minor`
+   做功能探测，在旧版本上降级。不要写比 Folium 接口承诺更紧的上界（如 `<0.8.0`）：Folium 在同一个大版本内只加不改，
+   写了上界的模组在 Folia 升级后会显示为「版本声明已过期」，要用户手动放行才加载；格式检查会对上界给出提示。
+   想让用户在应用里直接找到你，在 `mod.json` 里写上 `repository`（源码仓库）和 `bugs`（反馈地址），两者都是 https 链接（Folium 2.1）。
+
+   **音源模组**（带 `sources`）不走这个流程，见上面的「音源模组与 Awesome-Folia」。
+2. 按「模组提交」模板开 issue，标题在「[模组提交]」后面写上模组的名字（只有前缀的标题检查不通过）。表单填写模组 id、源码仓库地址、版本（tag / 分支 / 完整 commit）、模组目录、**发布渠道**（正式发布 / 先行测试）、**分类**、
    权限说明、许可证，并上传一张模组在对应版本的 Folia 里正常运行的**屏幕截图**（直接拖进表单的「运行截图」框里；
    截图只留在 issue 里，不进入仓库，外部图片链接不算，没有截图检查不通过）。
 
@@ -111,7 +150,7 @@ npm test                          # 测试向量、CI 规则、站点构建 + �
      issue 申请的渠道；
    - 重新取回同一个 commit、重跑检查，把整理好的文件复制进 `mods/community/<模组 id>/`（先行测试为 `mods/beta/<模组 id>/`），
      用该渠道的 CI 密钥签名，
-     把作者登记为 owner 并记录来源（`community.json`：仓库、目录、commit、版本），重建 `index.json`，
+     把作者登记为 owner 并记录分类与来源（`community.json`：分类、仓库、目录、commit、版本），重建 `index.json`，
      跑全仓库校验和测试，然后作为一个提交推送到 main（提交带 `Co-authored-by` 署名作者）；
    - 在 issue 里回复结果并关闭 issue。任何一步失败都会说明原因，main 不会有任何改动。
 
@@ -125,7 +164,7 @@ npm test                          # 测试向量、CI 规则、站点构建 + �
 **后续更新**
 
 6. 作者发布新版本（新 tag，`mod.json` 的版本号必须提升）后，按「模组更新」模板开 issue，只需填模组 id 和版本（不需要截图），
-   发布渠道一般选「保持不变」。源码仓库和目录沿用登记的那一个；只有登记的 owner（或仓库维护者）的更新会被接受。
+   发布渠道和分类一般选「保持不变」。源码仓库和目录沿用登记的那一个；只有登记的 owner（或仓库维护者）的更新会被接受。
 
    先行测试的模组申请转为正式发布：开「模组更新」issue，发布渠道选「正式发布」。这次按正式发布的标准完整审查；
    只换渠道时版本号可以不变（但不能降低），这时内容必须与已收录的版本完全相同；内容有改动就要提升版本号。签名后模组从 `mods/beta/` 移到 `mods/community/`，改用正式发布的密钥签名。
@@ -146,15 +185,24 @@ main 分支使用。
 
 ## 模组市场站点
 
-本仓库通过 Cloudflare Workers 静态资源部署成模组市场页面（`wrangler.jsonc`，Workers Builds 的部署命令为 `npm run deploy`），供人下载 zip 打包的模组。每次推送 main（包括 CI 的签名与续签推送）都会重新部署。响应头（CSP 等）在 `site/_headers`。
+本仓库通过 Cloudflare Workers 静态资源部署成模组市场页面（`wrangler.jsonc`，Workers Builds 的部署命令为 `npm run deploy`），供人下载 zip 打包的模组。每次推送 main（包括 CI 的签名、续签与 `/list` 推送）都会重新部署。响应头（CSP 等）在 `site/_headers`。
+
+Folia 0.8 起在「设置 → 模组」里内嵌了模组市场：它读这里的 `catalog.json`，在应用里安装、更新、卸载模组。下载的包由应用按内置
+公钥校验签名、签名摘要和渠道，三者与目录一致才会装上；站点本身不是信任的依据。
 
 - `node tools/site/build.mjs`（`npm run site`）生成 `dist/`：
-  - `index.html`：构建时渲染的页面，含搜索、官方 / 社区 / 先行测试筛选（先行测试模组只在自己的标签页里，附警示）、中英切换，每个模组显示介绍图片和权限摘要，点开卡片（`#mod-<id>`，可直接分享）查看完整说明、每项权限的含义、兼容版本、来源、签名信息与 zip 的 SHA-256；
+  - `index.html`：构建时渲染的页面。搜索、分类、来源（官方 / 社区 / 先行测试 / awesome）、标签和排序都在页面上，状态写在地址的
+    `?q=&c=&src=&tag=&sort=` 里，可以分享；所有模组和 awesome 条目在同一片瀑布流里，先行测试只加角标。点开卡片（`#mod-<id>`、
+    `#awesome-<id>`）查看完整说明、作者、源码仓库与反馈地址（`bugs` → 仓库的 issues → 仓库本身；官方模组为本仓库的 issues）、
+    每项权限的含义、兼容版本、签名信息与 zip 的 SHA-256；中英切换；
   - `previews/<id>-<版本>.<扩展名>`：每个模组的介绍图片（`mod.json` 的 `preview`），仓库里的每个模组都必须有；
   - `downloads/<id>-<版本>.zip`：顶层一个 `<id>/` 文件夹（Folia 安装器要求的结构），模组文件与签名原样打包，
     拖进 Folia 的模组面板即可安装，安装后显示为「官方认证」（先行测试模组显示为「先行测试」）；
+  - `readmes/<id>-<版本>.md`：模组目录里的 `README.md`，原样复制（站点只给原文链接，Folia 的模组详情里渲染它）；
   - `catalog.json`：机器可读的目录（下载地址、大小、SHA-256、权限、签名、发布渠道 `channel`），允许跨域读取。
-    格式版本 2 起包含先行测试模组（`channel: "beta"`），读取方应把它们和正式发布的模组区分开。
+    格式版本 2 起包含先行测试模组（`channel: "beta"`），读取方应把它们和正式发布的模组区分开。格式版本 3 只加字段：
+    顶层的 `categories` 与 `awesome`，每个模组的 `kind`（`source` / `standard`）、`category`、`tags`、`addedAt`、`updatedAt`、
+    `repository`、`bugs`、`license`、`readme`，`owners` 改为 `{ login, url }`。
 - zip 是确定性的：同样的内容总是同样的字节。发布前每个 zip 都会被解压并重新校验签名。
 - 只发布完全通过校验的仓库：`npm run deploy` 先运行 `should-build.mjs`，在仓库里有签名失效的模组时跳过部署，
   线上保留上一个版本，等 CI 续签后的提交再部署；构建本身也会拒绝发布任何未通过校验的模组。
@@ -199,5 +247,6 @@ main 分支使用。
 
 - 环境 `signing`：部署分支只允许 `main`；secret `FOLIUM_SIGNING_KEY_JSON` 为 CI 密钥文件的内容，
   `FOLIUM_BETA_SIGNING_KEY_JSON` 为先行测试密钥文件的内容。
-- 标签：`mod-submission`、`mod-update`（issue 模板自动添加）、`awaiting-review`、`needs-changes`、`signed`、`duplicate`。
-- 如果以后给 main 加分支保护，需要允许 GitHub Actions 推送（`sign.yml` 与 `resign.yml` 直接推送 main）。
+- 标签：`mod-submission`、`mod-update`、`awesome-entry`（issue 模板自动添加）、`awaiting-review`、`needs-changes`、`signed`、
+  `listed`、`duplicate`。
+- 如果以后给 main 加分支保护，需要允许 GitHub Actions 推送（`sign.yml`、`resign.yml` 与 `list.yml` 直接推送 main）。

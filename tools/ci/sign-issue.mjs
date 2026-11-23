@@ -57,6 +57,7 @@ try {
             modId: evaluation.modId,
             kind: evaluation.kind,
             channel,
+            category: evaluation.category,
             author: issue.user.login,
             authorId: issue.user.id,
             issueNumber,

@@ -1,0 +1,108 @@
+# .github/ISSUE_TEMPLATE/awesome-entry.yml
+# Listing a Folia-related work kept in its own repository (Awesome-Folia). Field labels are read by
+# tools/ci/lib/awesomeForm.mjs (AWESOME_FORM_FIELDS); change both together. Only the form is checked:
+# nothing behind the links is fetched, signed or run.
+name: Awesome-Folia 登记 / Awesome-Folia entry
+description: 登记一个不收进本仓库的 Folia 相关作品（音源模组、系统插件、外部程序、开发工具等），以外部链接出现在模组市场 / List a work kept in your own repository
+title: "[Awesome-Folia] "
+labels: ["awesome-entry"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Awesome-Folia 收录**不进入本仓库**的作品，以链接的形式登记：
+        - **音源模组**只通过这里进入模组市场，不再收进 `mods/community` 或 `mods/beta`。
+        - 系统插件、配套的外部程序、开发工具、主题合集等也可以登记。
+
+        登记的作品不经过 Folium 签名，CI 只检查这个表单，不会取回或运行你的仓库。市场里它显示为「外部链接」，用户从你的仓库安装，问题也会被引到你的仓库，
+        所以请确保链接指向的仓库有安装说明，并开着 issue。维护者看过后评论格式检查给出的 `/list <校验码>` 即可登记。
+        以后要改名称、简介或链接，再开一个登记 issue、填同一个 id。
+  - type: input
+    id: entry-id
+    attributes:
+      label: 登记 id / Entry id
+      description: 小写字母、数字和 -；是模组的就填 mod.json 的 id
+      placeholder: my-source
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: 名称 / Name
+      placeholder: 我的音源
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 类型 / Kind
+      options:
+        - 音源模组 / Source mod (source)
+        - 系统插件 / System plugin (plugin)
+        - 外部程序 / App (app)
+        - 开发工具 / Developer tool (tool)
+        - 其他 / Other (other)
+      default: 0
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: 链接 / Link
+      description: 作品仓库或主页的 https 地址（GitHub、GitLab、Codeberg 等）
+      placeholder: https://github.com/you/my-source
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 简介 / Description
+      description: 它做什么、需要什么前提（例如要先安装某个客户端）。不超过 600 字
+    validations:
+      required: true
+  - type: input
+    id: owners
+    attributes:
+      label: 作者 / Authors
+      description: 作者的 GitHub 用户名，多个用逗号分开；留空就是你自己
+      placeholder: you, friend
+    validations:
+      required: false
+  - type: dropdown
+    id: category
+    attributes:
+      label: 分类 / Category
+      options:
+        - 不分类 / None
+        - 歌词动画 / Lyric visualizers (visualizer)
+        - 歌词显示 / Lyrics display (lyrics)
+        - 播放与队列 / Playback & queue (playback)
+        - 音效 / Sound (audio)
+        - 界面与交互 / Interface (interface)
+        - 背景与壁纸 / Backgrounds (background)
+        - 系统集成 / System integration (system)
+        - 数据与统计 / Data & stats (data)
+        - AI / AI tools (ai)
+        - 开发样例 / Samples (sample)
+        - 其他 / Other (other)
+      default: 0
+    validations:
+      required: false
+  - type: input
+    id: license
+    attributes:
+      label: 许可证 / License
+      placeholder: MIT
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 确认 / Confirmations
+      options:
+        - label: 我是这个作品的作者，或有权代表作者登记 / I am the author or may list it on their behalf
+          required: true
+        - label: 作品不收集或上传用户数据，也不下载并执行远程代码（除非这是它明确声明的功能） / It does not collect user data or run remote code unless that is its declared purpose
+          required: true
+        - label: 我了解登记的作品不经过 Folium 签名，用户的问题会被引到我的仓库 / I understand it is not signed by Folium and users will report problems to my repository
+          required: true

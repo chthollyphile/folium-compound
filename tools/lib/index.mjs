@@ -13,8 +13,18 @@ import { SIGNATURE_FILE, readModIdentity } from './signing.mjs';
 import { REPO_ROOT, channelOf, isSigned, listModDirs, readRevokedDigests, readTrustedKeys, verifyRepoMod } from './repo.mjs';
 
 export const COMMUNITY_FILE = 'community.json';
+// What the maintainers register for an official mod (its category); official mods have no community.json entry.
+export const OFFICIAL_META_FILE = 'official-meta.json';
 
-/** community.json as `{ mods: { [modId]: { owners, submission, source, path, commit, version, addedAt, updatedAt } } }`. */
+/** official-meta.json as `{ mods: { [modId]: { category } } }`. */
+export const readOfficialMeta = (root = REPO_ROOT) => {
+    const file = path.join(root, OFFICIAL_META_FILE);
+    if (!fs.existsSync(file)) return { mods: {} };
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return { mods: parsed && typeof parsed.mods === 'object' && parsed.mods ? parsed.mods : {} };
+};
+
+/** community.json as `{ mods: { [modId]: { owners, category, submission, source, path, commit, version, addedAt, updatedAt } } }`. */
 export const readCommunityRegistry = (root = REPO_ROOT) => {
     const file = path.join(root, COMMUNITY_FILE);
     if (!fs.existsSync(file)) return { mods: {} };

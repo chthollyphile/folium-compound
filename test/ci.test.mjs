@@ -74,18 +74,19 @@ const submissionBody = (overrides = {}) => {
         description: 'Does cool things.',
         permissions: '无',
         license: 'MIT',
+        category: '歌词动画 / Lyric visualizers (visualizer)',
         screenshot: SCREENSHOT,
         confirmations: '- [X] author\n- [X] no data\n- [X] reviews',
         ...overrides,
     };
-    return ['modId', 'repository', 'ref', 'path', 'channel', 'description', 'permissions', 'license', 'screenshot', 'confirmations']
+    return ['modId', 'repository', 'ref', 'path', 'channel', 'category', 'description', 'permissions', 'license', 'screenshot', 'confirmations']
         .filter((key) => values[key] !== undefined)
         .map((key) => `### ${FORM_FIELDS[key]}\n\n${values[key]}`).join('\n\n');
 };
 
 const updateBody = (overrides = {}) => {
     const values = { modId: 'cool-mod', ref: 'v1.1.0', changes: 'Faster.', confirmations: '- [X] no data', ...overrides };
-    return ['modId', 'ref', 'channel', 'changes', 'confirmations']
+    return ['modId', 'ref', 'channel', 'category', 'changes', 'confirmations']
         .filter((key) => values[key] !== undefined)
         .map((key) => `### ${FORM_FIELDS[key]}\n\n${values[key]}`).join('\n\n');
 };
@@ -98,14 +99,21 @@ const PREVIEW_PNG = makePng(1280, 720);
 test('issue forms read into fields', () => {
     const submission = parseSubmissionIssue(submissionBody({ repository: 'https://github.com/dev/cool-mod.git/', path: './dist/cool-mod/' }), 'submission');
     assert.deepEqual(submission.errors, []);
-    assert.deepEqual(submission.fields, { modId: 'cool-mod', ref: 'v1.0.0', channel: null, repository: 'https://github.com/dev/cool-mod', path: 'dist/cool-mod', license: 'MIT' });
+    assert.deepEqual(submission.fields, { modId: 'cool-mod', ref: 'v1.0.0', channel: null, category: 'visualizer', repository: 'https://github.com/dev/cool-mod', path: 'dist/cool-mod', license: 'MIT' });
     assert.equal(parseSubmissionIssue(submissionBody({ path: '_No response_' }), 'submission').fields.path, '');
 
     const bad = parseSubmissionIssue(submissionBody({ modId: 'Cool Mod', repository: 'http://x.test/a/b', ref: 'a..b', path: '../escape', confirmations: '- [ ] author' }), 'submission');
     assert.equal(bad.errors.length, 5);
 
     const update = parseSubmissionIssue(updateBody(), 'update');
-    assert.deepEqual(update, { fields: { modId: 'cool-mod', ref: 'v1.1.0', channel: null }, errors: [] });
+    assert.deepEqual(update, { fields: { modId: 'cool-mod', ref: 'v1.1.0', channel: null, category: null }, errors: [] });
+
+    // The category dropdown: required on a new mod (an older issue without the field reads as none), kept or changed on an update.
+    assert.match(parseSubmissionIssue(submissionBody({ category: '' }), 'submission').errors.join('\n'), /分类/);
+    assert.match(parseSubmissionIssue(submissionBody({ category: 'Nonsense' }), 'submission').errors.join('\n'), /分类/);
+    assert.equal(parseSubmissionIssue(submissionBody({ category: undefined }), 'submission').fields.category, null);
+    assert.equal(parseSubmissionIssue(updateBody({ category: '保持不变 / Keep current' }), 'update').fields.category, null);
+    assert.equal(parseSubmissionIssue(updateBody({ category: '音效 / Sound (audio)' }), 'update').fields.category, 'audio');
 
     // The channel dropdown: the form's option text, "keep" on the update form, nothing on older issues.
     assert.equal(parseSubmissionIssue(submissionBody({ channel: '先行测试 / Beta' }), 'submission').fields.channel, 'beta');
@@ -417,7 +425,7 @@ test('imported submissions are signed and registered; updates need an owner and 
 
     const submission = await evaluate(issueFor('submission', submissionBody()), base, source);
     const imported = importAndSign({
-        repoDir: base, stagedDir: submission.stagedDir, modId: 'cool-mod', kind: 'submission', author: 'dev', authorId: 4242,
+        repoDir: base, stagedDir: submission.stagedDir, modId: 'cool-mod', kind: 'submission', category: submission.category, author: 'dev', authorId: 4242,
         issueNumber: 11, source: submission.source, key: KEY, runTests: false, now: new Date('2026-01-02T00:00:00Z'),
     });
     submission.cleanup();
@@ -429,7 +437,7 @@ test('imported submissions are signed and registered; updates need an owner and 
     assert.match(git(base, 'log', '-1', '--format=%B'), /Co-authored-by: dev <4242\+dev@users\.noreply\.github\.com>/);
     assert.equal(imported.record.modVersion, '1.0.0');
     assert.deepEqual(readCommunityRegistry(base).mods['cool-mod'], {
-        owners: ['dev'], submission: 11, source: SOURCE_URL, path: 'dist/cool-mod', commit: firstCommit, version: '1.0.0', addedAt: '2026-01-02', updatedAt: '2026-01-02',
+        owners: ['dev'], category: 'visualizer', submission: 11, source: SOURCE_URL, path: 'dist/cool-mod', commit: firstCommit, version: '1.0.0', addedAt: '2026-01-02', updatedAt: '2026-01-02',
     });
     const index = JSON.parse(fs.readFileSync(path.join(base, 'index.json'), 'utf8'));
     assert.deepEqual(index.mods.map((mod) => [mod.id, mod.origin, mod.channel, mod.owners, mod.sourceCommit]), [['cool-mod', 'community', 'release', ['dev'], firstCommit]]);
@@ -451,12 +459,13 @@ test('imported submissions are signed and registered; updates need an owner and 
     assert.deepEqual(update.errors, []);
     assert.equal(update.previousVersion, '1.0.0');
     assert.equal(update.source.commit, secondCommit);
-    importAndSign({ repoDir: base, stagedDir: update.stagedDir, modId: 'cool-mod', kind: 'update', author: 'dev', issueNumber: 12, source: update.source, key: KEY, runTests: false, now: new Date('2026-02-03T00:00:00Z') });
+    assert.equal(update.category, null, 'an update keeps the category unless it names another');
+    importAndSign({ repoDir: base, stagedDir: update.stagedDir, modId: 'cool-mod', kind: 'update', category: update.category, author: 'dev', issueNumber: 12, source: update.source, key: KEY, runTests: false, now: new Date('2026-02-03T00:00:00Z') });
     update.cleanup();
     assert.equal(fs.existsSync(path.join(modDir, 'old.mjs')), false, 'files dropped upstream are dropped here');
     assert.equal(verifyMod(modDir, KEYS).status, 'verified');
     assert.deepEqual(readCommunityRegistry(base).mods['cool-mod'], {
-        owners: ['dev'], submission: 11, source: SOURCE_URL, path: 'dist/cool-mod', commit: secondCommit, version: '1.1.0', addedAt: '2026-01-02', updatedAt: '2026-02-03', lastIssue: 12,
+        owners: ['dev'], category: 'visualizer', submission: 11, source: SOURCE_URL, path: 'dist/cool-mod', commit: secondCommit, version: '1.1.0', addedAt: '2026-01-02', updatedAt: '2026-02-03', lastIssue: 12,
     });
 
     // Re-submitting the same version is refused.

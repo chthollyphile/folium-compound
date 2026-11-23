@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // tools/ci/check-issue.mjs
-// Format check for a submission or update issue (workflow: submission-check.yml).
+// Format check for a submission, update or Awesome-Folia issue (workflow: submission-check.yml).
 //
 //   node tools/ci/check-issue.mjs --issue <number>
 //
@@ -13,9 +13,11 @@
 
 import { parseArgs } from 'node:util';
 import { REPO_ROOT } from '../lib/repo.mjs';
+import { readAwesome } from '../lib/awesome.mjs';
 import { createGitHub, setCheckLabels } from './lib/github.mjs';
-import { evaluateIssue } from './lib/evaluate.mjs';
-import { COMMENT_MARKERS, LABELS, findEarlierSubmission, issueKind, renderCheckComment, renderDuplicateComment, takenBySubmissionError } from './lib/submission.mjs';
+import { evaluateIssue, knownModIds } from './lib/evaluate.mjs';
+import { COMMENT_MARKERS, LABELS, checkIssueTitle, findEarlierSubmission, issueKind, renderCheckComment, renderDuplicateComment, takenBySubmissionError } from './lib/submission.mjs';
+import { parseAwesomeIssue, renderAwesomeCheckComment } from './lib/awesomeForm.mjs';
 
 const { values } = parseArgs({ options: { issue: { type: 'string' } } });
 const issueNumber = Number(values.issue);
@@ -29,6 +31,18 @@ const issue = await github.getIssue(issueNumber);
 if (issue.state !== 'open') {
     console.log(`issue #${issueNumber} is closed; nothing to check`);
     process.exit(0);
+}
+
+// Awesome-Folia: only the form is checked; the linked repository is never fetched.
+if (issueKind(issue) === 'awesome') {
+    const parsed = parseAwesomeIssue(issue.body, { author: issue.user.login, existing: readAwesome(REPO_ROOT), modIds: knownModIds(REPO_ROOT) });
+    const titleError = checkIssueTitle(issue.title, 'awesome');
+    if (titleError) parsed.errors.unshift(titleError);
+    const passed = parsed.errors.length === 0;
+    await github.upsertComment(issueNumber, COMMENT_MARKERS.check, renderAwesomeCheckComment({ ...parsed, checkedAt: new Date().toISOString() }));
+    await setCheckLabels(github, issueNumber, passed, LABELS);
+    console.log(passed ? `#${issueNumber} passed: awesome entry ${parsed.entry.id}` : `#${issueNumber} failed:\n- ${parsed.errors.join('\n- ')}`);
+    process.exit(passed ? 0 : 1);
 }
 
 const earlier = issueKind(issue) === 'submission'

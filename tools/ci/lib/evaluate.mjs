@@ -14,7 +14,8 @@ import path from 'node:path';
 import { communityDir, listModDirs } from '../../lib/repo.mjs';
 import { computeSignedDigest, readModIdentity } from '../../lib/signing.mjs';
 import { readCommunityRegistry } from '../../lib/index.mjs';
-import { SIGNER_PERMISSIONS, checkIssueTitle, checkModTree, compareVersions, issueKind, parseSubmissionIssue } from './submission.mjs';
+import { readAwesome } from '../../lib/awesome.mjs';
+import { SIGNER_PERMISSIONS, checkIssueTitle, checkModTree, compareVersions, hostRangeUpperBoundNote, issueKind, parseSubmissionIssue, sourceModRefusal } from './submission.mjs';
 import { fetchCommit, resolveRef, reviewLinks, stageModFiles } from './source.mjs';
 
 /** Every mod id in the repository at `root`. */
@@ -32,7 +33,7 @@ export const currentChannel = (baseDir, modId) => ['release', 'beta']
 
 /*
  * Returns `{ kind, errors, warnings, modId, manifest, isUpdate, previousVersion,
- * channel, previousChannel, source: { repository, path, ref, commit },
+ * channel, previousChannel, category, source: { repository, path, ref, commit },
  * stagedDir, files, digest, links, cleanup }`. `channel` is what the issue
  * asks for: the form's choice, else (an older issue without the field) the
  * mod's current channel for an update and release for a new mod. `stagedDir` is the mod as it would be imported (call `cleanup()`
@@ -51,14 +52,16 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
     const warnings = [];
     const kind = issueKind(issue);
     const result = { kind, errors, warnings, modId: null, manifest: null, isUpdate: kind === 'update', previousVersion: null, channel: 'release', previousChannel: null, source: null, stagedDir: null, files: [], digest: null, links: null, cleanup: () => {} };
-    if (!kind) {
-        errors.push('这个 issue 不是模组提交或模组更新');
+    if (!kind || kind === 'awesome') {
+        errors.push(kind ? 'Awesome-Folia 登记只登记链接，不签名；维护者照格式检查评论里写的评论 `/list <校验码>` 登记' : '这个 issue 不是模组提交或模组更新');
         return result;
     }
 
     const { fields, errors: formErrors } = parseSubmissionIssue(issue.body, kind);
     errors.push(...formErrors);
     result.modId = fields.modId || null;
+    // The category the form chose; null keeps an update's registered one.
+    result.category = fields.category ?? null;
     if (errors.length > 0) return result;
 
     const author = issue.user.login;
@@ -73,6 +76,9 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
     let modPath;
     if (kind === 'submission') {
         if (known.includes(fields.modId)) errors.push(`模组 id \`${fields.modId}\` 已被占用；更新已收录的模组请用「模组更新」issue`);
+        else if (readAwesome(baseDir).entries.some((listed) => listed.id === fields.modId)) {
+            errors.push(`模组 id \`${fields.modId}\` 已被 Awesome-Folia 里的一个作品占用，请换一个`);
+        }
         repository = fields.repository;
         modPath = fields.path;
     } else {
@@ -124,6 +130,11 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
     errors.push(...tree.errors);
     warnings.push(...tree.warnings);
     result.manifest = tree.manifest;
+    // Source mods go to Awesome-Folia (a link to the author's repository), never into mods/community or mods/beta.
+    const refusal = sourceModRefusal(tree.manifest);
+    if (refusal) errors.push(refusal);
+    const rangeNote = hostRangeUpperBoundNote(tree.manifest);
+    if (rangeNote) warnings.push(rangeNote);
     // Moving channels at the same version re-signs the same mod: users who have that version
     // must not end up with different bytes under it.
     if (changesChannel && tree.manifest && compareVersions(tree.manifest.version, existing.version) === 0

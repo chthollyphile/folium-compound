@@ -85,13 +85,14 @@ export const finalizeRepository = (root, { runTests = true } = {}) => {
 /*
  * Imports a staged mod (see source.mjs stageModFiles) into the checked-out
  * main at `repoDir`, signs it with `key` (the key of `channel`) and commits.
- * `kind` is 'submission' or 'update'; `source` is `{ repository, path, commit }`.
+ * `kind` is 'submission' or 'update'; `source` is `{ repository, path, commit }`; `category` the form's
+ * (a new mod's, or the one an update moves to; null keeps the registered one).
  * The mod lands in mods/community/<id> (release) or mods/beta/<id> (beta); a
  * copy in the other channel's directory is removed, which is how an update
  * promotes or demotes a mod. Returns `{ commit, record }`; throws, leaving the
  * working tree exactly as it was, when the final check fails.
  */
-export const importAndSign = ({ repoDir, stagedDir, modId, kind, channel = 'release', author, authorId = null, issueNumber, source, key, runTests = true, now = new Date() }) => {
+export const importAndSign = ({ repoDir, stagedDir, modId, kind, channel = 'release', category = null, author, authorId = null, issueNumber, source, key, runTests = true, now = new Date() }) => {
     const start = git(repoDir, ['rev-parse', 'HEAD']);
     const relativeDir = communityDir(modId, channel);
     const otherDir = communityDir(modId, channel === 'beta' ? 'release' : 'beta');
@@ -111,8 +112,8 @@ export const importAndSign = ({ repoDir, stagedDir, modId, kind, channel = 'rele
         const registry = readCommunityRegistry(repoDir);
         const previous = registry.mods[modId];
         registry.mods[modId] = kind === 'submission' || !previous
-            ? { owners: [author], submission: issueNumber, source: source.repository, path: source.path, commit: source.commit, version, addedAt: today, updatedAt: today }
-            : { ...previous, commit: source.commit, version, updatedAt: today, lastIssue: issueNumber };
+            ? { owners: [author], category: category ?? 'other', submission: issueNumber, source: source.repository, path: source.path, commit: source.commit, version, addedAt: today, updatedAt: today }
+            : { ...previous, ...(category ? { category } : {}), commit: source.commit, version, updatedAt: today, lastIssue: issueNumber };
         writeCommunityRegistry(registry, repoDir);
 
         const record = writeSignature(targetDir, key);
