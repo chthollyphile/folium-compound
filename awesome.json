@@ -1,0 +1,51 @@
+{
+  "format": "folium-awesome",
+  "version": 1,
+  "entries": [
+    {
+      "id": "folia-lx-music-mod",
+      "name": "Online Music Source",
+      "kind": "source",
+      "category": null,
+      "description": "在线音源适配器，支持多平台搜索和播放。原为先行测试模组（1.0.2，Folium 1 的 omni.providers），2026-11 按音源政策移出仓库。",
+      "url": "https://github.com/wumeng114514/folia-lx-music-mod",
+      "owners": [
+        "wumeng114514"
+      ],
+      "tags": [],
+      "addedAt": "2026-10-16",
+      "updatedAt": "2026-11-23",
+      "submission": 36
+    },
+    {
+      "id": "lx-source",
+      "name": "LX 音源适配 / LX Source Adapter",
+      "kind": "source",
+      "category": null,
+      "description": "用户确认导入 LX 脚本后解析播放地址；搜索和歌词用你在 Folia 登录的平台账号读取。不内置音源脚本或链接。原为先行测试模组（0.1.1），2026-11 按音源政策移出仓库。",
+      "url": "https://github.com/paysonx/folium-lx-source",
+      "owners": [
+        "paysonx"
+      ],
+      "tags": [],
+      "addedAt": "2026-11-01",
+      "updatedAt": "2026-11-23",
+      "submission": 110
+    },
+    {
+      "id": "soda-music",
+      "name": "汽水音乐（本机客户端）",
+      "kind": "source",
+      "category": null,
+      "description": "把本机汽水音乐 PC 客户端接入 Folia：搜索、播放（含无损 FLAC）、逐字歌词、无限续播，适合要听 VIP 歌曲、选更高音质的用户。需要先安装并登录汽水音乐客户端。原为先行测试模组（2.3.7），2026-11 按音源政策移出仓库。",
+      "url": "https://github.com/syh0119/folia-soda-music",
+      "owners": [
+        "syh0119"
+      ],
+      "tags": [],
+      "addedAt": "2026-10-17",
+      "updatedAt": "2026-11-23",
+      "submission": 32
+    }
+  ]
+}

@@ -886,24 +886,6 @@
       "sourceCommit": "11ce2f8220510b495c5fbfb3c7e5f3519d844e9b"
     },
     {
-      "id": "folia-lx-music-mod",
-      "name": "Online Music Source",
-      "version": "1.0.2",
-      "author": "wumeng114514",
-      "description": "在线音源适配器，支持多平台搜索和播放",
-      "origin": "beta",
-      "channel": "beta",
-      "path": "mods/beta/folia-lx-music-mod",
-      "digest": "sha256:423577445fdb9aa4952638f9af5b9f9a96dc26bb87dd0a344c08b62642119e48",
-      "keyId": "folium-beta-2026-1",
-      "signedAt": "2026-10-17T18:20:25.321Z",
-      "owners": [
-        "wumeng114514"
-      ],
-      "source": "https://github.com/wumeng114514/folia-lx-music-mod",
-      "sourceCommit": "9b28469f21147395dd17e1324ba55eb4ef743abe"
-    },
-    {
       "id": "global-hotkeys",
       "name": "全局快捷键",
       "version": "1.3.0",
@@ -976,24 +958,6 @@
       "sourceCommit": "9114626157ab942830ef2ab77f112adea05c3286"
     },
     {
-      "id": "lx-source",
-      "name": "LX 音源适配 / LX Source Adapter",
-      "version": "0.1.1",
-      "author": "PaysonX",
-      "description": "用户确认导入 LX 脚本后解析播放地址；通过 folium.omni 使用用户在 Folia 登录的平台账号读取搜索和歌词。不内置音源脚本或链接。User-confirmed LX scripts; catalog and lyrics use your signed-in platform account.",
-      "origin": "beta",
-      "channel": "beta",
-      "path": "mods/beta/lx-source",
-      "digest": "sha256:9340100d2075b797bd5cfff83c5f399dd309663e497a5a50e1d5e750eebc03a1",
-      "keyId": "folium-beta-2026-1",
-      "signedAt": "2026-11-01T11:24:10.132Z",
-      "owners": [
-        "paysonx"
-      ],
-      "source": "https://github.com/paysonx/folium-lx-source",
-      "sourceCommit": "dff475d6005bc631b17544d1f86d08d16368d970"
-    },
-    {
       "id": "lyric-ai-segment-director",
       "name": "AI 逐段歌词导演",
       "version": "1.0.0",
@@ -1064,24 +1028,6 @@
       ],
       "source": "https://github.com/miaowu104-gif/remote-window-edge",
       "sourceCommit": "15ea698120488e77d659ae57b21ec27daea29d81"
-    },
-    {
-      "id": "soda-music",
-      "name": "汽水音乐",
-      "version": "2.3.7",
-      "author": "syh0119",
-      "description": "把本机汽水音乐接入 Folia：搜索、播放（含无损 FLAC）、原生逐字歌词、无限续播。模组自带音源服务（跑在 main 里，默认 127.0.0.1:4533，随机密钥鉴权），书库的「Navidrome」页签连它即可浏览歌单 / 专辑 / 歌手 / 收藏。需要先安装并登录汽水音乐 PC 客户端；会用自己的子进程加载该客户端的原生模块，并读取其 Cookies 登录态。Folia 0.7.22 起已内置汽水音乐（扫码登录、仅标准音质）；本模组更适合已开通汽水 VIP、要听 VIP 歌曲并选择更高音质档位的用户。",
-      "origin": "beta",
-      "channel": "beta",
-      "path": "mods/beta/soda-music",
-      "digest": "sha256:fb8ab5ce4ee29a85dceb8a81a89e9eeaad2b266364f02f3e23079227d1fdb9b3",
-      "keyId": "folium-beta-2026-1",
-      "signedAt": "2026-10-24T05:41:15.782Z",
-      "owners": [
-        "syh0119"
-      ],
-      "source": "https://github.com/syh0119/folia-soda-music",
-      "sourceCommit": "8f33ef05495c1302b1b2e79f5e0154551466c7f5"
     },
     {
       "id": "taskbar-lyrics-compact",

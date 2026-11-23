@@ -1,0 +1,39 @@
+# .github/workflows/list.yml
+# A maintainer comments `/list` on an awesome-Folia issue: the entry the issue describes is written into
+# awesome.json and AWESOME.md and pushed to main (which redeploys the site). An entry is only a name, a
+# description and links: nothing behind them is fetched or run, and no signing key is involved, so this is
+# one job without the `signing` environment. tools/ci/list-awesome.mjs checks the commenter's permission and
+# the form again before writing anything.
+
+name: list
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  list:
+    if: >-
+      !github.event.issue.pull_request
+      && startsWith(github.event.comment.body, '/list')
+      && contains(github.event.issue.labels.*.name, 'awesome-entry')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    concurrency:
+      group: list-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: List the entry and push
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/ci/list-awesome.mjs

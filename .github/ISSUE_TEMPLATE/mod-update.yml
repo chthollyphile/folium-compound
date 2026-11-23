@@ -42,6 +42,27 @@ body:
       default: 0
     validations:
       required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: 分类 / Category
+      description: 一般保持不变；模组的用途变了时再换
+      options:
+        - 保持不变 / Keep current
+        - 歌词动画 / Lyric visualizers (visualizer)
+        - 歌词显示 / Lyrics display (lyrics)
+        - 播放与队列 / Playback & queue (playback)
+        - 音效 / Sound (audio)
+        - 界面与交互 / Interface (interface)
+        - 背景与壁纸 / Backgrounds (background)
+        - 系统集成 / System integration (system)
+        - 数据与统计 / Data & stats (data)
+        - AI / AI tools (ai)
+        - 开发样例 / Samples (sample)
+        - 其他 / Other (other)
+      default: 0
+    validations:
+      required: false
   - type: textarea
     id: changes
     attributes:

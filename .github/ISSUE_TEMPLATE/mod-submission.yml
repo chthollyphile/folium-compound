@@ -18,6 +18,9 @@ body:
         3. 通过后请等待维护者审查；审查通过后维护者会签名，模组文件会被复制进本仓库并发布。
         4. 以后发布新版本时，开一个「模组更新」issue 即可。
 
+        **音源模组**（mod.json 带 `sources`）不收进本仓库：请改用「awesome-Folia 登记」，以外部链接进入模组市场。
+        `folia` 范围一般只写下界（如 `>=0.7.29`）：写了上界的模组在 Folia 升级后要用户手动放行才加载。
+
         以 `.` 开头的文件和目录（`.git`、`.github` 等）以及 `node_modules` 不会被收录；不要提交 `folium.sig.json`；
         不能包含符号链接。模组规范见 Folia 仓库的 `mods/README.md`。
   - type: input
@@ -64,6 +67,25 @@ body:
         - 正式发布 / Release
         - 先行测试 / Beta
       default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: 分类 / Category
+      description: 模组在市场里归在哪一类（维护者可能调整）。拿不准就选最接近的一个
+      options:
+        - 歌词动画 / Lyric visualizers (visualizer)
+        - 歌词显示 / Lyrics display (lyrics)
+        - 播放与队列 / Playback & queue (playback)
+        - 音效 / Sound (audio)
+        - 界面与交互 / Interface (interface)
+        - 背景与壁纸 / Backgrounds (background)
+        - 系统集成 / System integration (system)
+        - 数据与统计 / Data & stats (data)
+        - AI / AI tools (ai)
+        - 开发样例 / Samples (sample)
+        - 其他 / Other (other)
     validations:
       required: true
   - type: textarea

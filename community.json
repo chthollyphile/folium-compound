@@ -4,6 +4,7 @@
       "owners": [
         "cbylq23"
       ],
+      "category": "audio",
       "submission": 113,
       "source": "https://github.com/cbylq23/ai-eq",
       "path": "ai-eq",
@@ -17,6 +18,7 @@
       "owners": [
         "45steel"
       ],
+      "category": "playback",
       "submission": 172,
       "source": "https://github.com/45steel/folia-album-play",
       "path": "album-play",
@@ -29,6 +31,7 @@
       "owners": [
         "TypeDreamMoon"
       ],
+      "category": "lyrics",
       "submission": 83,
       "source": "https://github.com/TypeDreamMoon/folia-desktop-lyric",
       "path": "mod",
@@ -42,6 +45,7 @@
       "owners": [
         "ACUNGER0321"
       ],
+      "category": "visualizer",
       "submission": 97,
       "source": "https://github.com/ACUNGER0321/antialias-SSAA-MSAA-folia",
       "path": "antialias-SSAA&MSAA (Super-SamplingAnti-Aliasing & MultisampleAnti-aliasing)",
@@ -54,6 +58,7 @@
       "owners": [
         "kifoii"
       ],
+      "category": "playback",
       "submission": 33,
       "source": "https://github.com/kifoii/Auto-skip",
       "path": "mod",
@@ -66,6 +71,7 @@
       "owners": [
         "junxiang255"
       ],
+      "category": "background",
       "submission": 157,
       "source": "https://github.com/junxiang255/bili-mv-window",
       "path": "bili-mv-window",
@@ -78,6 +84,7 @@
       "owners": [
         "Rizumu85"
       ],
+      "category": "lyrics",
       "submission": 5,
       "source": "https://github.com/Rizumu85/folia-bilingual-ruby-lyrics",
       "path": "bilingual-ruby-lyrics",
@@ -91,6 +98,7 @@
       "owners": [
         "LingShiQwQ"
       ],
+      "category": "visualizer",
       "submission": 88,
       "source": "https://github.com/LingShiQwQ/folia-bpm-style-director",
       "path": "bpm-style-director",
@@ -103,6 +111,7 @@
       "owners": [
         "tumuyan"
       ],
+      "category": "visualizer",
       "submission": 3,
       "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
       "path": "mods/cinerama",
@@ -115,6 +124,7 @@
       "owners": [
         "PHMUTIKZ"
       ],
+      "category": "interface",
       "submission": 48,
       "source": "https://github.com/PHMUTIKZ/clock-perf-widget",
       "path": "",
@@ -127,6 +137,7 @@
       "owners": [
         "siyiill"
       ],
+      "category": "lyrics",
       "submission": 183,
       "source": "https://github.com/siyiill/cloud-lyric-float",
       "path": "",
@@ -139,6 +150,7 @@
       "owners": [
         "Mei-Nagano"
       ],
+      "category": "playback",
       "submission": 89,
       "source": "https://github.com/Mei-Nagano/folia-daily-30",
       "path": "daily-30",
@@ -151,6 +163,7 @@
       "owners": [
         "aming2778"
       ],
+      "category": "lyrics",
       "submission": 43,
       "source": "https://github.com/aming2778/folia-desktop-lyric",
       "path": "desktop-lyric",
@@ -164,6 +177,7 @@
       "owners": [
         "ibsibxi"
       ],
+      "category": "audio",
       "submission": 77,
       "source": "https://github.com/ibsibxi/folia-emofx",
       "path": "mod/emofx",
@@ -176,6 +190,7 @@
       "owners": [
         "L-OONES"
       ],
+      "category": "interface",
       "submission": 140,
       "source": "https://github.com/L-OONES/endfolia-global-right-back",
       "path": "",
@@ -189,6 +204,7 @@
       "owners": [
         "hoangmaituan882-hue"
       ],
+      "category": "system",
       "submission": 6,
       "source": "https://github.com/hoangmaituan882-hue/enhanced-remote-widget",
       "path": "enhanced-remote-widget",
@@ -202,6 +218,7 @@
       "owners": [
         "hnxyhcz"
       ],
+      "category": "lyrics",
       "submission": 145,
       "source": "https://github.com/hnxyhcz/folia-desktop-lyric",
       "path": "desktop-lyric",
@@ -210,23 +227,11 @@
       "addedAt": "2026-11-12",
       "updatedAt": "2026-11-12"
     },
-    "folia-lx-music-mod": {
-      "owners": [
-        "wumeng114514"
-      ],
-      "submission": 36,
-      "source": "https://github.com/wumeng114514/folia-lx-music-mod",
-      "path": "",
-      "commit": "9b28469f21147395dd17e1324ba55eb4ef743abe",
-      "version": "1.0.2",
-      "addedAt": "2026-10-16",
-      "updatedAt": "2026-10-17",
-      "lastIssue": 40
-    },
     "global-hotkeys": {
       "owners": [
         "qwquartz"
       ],
+      "category": "system",
       "submission": 52,
       "source": "https://github.com/qwquartz/folia-global-hotkeys",
       "path": "",
@@ -240,6 +245,7 @@
       "owners": [
         "lux987"
       ],
+      "category": "system",
       "submission": 102,
       "source": "https://github.com/lux987/halo-lyric",
       "path": "mod",
@@ -252,6 +258,7 @@
       "owners": [
         "tamakoyu"
       ],
+      "category": "playback",
       "submission": 91,
       "source": "https://github.com/tamakoyu/folia-heartbeat-mode",
       "path": "mods/heartbeat-mode",
@@ -264,6 +271,7 @@
       "owners": [
         "wittyfunn"
       ],
+      "category": "visualizer",
       "submission": 126,
       "source": "https://github.com/wittyfunn/folia-huajian",
       "path": "huajian",
@@ -277,6 +285,7 @@
       "owners": [
         "JiafeeJF"
       ],
+      "category": "playback",
       "submission": 163,
       "source": "https://github.com/JiafeeJF/folia-jiafee-together-listen",
       "path": "",
@@ -290,6 +299,7 @@
       "owners": [
         "minecraftmc22"
       ],
+      "category": "system",
       "submission": 146,
       "source": "https://github.com/minecraftmc22/Just-Enough-Setting",
       "path": "v1.3.1",
@@ -302,6 +312,7 @@
       "owners": [
         "tianxiashoucang"
       ],
+      "category": "interface",
       "submission": 159,
       "source": "https://github.com/tianxiashoucang/liked-cover",
       "path": "",
@@ -314,6 +325,7 @@
       "owners": [
         "imicola"
       ],
+      "category": "data",
       "submission": 61,
       "source": "https://github.com/imicola/folia-listening-archive",
       "path": "dist/listening-archive",
@@ -327,6 +339,7 @@
       "owners": [
         "HuashuRed"
       ],
+      "category": "data",
       "submission": 50,
       "source": "https://github.com/HuashuRed/folia-listening-stats",
       "path": "",
@@ -339,6 +352,7 @@
       "owners": [
         "woshi32s"
       ],
+      "category": "visualizer",
       "submission": 142,
       "source": "https://github.com/woshi32s/folia-mod-lizi-imessage-504",
       "path": "lizi-imessage-504",
@@ -351,6 +365,7 @@
       "owners": [
         "xiaomo521314"
       ],
+      "category": "data",
       "submission": 14,
       "source": "https://github.com/xiaomo521314/lx-favorites-sync",
       "path": "lx-favorites-sync",
@@ -360,22 +375,11 @@
       "updatedAt": "2026-11-01",
       "lastIssue": 109
     },
-    "lx-source": {
-      "owners": [
-        "paysonx"
-      ],
-      "submission": 110,
-      "source": "https://github.com/paysonx/folium-lx-source",
-      "path": "mods/lxSource",
-      "commit": "dff475d6005bc631b17544d1f86d08d16368d970",
-      "version": "0.1.1",
-      "addedAt": "2026-11-01",
-      "updatedAt": "2026-11-01"
-    },
     "lyric-ai-director": {
       "owners": [
         "duoduo1232"
       ],
+      "category": "ai",
       "submission": 19,
       "source": "https://github.com/duoduo1232/lyric-ai-director",
       "path": "",
@@ -388,6 +392,7 @@
       "owners": [
         "wittyfunn"
       ],
+      "category": "ai",
       "submission": 103,
       "source": "https://github.com/wittyfunn/lyric-ai-director-plus",
       "path": "lyric-ai-director-plus",
@@ -401,6 +406,7 @@
       "owners": [
         "shiryaed"
       ],
+      "category": "ai",
       "submission": 135,
       "source": "https://github.com/shiryaed/lyric-ai-segment-director",
       "path": "",
@@ -413,6 +419,7 @@
       "owners": [
         "GUDUYUNI99"
       ],
+      "category": "lyrics",
       "submission": 143,
       "source": "https://github.com/GUDUYUNI99/lyric-float",
       "path": "",
@@ -426,6 +433,7 @@
       "owners": [
         "tumuyan"
       ],
+      "category": "lyrics",
       "submission": 4,
       "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
       "path": "mods/lyric-split-translation",
@@ -438,6 +446,7 @@
       "owners": [
         "Huaq520"
       ],
+      "category": "visualizer",
       "submission": 21,
       "source": "https://github.com/Huaq520/lyric-style-switcher",
       "path": "",
@@ -450,6 +459,7 @@
       "owners": [
         "chthollyphile"
       ],
+      "category": "lyrics",
       "submission": 1,
       "source": "https://github.com/chthollyphile/folium-mod-lyrics-list",
       "path": "mod",
@@ -462,6 +472,7 @@
       "owners": [
         "Zhangyx0824"
       ],
+      "category": "lyrics",
       "submission": 58,
       "source": "https://github.com/zhangyx0824/folia-mod-menubar-lyrics",
       "path": "menubar-lyrics",
@@ -475,6 +486,7 @@
       "owners": [
         "baiyangmuzz"
       ],
+      "category": "visualizer",
       "submission": 45,
       "source": "https://github.com/baiyangmuzz/miside-drop",
       "path": "",
@@ -488,6 +500,7 @@
       "owners": [
         "zaixiaxingzhang"
       ],
+      "category": "other",
       "submission": 131,
       "source": "https://github.com/zaixiaxingzhang/folia-mod-market",
       "path": "",
@@ -501,6 +514,7 @@
       "owners": [
         "setobox"
       ],
+      "category": "data",
       "submission": 177,
       "source": "https://github.com/setobox/folia-music-notes",
       "path": "music-notes",
@@ -513,6 +527,7 @@
       "owners": [
         "Fringetw"
       ],
+      "category": "lyrics",
       "submission": 98,
       "source": "https://github.com/Fringetw/folia-traditional-chinese",
       "path": "mods/opencc-traditional-lyrics",
@@ -526,6 +541,7 @@
       "owners": [
         "hy123-2"
       ],
+      "category": "visualizer",
       "submission": 149,
       "source": "https://github.com/hy123-2/random-pool-plus",
       "path": "",
@@ -538,6 +554,7 @@
       "owners": [
         "miaowu104-gif"
       ],
+      "category": "interface",
       "submission": 57,
       "source": "https://github.com/miaowu104-gif/remote-window-edge",
       "path": "",
@@ -547,23 +564,11 @@
       "updatedAt": "2026-10-21",
       "lastIssue": 68
     },
-    "soda-music": {
-      "owners": [
-        "syh0119"
-      ],
-      "submission": 32,
-      "source": "https://github.com/syh0119/folia-soda-music",
-      "path": "",
-      "commit": "8f33ef05495c1302b1b2e79f5e0154551466c7f5",
-      "version": "2.3.7",
-      "addedAt": "2026-10-17",
-      "updatedAt": "2026-10-24",
-      "lastIssue": 79
-    },
     "song-comments": {
       "owners": [
         "Zhangyx0824"
       ],
+      "category": "interface",
       "submission": 119,
       "source": "https://github.com/Zhangyx0824/folia-mod-song-comments",
       "path": "song-comments",
@@ -576,6 +581,7 @@
       "owners": [
         "HuashuRed"
       ],
+      "category": "interface",
       "submission": 49,
       "source": "https://github.com/HuashuRed/folia-song-info",
       "path": "",
@@ -588,6 +594,7 @@
       "owners": [
         "ACUNGER0321"
       ],
+      "category": "interface",
       "submission": 2,
       "source": "https://github.com/ACUNGER0321/-spectrum-visualizer-folia-mods-",
       "path": "spectrum-visualizer",
@@ -601,6 +608,7 @@
       "owners": [
         "w0w1w2"
       ],
+      "category": "visualizer",
       "submission": 118,
       "source": "https://github.com/w0w1w2/stardrift",
       "path": "",
@@ -614,6 +622,7 @@
       "owners": [
         "q13244583628"
       ],
+      "category": "system",
       "submission": 170,
       "source": "https://github.com/q13244583628/folia-",
       "path": "",
@@ -626,6 +635,7 @@
       "owners": [
         "moneker"
       ],
+      "category": "lyrics",
       "submission": 27,
       "source": "https://github.com/moneker/folium-taskbar-lyrics",
       "path": "",
@@ -639,6 +649,7 @@
       "owners": [
         "Miucak"
       ],
+      "category": "lyrics",
       "submission": 107,
       "source": "https://github.com/Miucak/taskbar-lyrics-compact",
       "path": "taskbar-lyrics-compact",
@@ -651,6 +662,7 @@
       "owners": [
         "yoocy36-coder"
       ],
+      "category": "system",
       "submission": 125,
       "source": "https://github.com/yoocy36-coder/folia-taskbar-player",
       "path": "",
@@ -663,6 +675,7 @@
       "owners": [
         "WSW-POT"
       ],
+      "category": "background",
       "submission": 152,
       "source": "https://github.com/WSW-POT/folia-video-background",
       "path": "",
@@ -675,6 +688,7 @@
       "owners": [
         "Zhangyx0824"
       ],
+      "category": "visualizer",
       "submission": 69,
       "source": "https://github.com/Zhangyx0824/folia-mod-vinyl-disc",
       "path": "vinyl-disc",
@@ -688,6 +702,7 @@
       "owners": [
         "tumuyan"
       ],
+      "category": "visualizer",
       "submission": 70,
       "source": "https://cnb.cool/ai-zoomer/fork-from/folia",
       "path": "mods/visualizer-jump",
@@ -701,6 +716,7 @@
       "owners": [
         "zaixiaxingzhang"
       ],
+      "category": "background",
       "submission": 130,
       "source": "https://github.com/zaixiaxingzhang/folia-wallpaper-engine",
       "path": "",
@@ -713,6 +729,7 @@
       "owners": [
         "Zhangyx0824"
       ],
+      "category": "visualizer",
       "submission": 93,
       "source": "https://github.com/Zhangyx0824/folia-mod-wave-light",
       "path": "wave-light",
@@ -725,6 +742,7 @@
       "owners": [
         "Lavender3533"
       ],
+      "category": "background",
       "submission": 139,
       "source": "https://github.com/Lavender3533/folia-we-wallpaper-native",
       "path": "we-wallpaper",

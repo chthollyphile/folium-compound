@@ -5,6 +5,7 @@
 //   dist/catalog.json               machine-readable catalog (download URLs, sizes, hashes)
 //   dist/downloads/<id>-<version>.zip
 //   dist/previews/<id>-<version>.<ext>   each mod's introduction image (mod.json `preview`)
+//   dist/readmes/<id>-<version>.md       each mod's README.md, as it is (Folia renders it in its mods view)
 //   dist/assets/*                   copied from site/assets
 //   dist/_headers                   response headers (CSP etc.), copied from site/_headers
 //
@@ -21,13 +22,21 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SIGNATURE_FILE, collectSignedFiles, readModIdentity, verifyMod } from '../lib/signing.mjs';
 import { REPO_ROOT, readRevokedDigests, readTrustedKeys } from '../lib/repo.mjs';
-import { buildIndex } from '../lib/index.mjs';
+import { buildIndex, readCommunityRegistry, readOfficialMeta } from '../lib/index.mjs';
+import { CATEGORIES, autoTagsOf, categoryOf } from '../lib/categories.mjs';
+import { checkAwesome, httpsUrlOf, readAwesome } from '../lib/awesome.mjs';
 import { createZip, readZip } from '../lib/zip.mjs';
 import { checkPreview } from '../lib/image.mjs';
 import { renderMarketPage } from './render.mjs';
 import { SITE_REPOSITORY } from './config.mjs';
 
 const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+
+// An owner as the catalog lists it: the GitHub account and its page.
+const ownerEntry = (login) => ({ login, url: `https://github.com/${encodeURIComponent(login)}` });
+
+// The README a mod ships, if any (any case of README.md at the top of the mod directory).
+const readmeOf = (modDir) => fs.readdirSync(modDir).find((name) => /^readme\.md$/i.test(name)) ?? null;
 
 /*
  * The zip for one mod: a single top-level `<id>/` folder (what Folia's
@@ -70,6 +79,12 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
     fs.rmSync(outDir, { recursive: true, force: true });
     fs.mkdirSync(path.join(outDir, 'downloads'), { recursive: true });
     fs.mkdirSync(path.join(outDir, 'previews'), { recursive: true });
+    fs.mkdirSync(path.join(outDir, 'readmes'), { recursive: true });
+    const community = readCommunityRegistry(root);
+    const officialMeta = readOfficialMeta(root);
+    const awesome = readAwesome(root);
+    const awesomeErrors = checkAwesome(awesome, { modIds: indexed.map((entry) => entry.id) });
+    if (awesomeErrors.length > 0) throw new Error(`awesome.json does not check, not publishing:\n${awesomeErrors.join('\n')}`);
 
     const mods = indexed.map((entry) => {
         const modDir = path.join(root, entry.path);
@@ -87,8 +102,23 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
         if (preview.errors.length > 0) throw new Error(`${entry.path}: ${preview.errors.join('; ')}`);
         const previewName = `${entry.id}-${entry.version}${path.extname(preview.info.file).toLowerCase()}`;
         fs.copyFileSync(path.join(modDir, ...preview.info.file.split('/')), path.join(outDir, 'previews', previewName));
+        const readme = readmeOf(modDir);
+        const readmeName = readme ? `${entry.id}-${entry.version}.md` : null;
+        if (readme) fs.copyFileSync(path.join(modDir, readme), path.join(outDir, 'readmes', readmeName));
+        const registered = entry.origin === 'official' ? officialMeta.mods[entry.id] : community.mods[entry.id];
+        const repository = httpsUrlOf(manifest.repository) ?? httpsUrlOf(entry.source) ?? null;
         return {
             ...entry,
+            owners: (entry.owners ?? []).map(ownerEntry),
+            kind: Array.isArray(manifest.sources) && manifest.sources.length > 0 ? 'source' : 'standard',
+            category: categoryOf(registered?.category),
+            tags: autoTagsOf(manifest),
+            addedAt: registered?.addedAt ?? entry.signedAt.slice(0, 10),
+            updatedAt: registered?.updatedAt ?? entry.signedAt.slice(0, 10),
+            repository,
+            bugs: httpsUrlOf(manifest.bugs),
+            license: typeof manifest.license === 'string' ? manifest.license : null,
+            readme: readmeName ? `/readmes/${readmeName}` : null,
             keyLabel: keyLabels[entry.keyId] ?? entry.keyId,
             permissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
             experimental: Array.isArray(manifest.experimental) ? manifest.experimental : [],
@@ -107,8 +137,16 @@ export const buildSite = ({ root = REPO_ROOT, outDir = path.join(root, 'dist'), 
     mods.sort((left, right) => originOrder(left.origin) - originOrder(right.origin)
         || left.name.localeCompare(right.name, 'en') || left.id.localeCompare(right.id, 'en'));
 
-    // Version 2: entries carry `channel`, and beta-channel mods (security-reviewed only) are listed too.
-    const catalog = { format: 'folium-market-catalog', version: 2, repository: SITE_REPOSITORY, commit, mods };
+    /*
+     * Version 2: entries carry `channel`, and beta-channel mods (security-reviewed only) are listed too.
+     * Version 3 only adds: `categories`, `awesome` (works listed as links, see tools/lib/awesome.mjs), and per
+     * mod `kind`, `category`, `tags`, `addedAt`, `updatedAt`, `repository`, `bugs`, `license`, `readme`, and
+     * `owners` as `{ login, url }`. A reader of version 2 still finds every field it knew.
+     */
+    const awesomeEntries = awesome.entries
+        .map((entry) => ({ ...entry, category: entry.category ?? null, owners: entry.owners.map(ownerEntry), tags: entry.tags ?? [] }))
+        .sort((left, right) => left.name.localeCompare(right.name, 'en') || left.id.localeCompare(right.id, 'en'));
+    const catalog = { format: 'folium-market-catalog', version: 3, repository: SITE_REPOSITORY, commit, categories: CATEGORIES, mods, awesome: awesomeEntries };
     fs.writeFileSync(path.join(outDir, 'catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`);
     fs.writeFileSync(path.join(outDir, 'index.html'), renderMarketPage(catalog));
     fs.cpSync(path.join(root, 'site', 'assets'), path.join(outDir, 'assets'), { recursive: true });

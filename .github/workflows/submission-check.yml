@@ -1,5 +1,6 @@
 # .github/workflows/submission-check.yml
-# Format check for community submission and update issues. The mod comes from
+# Format check for community submission and update issues, and for awesome-Folia
+# entries (only the form: an entry's links are never fetched). The mod comes from
 # the author's own repository: the named commit is fetched as data (shallow,
 # no hooks, no submodules), staged the way it would be imported, and checked
 # by the scripts from main. Nothing from the author's repository is executed,
@@ -25,9 +26,11 @@ jobs:
     if: >-
       (github.event.action != 'labeled'
         || github.event.label.name == 'mod-submission'
-        || github.event.label.name == 'mod-update')
+        || github.event.label.name == 'mod-update'
+        || github.event.label.name == 'awesome-entry')
       && (contains(github.event.issue.labels.*.name, 'mod-submission')
-        || contains(github.event.issue.labels.*.name, 'mod-update'))
+        || contains(github.event.issue.labels.*.name, 'mod-update')
+        || contains(github.event.issue.labels.*.name, 'awesome-entry'))
     runs-on: ubuntu-latest
     permissions:
       contents: read

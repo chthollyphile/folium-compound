@@ -1,0 +1,25 @@
+{
+  "mods": {
+    "k3panel": {
+      "category": "visualizer"
+    },
+    "more-progress-buttons": {
+      "category": "interface"
+    },
+    "sample-aurora-visualizer": {
+      "category": "sample"
+    },
+    "sample-progress-bar": {
+      "category": "sample"
+    },
+    "sample-rickroll": {
+      "category": "sample"
+    },
+    "transparent-mov-export": {
+      "category": "sample"
+    },
+    "visualizer52hz": {
+      "category": "visualizer"
+    }
+  }
+}
