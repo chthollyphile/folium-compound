@@ -123,6 +123,18 @@
       "addedAt": "2026-10-20",
       "updatedAt": "2026-10-20"
     },
+    "cloud-lyric-float": {
+      "owners": [
+        "siyiill"
+      ],
+      "submission": 183,
+      "source": "https://github.com/siyiill/cloud-lyric-float",
+      "path": "",
+      "commit": "990a869d96dc4cb488f71cc794af941190ed33ad",
+      "version": "1.8.2",
+      "addedAt": "2026-11-23",
+      "updatedAt": "2026-11-23"
+    },
     "daily-30": {
       "owners": [
         "Mei-Nagano"

@@ -1,0 +1,27 @@
+{
+  "folium": 1,
+  "id": "cloud-lyric-float",
+  "name": "云音乐风悬浮歌词",
+  "version": "1.8.2",
+  "author": "siyii11 & 大肥鱼",
+  "description": "云☁️风桌面悬浮歌词：动态自适应透明窗口、逐字染色、双语歌词、滚动歌词板、右键长按拖动、鼠标穿透与播放控制。",
+  "main": "main.cjs",
+  "client": "client.mjs",
+  "preview": "preview.png",
+  "folia": ">=0.7.20 <0.8.0",
+  "permissions": [
+    "playback.read",
+    "playback.control",
+    "filesystem.data"
+  ]
+}
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self';">
+  <title>歌词外观设置</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <main class="panel">
+    <header class="titlebar">
+      <div>
+        <div class="kicker">CLOUD LYRIC</div>
+        <h1>歌词外观</h1>
+      </div>
+      <button id="close" class="icon-button" type="button" title="关闭设置" aria-label="关闭设置">
+        <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </header>
+    <div class="scroll">
+      <section class="group">
+        <div class="label">显示模式</div>
+        <div class="segmented">
+          <button type="button" data-mode="single">单行</button>
+          <button type="button" data-mode="double">双行</button>
+          <button type="button" data-mode="multi">多行</button>
+        </div>
+      </section>
+      <section class="group">
+        <div class="label">拖动方式</div>
+        <div class="segmented">
+          <button type="button" data-drag-mode="left">左键拖动</button>
+          <button type="button" data-drag-mode="right-hold">右键长按</button>
+          <button type="button" data-drag-mode="both">两者都开</button>
+        </div>
+      </section>
+      <section class="group">
+        <div class="row label-row"><span>歌词字号</span><span id="font-value">46</span></div>
+        <div class="font-controls">
+          <button type="button" id="font-down" class="font-step" title="缩小字号" aria-label="缩小字号">A−</button>
+          <input id="font-range" class="range" type="range" min="16" max="96" step="1" value="46">
+          <button type="button" id="font-up" class="font-step" title="放大字号" aria-label="放大字号">A+</button>
+        </div>
+      </section>
+      <section class="group two-col">
+        <label class="color-field"><span>歌词颜色</span><input id="text-color" type="color" value="#ffffff"></label>
+        <label class="color-field"><span>逐字高亮</span><input id="accent-color" type="color" value="#ff4d4f"></label>
+      </section>
+      <section class="group">
+        <div class="label">未唱歌词</div>
+        <div class="two-col" style="margin-top:8px">
+          <label class="color-field"><span>未唱颜色</span><input id="unsung-color" type="color" value="#ffffff"></label>
+          <div class="color-field"><span>透明度</span><span id="unsung-opacity-value">48%</span></div>
+        </div>
+        <input id="unsung-opacity" class="range" type="range" min="10" max="100" step="1" value="48">
+        <div class="row label-row" style="margin-top:8px"><span>后续歌词大小</span><span id="upcoming-scale-value">58%</span></div>
+        <input id="upcoming-scale" class="range" type="range" min="30" max="100" step="1" value="58">
+      </section>
+      <section class="group switches">
+        <label class="switch-row"><span><b>显示翻译</b><small>跟随歌曲歌词数据</small></span><input id="show-translation" type="checkbox" checked><i class="switch"></i></label>
+        <label class="switch-row"><span><b>显示音译</b><small>日文 / 韩文歌曲更有用</small></span><input id="show-romanization" type="checkbox"><i class="switch"></i></label>
+        <label class="switch-row"><span><b>总在最前</b><small>保持歌词悬浮在其他窗口上方</small></span><input id="always-on-top" type="checkbox" checked><i class="switch"></i></label>
+        <label class="switch-row"><span><b>全局快捷键</b><small>Ctrl+Shift+H / L / ← / → / Space</small></span><input id="hotkeys" type="checkbox"><i class="switch"></i></label>
+      </section>
+      <section class="actions">
+        <button type="button" id="reset-position" class="action">重置歌词位置</button>
+        <button type="button" id="lock-lyrics" class="action danger lock-action" title="锁定鼠标穿透" aria-label="锁定鼠标穿透">
+          <svg class="lock-action-icon lock-open-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9" rx="2.3"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 6.8-1.2"/></svg>
+          <svg class="lock-action-icon lock-closed-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9" rx="2.3"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/></svg>
+        </button>
+        <button type="button" id="open-log" class="action">打开诊断日志</button>
+        <button type="button" id="clear-log" class="action danger">清除诊断日志</button>
+      </section>
+      <p class="tip">按住本窗口顶部标题栏可单独移动设置面板。修改会实时应用。</p>
+    </div>
+  </main>
+  <div class="close-hint">双击标题栏或空白处关闭</div>
+  <script src="settings.js"></script>
+</body>
+</html>

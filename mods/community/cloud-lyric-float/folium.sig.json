@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "cloud-lyric-float",
+  "modVersion": "1.8.2",
+  "digest": "sha256:823b7ad3a08d4b35d2509eafd3bc94c336f315bf0923cc733215e4af82e4699b",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-23T01:09:19.914Z",
+  "signature": "I3uE/oBEsunspXyaBvXqiC1PexKDIdX0IngVNlqf6r6t8HSCNY5F2Fm4e9NGQUfW46PX97YIs+hFarlB6SZ4CQ=="
+}
