@@ -1,5 +1,5 @@
 // tools/ci/lib/awesomeForm.mjs
-// The awesome-Folia issue form (.github/ISSUE_TEMPLATE/awesome-entry.yml): how it reads, what the format
+// The Awesome-Folia issue form (.github/ISSUE_TEMPLATE/awesome-entry.yml): how it reads, what the format
 // check says, and what a maintainer's `/list` does with it. Only the form is checked: the linked repository
 // is never fetched or run, because nothing of it enters this repository; an entry is a name, a description
 // and links (tools/lib/awesome.mjs). Pure functions, unit-tested in test/ci.test.mjs.
@@ -50,7 +50,7 @@ export const awesomeEntryHash = (entry) => crypto.createHash('sha256').update(JS
 ])).digest('hex').slice(0, 12);
 
 /*
- * Reads an awesome-Folia issue into an entry (without the dates, which `/list` sets). `author` is the
+ * Reads an Awesome-Folia issue into an entry (without the dates, which `/list` sets). `author` is the
  * issue's author, the owner when the form names none. Returns `{ entry, errors }`; `existing` (the
  * current awesome.json) and `modIds` (the repository's mods) are what the id may not collide with.
  * An id already listed may be reused by one of that entry's owners: the issue then updates it.
@@ -115,7 +115,7 @@ export const withAwesomeEntry = (awesome, entry, { issueNumber, today }) => {
     return { ...awesome, entries: [...awesome.entries.filter((other) => other.id !== entry.id), listed] };
 };
 
-/* The format check's comment on an awesome-Folia issue. */
+/* The format check's comment on an Awesome-Folia issue. */
 export const renderAwesomeCheckComment = ({ errors, entry, updates = null, checkedAt = null }) => {
     const lines = [COMMENT_MARKERS.check];
     if (checkedAt) lines.push(`<!-- folium-bot:checked-at=${checkedAt} -->`);
@@ -125,7 +125,7 @@ export const renderAwesomeCheckComment = ({ errors, entry, updates = null, check
         lines.push(`- ${entry.name}（\`${entry.id}\`，${AWESOME_KINDS.find((kind) => kind.id === entry.kind)?.label['zh-CN'] ?? entry.kind}）：${entry.url}`);
         lines.push(`- 作者：${entry.owners.map((owner) => `@${owner}`).join('、')}`);
         lines.push('');
-        lines.push('awesome-Folia 只登记链接，作品不会被取回、签名或执行；模组市场里它显示为「外部链接」，用户从你的仓库安装，问题也会被引到你的仓库。');
+        lines.push('Awesome-Folia 只登记链接，作品不会被取回、签名或执行；模组市场里它显示为「外部链接」，用户从你的仓库安装，问题也会被引到你的仓库。');
         lines.push('');
         lines.push(`维护者看过之后，在本 issue 评论 \`/list ${awesomeEntryHash(entry)}\` 即可登记。issue 之后再改动的话，会重新检查并给出新的命令。`);
     } else {

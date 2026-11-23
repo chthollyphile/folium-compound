@@ -2,7 +2,7 @@
 // The repository itself: every mod on main is signed by an active trusted key
 // of its directory's channel, and index.json describes exactly the mods present.
 // Every mod has a registered category; community/ and beta/ hold no source mods
-// (those are listed in awesome-Folia); awesome.json checks and AWESOME.md matches it.
+// (those are listed in Awesome-Folia); awesome.json checks and AWESOME.md matches it.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -61,7 +61,7 @@ test('every mod has a category from the table', () => {
 
 test('community and beta hold no source mods', () => {
     for (const target of listModDirs().filter((item) => item.origin !== 'official')) {
-        assert.equal(sourceModRefusal(readModIdentity(target.dir).manifest), null, `${target.relative}: source mods are listed in awesome-Folia, not kept here`);
+        assert.equal(sourceModRefusal(readModIdentity(target.dir).manifest), null, `${target.relative}: source mods are listed in Awesome-Folia, not kept here`);
     }
 });
 

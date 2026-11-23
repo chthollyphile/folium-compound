@@ -1,8 +1,10 @@
 // tools/site/render.mjs
 // Renders the market page to static HTML at build time. Everything shown is in
-// the markup already; site/assets/app.js only filters and sorts the cards, opens
-// the detail dialogs, switches language and copies hashes. Mod names,
-// descriptions, authors and awesome-Folia entries come from third parties, so
+// the markup already; site/assets/app.js only filters, sorts and pages the cards
+// (laying the waterfall out itself), opens the detail dialogs, switches language
+// and copies hashes. The hero's composition and the dialogs' figures are plain
+// elements styled by app.css, decoration only. Mod names,
+// descriptions, authors and Awesome-Folia entries come from third parties, so
 // every value goes through escapeHtml, links from data must be https, and the
 // page's CSP (site/_headers) allows no inline script or style.
 
@@ -161,6 +163,9 @@ const linkUrlText = (url) => escapeHtml(url.replace(/^https:\/\//, '').replace(/
 
 const closeButton = () => `<a class="detail-close" href="#" data-close>${ICON_CLOSE}<span class="visually-hidden">${t('close', '关闭')}</span></a>`;
 
+// The geometric figure behind a dialog's head (decoration only): a ring, a dot and a bar, as on the hero.
+const detailFigure = () => '<div class="detail-figure" aria-hidden="true"><i class="fig-ring"></i><i class="fig-dot"></i><i class="fig-bar"></i></div>';
+
 /* ---- mods */
 
 const modDetailId = (mod) => `mod-${mod.id}`;
@@ -264,7 +269,7 @@ const renderModDetail = (mod, context) => {
     <dialog class="detail" id="${escapeHtml(id)}" aria-labelledby="${escapeHtml(id)}-title">
       <div class="detail-body">
         ${closeButton()}
-        ${preview}
+        ${preview || detailFigure()}
         <header class="card-head">
           ${monogram(mod.id, mod.name)}
           <div class="card-title">
@@ -293,7 +298,7 @@ const renderModDetail = (mod, context) => {
     </dialog>`;
 };
 
-/* ---- awesome-Folia */
+/* ---- Awesome-Folia */
 
 const awesomeDetailId = (entry) => `awesome-${entry.id}`;
 
@@ -362,11 +367,12 @@ const renderAwesomeDetail = (entry, context) => {
     <dialog class="detail" id="${escapeHtml(id)}" aria-labelledby="${escapeHtml(id)}-title">
       <div class="detail-body">
         ${closeButton()}
+        ${detailFigure()}
         <header class="card-head">
           ${monogram(entry.id, entry.name)}
           <div class="card-title">
             <h2 id="${escapeHtml(id)}-title">${escapeHtml(entry.name)}</h2>
-            <p class="meta"><code>${escapeHtml(entry.id)}</code> · awesome-Folia</p>
+            <p class="meta"><code>${escapeHtml(entry.id)}</code> · Awesome-Folia</p>
           </div>
           <span class="badge badge-external">${t('badge.external', '外部链接')}</span>
         </header>
@@ -385,6 +391,9 @@ const renderAwesomeDetail = (entry, context) => {
 
 /* ---- the page */
 
+// A placeholder card for the next page (app.js shows the matches a page at a time); decoration only.
+const SKELETON_CARD = '<div class="skeleton"><i class="sk sk-media"></i><div class="sk-head"><i class="sk sk-avatar"></i><div class="sk-lines"><i class="sk sk-line"></i><i class="sk sk-line sk-short"></i></div></div><i class="sk sk-line"></i><i class="sk sk-line sk-mid"></i><div class="sk-foot"><i class="sk sk-pill"></i><i class="sk sk-button"></i></div></div>';
+
 const filterButton = (attribute, value, inner, count, active = false, extraClass = '') => (
     `<button type="button" class="filter${extraClass ? ` ${extraClass}` : ''}${active ? ' is-active' : ''}" data-${attribute}="${escapeHtml(value)}" aria-pressed="${active}">${inner}${count === null ? '' : ` <span class="n">${count}</span>`}</button>`
 );
@@ -402,7 +411,7 @@ export const renderMarketPage = (catalog) => {
         kindLabels: new Map(AWESOME_KINDS.map((kind) => [kind.id, kind.label])),
     };
 
-    // One waterfall in the build's order (official, community, beta, then awesome-Folia); data-order keeps it.
+    // One waterfall in the build's order (official, community, beta, then Awesome-Folia); data-order keeps it.
     const cards = [
         ...catalog.mods.map((mod, index) => renderModCard(mod, index, context)),
         ...awesome.map((entry, index) => renderAwesomeCard(entry, catalog.mods.length + index, context)),
@@ -412,13 +421,13 @@ export const renderMarketPage = (catalog) => {
     const categoryChips = categories
         .map((category) => ({ category, count: categoryCount(category.id) }))
         .filter(({ count }) => count > 0)
-        .map(({ category, count }) => filterButton('category', category.id, label(category.label), count));
+        .map(({ category, count }) => filterButton('category', category.id, label(category.label), count, false, 'filter-category'));
     const sourceCount = (origin) => (origin === 'awesome' ? awesome.length : catalog.mods.filter((mod) => mod.origin === origin).length);
     const sources = [
         ['official', t('filter.official', '官方'), ''],
         ['community', t('filter.community', '社区'), ''],
         ['beta', t('filter.beta', '先行测试'), 'filter-beta'],
-        ['awesome', 'awesome-Folia', 'filter-awesome'],
+        ['awesome', 'Awesome-Folia', 'filter-awesome'],
     ].map(([origin, inner, extraClass]) => filterButton('source', origin, inner, sourceCount(origin), false, extraClass));
     const usedTags = new Set(catalog.mods.flatMap((mod) => mod.tags ?? []));
     const tagChips = Object.entries(AUTO_TAGS)
@@ -431,7 +440,7 @@ export const renderMarketPage = (catalog) => {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Folium 模组市场</title>
-  <meta name="description" content="Folia 的官方模组、经过审查的社区模组与 awesome-Folia 外部作品。正式发布的模组都由 Folium 签名。">
+  <meta name="description" content="Folia 的官方模组、经过审查的社区模组与 Awesome-Folia 外部作品。正式发布的模组都由 Folium 签名。">
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/app.css">
@@ -443,19 +452,45 @@ export const renderMarketPage = (catalog) => {
       <a class="brand" href="/"><img src="/assets/icon.svg" alt="" width="28" height="28"><span>Folium</span></a>
       <nav class="top-links">
         <a href="${escapeHtml(submitUrl)}" rel="noopener" target="_blank">${t('submit', '提交模组')}</a>
-        <a href="${escapeHtml(awesomeUrl)}" rel="noopener" target="_blank">${t('submit.awesome', '登记 awesome-Folia')}</a>
+        <a href="${escapeHtml(awesomeUrl)}" rel="noopener" target="_blank">${t('submit.awesome', '登记 Awesome-Folia')}</a>
         <a href="${escapeHtml(repoUrl)}" rel="noopener" target="_blank">GitHub</a>
         <button type="button" class="lang" data-lang-toggle aria-label="Switch language">EN</button>
       </nav>
     </header>
 
     <section class="hero">
+      <div class="hero-art" aria-hidden="true">
+        <i class="fig fig-line fig-line-1"></i>
+        <i class="fig fig-line fig-line-2"></i>
+        <svg class="fig fig-puzzle" viewBox="-14 -34 260 260" aria-hidden="true">
+          <defs>
+            <path id="puzzle-piece" d="M0 0H38A15 15 0 1 1 62 0H100V38A15 15 0 1 1 100 62V100H62A15 15 0 1 0 38 100H0V62A15 15 0 1 0 0 38Z"/>
+            <pattern id="puzzle-hatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="pz-hatch-line" width="2" height="9"/></pattern>
+          </defs>
+          <g transform="translate(0 106)"><use class="pz pz-hatch" href="#puzzle-piece"/></g>
+          <g transform="translate(106 0)"><use class="pz pz-outline" href="#puzzle-piece"/></g>
+          <g><use class="pz pz-solid" href="#puzzle-piece"/></g>
+        </svg>
+        <i class="fig fig-ring"></i>
+        <i class="fig fig-dot"></i>
+        <i class="fig fig-bar"></i>
+        <i class="fig fig-hatch"></i>
+        <i class="fig fig-dots">· · ·</i>
+        <i class="fig fig-word">Folium</i>
+      </div>
+      <p class="kicker"><span class="kicker-mark"></span>Folium · ${t('kicker', '模组')}</p>
       <h1>${t('title', '模组市场')}</h1>
-      <p class="tagline">${t('tagline', 'Folia 的官方模组与经过审查的社区模组，正式发布的都由 Folium 签名；另有 awesome-Folia 收录的外部作品。')}</p>
+      <p class="tagline">${t('tagline', 'Folia 的官方模组与经过审查的社区模组，正式发布的都由 Folium 签名；另有 Awesome-Folia 收录的外部作品。')}</p>
       <ol class="steps">
         <li>${t('install.1', 'Folia 0.8 起内置模组市场：在「设置 → 模组」里安装、更新和卸载')}</li>
         <li>${t('install.2', '在这里下载的 zip 也可以直接拖进模组页')}</li>
       </ol>
+      <dl class="stats">
+        <div><dt>${t('filter.official', '官方')}</dt><dd>${sourceCount('official')}</dd></div>
+        <div><dt>${t('filter.community', '社区')}</dt><dd>${sourceCount('community')}</dd></div>
+        <div><dt>${t('filter.beta', '先行测试')}</dt><dd>${sourceCount('beta')}</dd></div>
+        <div><dt>Awesome-Folia</dt><dd>${sourceCount('awesome')}</dd></div>
+      </dl>
     </section>
 
     <main>
@@ -463,10 +498,11 @@ export const renderMarketPage = (catalog) => {
         <label class="search">
           ${ICON_SEARCH}
           <span class="visually-hidden">${t('search.label', '搜索')}</span>
+          <span class="search-mark" aria-hidden="true"></span>
           <input type="search" data-search-input data-i18n-placeholder="search" placeholder="搜索名称、作者、描述、分类、标签或权限" autocomplete="off" enterkeyhint="search">
         </label>
-        <div class="chip-row" role="group" data-i18n-label="group.category" aria-label="分类">
-          ${filterButton('category', '', t('filter.all', '全部'), total, true)}${categoryChips.join('')}
+        <div class="chip-row chip-row-categories" role="group" data-i18n-label="group.category" aria-label="分类">
+          ${filterButton('category', '', t('filter.all', '全部'), total, true, 'filter-category')}${categoryChips.join('')}
         </div>
         <div class="toolbar-row">
           <div class="segmented" role="group" data-i18n-label="group.source" aria-label="来源">
@@ -493,12 +529,16 @@ export const renderMarketPage = (catalog) => {
         <p>${t('empty', '没有匹配的结果')}</p>
         <button type="button" class="reset" data-reset>${t('reset', '清除搜索与筛选')}</button>
       </div>
+      <div class="more" data-more hidden>
+        <div class="skeletons" aria-hidden="true">${SKELETON_CARD.repeat(4)}</div>
+        <button type="button" class="reset more-button" data-more-button hidden>${t('more.load', '加载更多')}</button>
+      </div>
     </main>
 ${catalog.mods.map((mod) => renderModDetail(mod, context)).join('')}
 ${awesome.map((entry) => renderAwesomeDetail(entry, context)).join('')}
 
     <footer class="site-foot">
-      <p>${t('footer.note', '签名证明模组经过 Folium 审查、且发布后没有被改动；但模组启用后仍拥有应用的完整权限，请只启用你需要的模组。awesome-Folia 的作品不经 Folium 签名，请自行判断。')}</p>
+      <p>${t('footer.note', '签名证明模组经过 Folium 审查、且发布后没有被改动；但模组启用后仍拥有应用的完整权限，请只启用你需要的模组。Awesome-Folia 的作品不经 Folium 签名，请自行判断。')}</p>
       <p><a href="/catalog.json">${t('footer.api', '目录数据（JSON）')}</a> · <a href="${escapeHtml(repoUrl)}" rel="noopener" target="_blank">${escapeHtml(repository)}</a>${catalog.commit ? ` · <code>${escapeHtml(String(catalog.commit).slice(0, 7))}</code>` : ''}</p>
     </footer>
   </div>

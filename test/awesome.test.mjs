@@ -1,6 +1,6 @@
 // test/awesome.test.mjs
-// awesome-Folia and the market's categories: the entry rules, the issue form and what `/list` writes,
-// AWESOME.md, the category and tag tables, and the submission rules that send source mods to awesome-Folia.
+// Awesome-Folia and the market's categories: the entry rules, the issue form and what `/list` writes,
+// AWESOME.md, the category and tag tables, and the submission rules that send source mods to Awesome-Folia.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -76,7 +76,7 @@ test('writeAwesome sorts the entries and keeps AWESOME.md in step', () => {
     fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('the awesome-Folia form reads into an entry', () => {
+test('the Awesome-Folia form reads into an entry', () => {
     const parsed = parseAwesomeIssue(formBody(), { author: 'dev' });
     assert.deepEqual(parsed.errors, []);
     assert.deepEqual(parsed.entry, {
@@ -89,8 +89,8 @@ test('the awesome-Folia form reads into an entry', () => {
     const bad = parseAwesomeIssue(formBody({ url: 'http://github.com/dev/x', kind: 'Malware', confirmations: '- [ ] author' }), { author: 'dev' });
     assert.equal(bad.errors.length, 3);
     assert.equal(issueKind({ labels: [{ name: 'awesome-entry' }] }), 'awesome');
-    assert.match(checkIssueTitle('[awesome-Folia]', 'awesome'), /作品的名字/);
-    assert.equal(checkIssueTitle('[awesome-Folia] 我的音源', 'awesome'), null);
+    assert.match(checkIssueTitle('[Awesome-Folia]', 'awesome'), /作品的名字/);
+    assert.equal(checkIssueTitle('[Awesome-Folia] 我的音源', 'awesome'), null);
 });
 
 test('an awesome id may be reused only by that entry\'s owners, never a mod id', () => {
@@ -156,8 +156,8 @@ test('auto tags come from the manifest', () => {
     assert.deepEqual(autoTagsOf({}), []);
 });
 
-test('source mods are sent to awesome-Folia; upper bounds on folia get a note', () => {
-    assert.match(sourceModRefusal({ folium: 2, sources: [{ id: 'main' }] }), /awesome-Folia/);
+test('source mods are sent to Awesome-Folia; upper bounds on folia get a note', () => {
+    assert.match(sourceModRefusal({ folium: 2, sources: [{ id: 'main' }] }), /Awesome-Folia/);
     assert.match(sourceModRefusal({ folium: 1, experimental: ['omni.providers'] }), /omni\.providers/);
     assert.equal(sourceModRefusal({ folium: 2, sources: [] }), null);
     assert.equal(sourceModRefusal({ folium: 1, experimental: ['platform.raw'] }), null);

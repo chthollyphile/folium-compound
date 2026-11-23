@@ -53,7 +53,7 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
     const kind = issueKind(issue);
     const result = { kind, errors, warnings, modId: null, manifest: null, isUpdate: kind === 'update', previousVersion: null, channel: 'release', previousChannel: null, source: null, stagedDir: null, files: [], digest: null, links: null, cleanup: () => {} };
     if (!kind || kind === 'awesome') {
-        errors.push(kind ? 'awesome-Folia 登记只登记链接，不签名；维护者照格式检查评论里写的评论 `/list <校验码>` 登记' : '这个 issue 不是模组提交或模组更新');
+        errors.push(kind ? 'Awesome-Folia 登记只登记链接，不签名；维护者照格式检查评论里写的评论 `/list <校验码>` 登记' : '这个 issue 不是模组提交或模组更新');
         return result;
     }
 
@@ -77,7 +77,7 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
     if (kind === 'submission') {
         if (known.includes(fields.modId)) errors.push(`模组 id \`${fields.modId}\` 已被占用；更新已收录的模组请用「模组更新」issue`);
         else if (readAwesome(baseDir).entries.some((listed) => listed.id === fields.modId)) {
-            errors.push(`模组 id \`${fields.modId}\` 已被 awesome-Folia 里的一个作品占用，请换一个`);
+            errors.push(`模组 id \`${fields.modId}\` 已被 Awesome-Folia 里的一个作品占用，请换一个`);
         }
         repository = fields.repository;
         modPath = fields.path;
@@ -130,7 +130,7 @@ const evaluateForm = async (github, { issue, baseDir, fetchUrlFor = (url) => url
     errors.push(...tree.errors);
     warnings.push(...tree.warnings);
     result.manifest = tree.manifest;
-    // Source mods go to awesome-Folia (a link to the author's repository), never into mods/community or mods/beta.
+    // Source mods go to Awesome-Folia (a link to the author's repository), never into mods/community or mods/beta.
     const refusal = sourceModRefusal(tree.manifest);
     if (refusal) errors.push(refusal);
     const rangeNote = hostRangeUpperBoundNote(tree.manifest);

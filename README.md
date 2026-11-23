@@ -25,7 +25,7 @@ tools/                   签名、校验、生成索引、生成密钥的脚本�
 test/                    签名格式的测试向量、CI 规则、站点构建，以及对整个仓库的校验
 community.json           社区模组的 owner、分类与来源（源码仓库、目录、commit）
 official-meta.json       官方模组的分类
-awesome.json             awesome-Folia：不收进本仓库、以外部链接登记的作品（AWESOME.md 由它生成）
+awesome.json             Awesome-Folia：不收进本仓库、以外部链接登记的作品（AWESOME.md 由它生成）
 ```
 
 `official` 和 `community` 的模组用正式发布的密钥签名，在应用里都显示为「官方认证」；这两个目录只记录来源，写进 `index.json`。
@@ -60,16 +60,16 @@ Folia 0.7.20 之前的版本不认识先行测试密钥，会把先行测试模�
 `visualizer`（歌词样式相关）、`stage`（播放页图层）、`export`（视频导出）、`equalizer`、`queue`（改播放队列）、`platform`
 （平台账号）、`experimental`（用到实验接口）。
 
-## 音源模组与 awesome-Folia
+## 音源模组与 Awesome-Folia
 
 **音源模组不收进本仓库。** `mod.json` 带 `sources`（Folium 2 的音源模组），或 `experimental` 里有 `omni.providers`（Folium 1.x 的
-实验接口）的提交，格式检查不通过，回复里给出 awesome-Folia 的登记表单。`mods/official/` 不受这条限制：Folia 维护者用
+实验接口）的提交，格式检查不通过，回复里给出 Awesome-Folia 的登记表单。`mods/official/` 不受这条限制：Folia 维护者用
 `sources:pack` 打的官方音源包仍可以放进去。`test/repository.test.mjs` 核对 `community/` 和 `beta/` 里没有音源模组。
 
-外部音源只经 awesome-Folia 进入模组市场。awesome-Folia（`awesome.json`，给 GitHub 读者看的清单是 `AWESOME.md`）登记不进本仓库的
+外部音源只经 Awesome-Folia 进入模组市场。Awesome-Folia（`awesome.json`，给 GitHub 读者看的清单是 `AWESOME.md`）登记不进本仓库的
 Folia 相关作品：音源模组、系统插件、外部程序、开发工具等。一条登记只是名称、简介、作者和链接：
 
-1. 作者按「awesome-Folia 登记」模板开 issue（登记 id、名称、类型、链接、简介、作者、分类、许可证）。
+1. 作者按「Awesome-Folia 登记」模板开 issue（登记 id、名称、类型、链接、简介、作者、分类、许可证）。
 2. CI（`submission-check.yml`）**只检查表单**：链接是 https、id 不与模组或已登记的条目冲突（同一个 id 只有原作者能更新）、
    类型和分类在表里、文字长度。作者的仓库不会被取回，更不会被执行。
 3. 维护者看过后评论格式检查评论里给出的 **`/list <校验码>`**（校验码是条目内容的指纹，issue 在检查之后被改过就对不上、会被拒绝）：`list.yml` 确认评论者有 write 及以上权限、重新检查表单，写入 `awesome.json` 并重新生成
@@ -112,7 +112,7 @@ npm test                          # 测试向量、CI 规则、站点构建 + �
    写了上界的模组在 Folia 升级后会显示为「版本声明已过期」，要用户手动放行才加载；格式检查会对上界给出提示。
    想让用户在应用里直接找到你，在 `mod.json` 里写上 `repository`（源码仓库）和 `bugs`（反馈地址），两者都是 https 链接（Folium 2.1）。
 
-   **音源模组**（带 `sources`）不走这个流程，见上面的「音源模组与 awesome-Folia」。
+   **音源模组**（带 `sources`）不走这个流程，见上面的「音源模组与 Awesome-Folia」。
 2. 按「模组提交」模板开 issue，标题在「[模组提交]」后面写上模组的名字（只有前缀的标题检查不通过）。表单填写模组 id、源码仓库地址、版本（tag / 分支 / 完整 commit）、模组目录、**发布渠道**（正式发布 / 先行测试）、**分类**、
    权限说明、许可证，并上传一张模组在对应版本的 Folia 里正常运行的**屏幕截图**（直接拖进表单的「运行截图」框里；
    截图只留在 issue 里，不进入仓库，外部图片链接不算，没有截图检查不通过）。

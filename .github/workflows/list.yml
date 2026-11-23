@@ -1,5 +1,5 @@
 # .github/workflows/list.yml
-# A maintainer comments `/list` on an awesome-Folia issue: the entry the issue describes is written into
+# A maintainer comments `/list` on an Awesome-Folia issue: the entry the issue describes is written into
 # awesome.json and AWESOME.md and pushed to main (which redeploys the site). An entry is only a name, a
 # description and links: nothing behind them is fetched or run, and no signing key is involved, so this is
 # one job without the `signing` environment. tools/ci/list-awesome.mjs checks the commenter's permission and

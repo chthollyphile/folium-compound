@@ -1,16 +1,16 @@
 # .github/ISSUE_TEMPLATE/awesome-entry.yml
-# Listing a Folia-related work kept in its own repository (awesome-Folia). Field labels are read by
+# Listing a Folia-related work kept in its own repository (Awesome-Folia). Field labels are read by
 # tools/ci/lib/awesomeForm.mjs (AWESOME_FORM_FIELDS); change both together. Only the form is checked:
 # nothing behind the links is fetched, signed or run.
-name: awesome-Folia 登记 / awesome-Folia entry
+name: Awesome-Folia 登记 / Awesome-Folia entry
 description: 登记一个不收进本仓库的 Folia 相关作品（音源模组、系统插件、外部程序、开发工具等），以外部链接出现在模组市场 / List a work kept in your own repository
-title: "[awesome-Folia] "
+title: "[Awesome-Folia] "
 labels: ["awesome-entry"]
 body:
   - type: markdown
     attributes:
       value: |
-        awesome-Folia 收录**不进入本仓库**的作品，以链接的形式登记：
+        Awesome-Folia 收录**不进入本仓库**的作品，以链接的形式登记：
         - **音源模组**只通过这里进入模组市场，不再收进 `mods/community` 或 `mods/beta`。
         - 系统插件、配套的外部程序、开发工具、主题合集等也可以登记。
 

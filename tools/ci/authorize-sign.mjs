@@ -48,7 +48,7 @@ if (event.issue.pull_request) await refuse('模组通过「模组提交 / 模组
 const issue = await github.getIssue(number);
 const kind = issueKind(issue);
 if (!kind) await refuse('这个 issue 不是模组提交或模组更新。');
-if (kind === 'awesome') await refuse('awesome-Folia 登记不签名，请评论 `/list` 登记。');
+if (kind === 'awesome') await refuse('Awesome-Folia 登记不签名，请评论 `/list` 登记。');
 if (issue.state !== 'open') await refuse('issue 已经关闭。');
 if (!command.commit) await refuse('签名命令只有两种写法：`/sign <commit>`（正式发布）和 `/sign <commit> beta`（先行测试），`<commit>` 是审查过的提交，至少 7 位。');
 

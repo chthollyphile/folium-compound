@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // tools/ci/check-issue.mjs
-// Format check for a submission, update or awesome-Folia issue (workflow: submission-check.yml).
+// Format check for a submission, update or Awesome-Folia issue (workflow: submission-check.yml).
 //
 //   node tools/ci/check-issue.mjs --issue <number>
 //
@@ -33,7 +33,7 @@ if (issue.state !== 'open') {
     process.exit(0);
 }
 
-// awesome-Folia: only the form is checked; the linked repository is never fetched.
+// Awesome-Folia: only the form is checked; the linked repository is never fetched.
 if (issueKind(issue) === 'awesome') {
     const parsed = parseAwesomeIssue(issue.body, { author: issue.user.login, existing: readAwesome(REPO_ROOT), modIds: knownModIds(REPO_ROOT) });
     const titleError = checkIssueTitle(issue.title, 'awesome');

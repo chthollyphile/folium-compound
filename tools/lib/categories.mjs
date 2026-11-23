@@ -1,7 +1,7 @@
 // tools/lib/categories.mjs
 // The market's categories, in display order. A community mod's category is registered in community.json
 // (`category`, chosen in the submission form and changeable in the update form), an official mod's in
-// official-meta.json; awesome-Folia entries may name one too. Tags, unlike categories, are derived from
+// official-meta.json; Awesome-Folia entries may name one too. Tags, unlike categories, are derived from
 // each manifest at build time (autoTagsOf) and need no registration.
 //
 // Folia reads the same ids from catalog.json (`categories`), so an id is never renamed once published.

@@ -1,7 +1,7 @@
 // test/site.test.mjs
 // The market site build: zips are deterministic, round-trip byte for byte and
 // still verify after extraction; the page escapes third-party text; every mod,
-// beta and awesome-Folia entry sits in one waterfall; and a repository with an
+// beta and Awesome-Folia entry sits in one waterfall; and a repository with an
 // unverified mod (or an awesome entry with a bad link) is never published.
 //
 // Uses the test-only "folium-test-vector" key (see signing.test.mjs).
@@ -240,7 +240,7 @@ test('category chips count every card and hide empty categories', () => {
     const outDir = path.join(root, 'dist');
     buildSite({ root, outDir });
     const html = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
-    const chips = html.slice(html.indexOf('<div class="chip-row"'), html.indexOf('<div class="toolbar-row">'));
+    const chips = html.slice(html.indexOf('<div class="chip-row chip-row-categories"'), html.indexOf('<div class="toolbar-row">'));
     const count = (id) => new RegExp(`data-category="${id}" aria-pressed="false"><span data-en="[^"]*">[^<]*</span> <span class="n">(\\d+)</span>`).exec(chips)?.[1];
     assert.equal(count('lyrics'), '2', 'a mod and an awesome entry');
     assert.equal(count('visualizer'), '1');
@@ -255,7 +255,7 @@ test('category chips count every card and hide empty categories', () => {
     assert.ok(!html.includes('data-tag="equalizer"'));
 });
 
-test('awesome-Folia entries are escaped link cards with a detail dialog', () => {
+test('Awesome-Folia entries are escaped link cards with a detail dialog', () => {
     const root = siteRepo();
     fs.writeFileSync(path.join(root, 'awesome.json'), JSON.stringify({ entries: [{
         id: 'far-away', name: '<img src=y onerror=alert(2)>', kind: 'source', description: '"><script>alert(2)</script>',
@@ -278,7 +278,7 @@ test('awesome-Folia entries are escaped link cards with a detail dialog', () => 
     assert.ok(card.includes('<a class="download download-external" href="https://github.com/dev2/far-away.git" rel="noopener noreferrer nofollow" target="_blank">'));
     assert.ok(!card.includes('<img'), 'a letter avatar, no preview image');
     assert.ok(!card.includes('download='), 'nothing to download');
-    assert.match(html, /data-source="awesome" aria-pressed="false">awesome-Folia <span class="n">1<\/span>/);
+    assert.match(html, /data-source="awesome" aria-pressed="false">Awesome-Folia <span class="n">1<\/span>/);
 
     const dialog = dialogOf(html, 'awesome-far-away');
     assert.ok(dialog.includes(`<p class="detail-description">${escapeHtml('"><script>alert(2)</script>')}</p>`));

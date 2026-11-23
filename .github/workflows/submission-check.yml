@@ -1,5 +1,5 @@
 # .github/workflows/submission-check.yml
-# Format check for community submission and update issues, and for awesome-Folia
+# Format check for community submission and update issues, and for Awesome-Folia
 # entries (only the form: an entry's links are never fetched). The mod comes from
 # the author's own repository: the named commit is fetched as data (shallow,
 # no hooks, no submodules), staged the way it would be imported, and checked

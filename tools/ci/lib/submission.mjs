@@ -23,12 +23,12 @@ const { validateManifest, parseDependency, classifyHostRange } = require('../../
 
 export const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
-// Where works that are not kept in this repository are listed (awesome-Folia, the `awesome-entry` issue form).
+// Where works that are not kept in this repository are listed (Awesome-Folia, the `awesome-entry` issue form).
 export const AWESOME_FORM_URL = 'https://github.com/chthollyphile/folium-compound/issues/new?template=awesome-entry.yml';
 
 /*
  * Source mods (Folium 2 `sources`, or the Folium 1.x experimental `omni.providers`) are not taken into the
- * repository: they reach the market as awesome-Folia links to the author's own repository. The official
+ * repository: they reach the market as Awesome-Folia links to the author's own repository. The official
  * source packages (mods/official, by the maintainers) are not submissions and are not checked here.
  * Returns the error, or null.
  */
@@ -36,7 +36,7 @@ export const sourceModRefusal = (manifest) => {
     const sources = Array.isArray(manifest?.sources) && manifest.sources.length > 0;
     const providers = Array.isArray(manifest?.experimental) && manifest.experimental.includes('omni.providers');
     if (!sources && !providers) return null;
-    return `音源模组（mod.json 带 \`${sources ? 'sources' : 'experimental: omni.providers'}\`）不收录进本仓库，请改为登记到 awesome-Folia：${AWESOME_FORM_URL} 。登记后它会以外部链接的形式出现在模组市场里，用户从你的仓库安装 / Source mods are listed in awesome-Folia instead of being kept here`;
+    return `音源模组（mod.json 带 \`${sources ? 'sources' : 'experimental: omni.providers'}\`）不收录进本仓库，请改为登记到 Awesome-Folia：${AWESOME_FORM_URL} 。登记后它会以外部链接的形式出现在模组市场里，用户从你的仓库安装 / Source mods are listed in Awesome-Folia instead of being kept here`;
 };
 
 /*
@@ -70,7 +70,7 @@ export const LABELS = {
     needsChanges: 'needs-changes',
     signed: 'signed',
     duplicate: 'duplicate',
-    // awesome-Folia: a work kept elsewhere, listed by `/list` (tools/ci/list-awesome.mjs).
+    // Awesome-Folia: a work kept elsewhere, listed by `/list` (tools/ci/list-awesome.mjs).
     awesome: 'awesome-entry',
     listed: 'listed',
 };
@@ -125,7 +125,7 @@ export const issueKind = (issue) => {
 };
 
 // Title prefixes the issue templates fill in; the author has to add the mod's name after it.
-export const TITLE_PREFIXES = { submission: '[模组提交]', update: '[模组更新]', awesome: '[awesome-Folia]' };
+export const TITLE_PREFIXES = { submission: '[模组提交]', update: '[模组更新]', awesome: '[Awesome-Folia]' };
 
 /*
  * An error when the title is only the template prefix (or empty), else null.

@@ -1,9 +1,9 @@
-# awesome-Folia
+# Awesome-Folia
 
 <!-- 由 awesome.json 生成（tools/lib/awesome.mjs），不要手改 / Generated from awesome.json -->
 
 不收进本仓库、以外部链接登记的 Folia 相关作品：音源模组、系统插件、外部程序、开发工具等。它们没有经过 Folium 签名，
-安装和使用前请自行判断；有问题请到各自的仓库反馈。登记新作品：开一个「awesome-Folia 登记」issue。
+安装和使用前请自行判断；有问题请到各自的仓库反馈。登记新作品：开一个「Awesome-Folia 登记」issue。
 
 Folia-related works kept elsewhere and listed here as links. They are not signed by Folium; report problems to their own repositories.
 

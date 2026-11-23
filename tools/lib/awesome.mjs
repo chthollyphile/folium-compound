@@ -1,5 +1,5 @@
 // tools/lib/awesome.mjs
-// awesome-Folia: works around Folia that this repository does not keep, listed as links to their own
+// Awesome-Folia: works around Folia that this repository does not keep, listed as links to their own
 // repositories. Source mods go here by policy (they are not taken into mods/community or mods/beta);
 // system plugins, outside programs and developer tools may be listed too. Nothing listed is fetched,
 // signed or run by this repository; an entry is only a name, a description and links.
@@ -109,12 +109,12 @@ const markdownText = (value) => String(value ?? '').replace(/\s+/g, ' ').trim().
 /** AWESOME.md: the entries by kind, each a link with its authors and description. */
 export const renderAwesomeMarkdown = (awesome) => {
     const lines = [
-        '# awesome-Folia',
+        '# Awesome-Folia',
         '',
         '<!-- 由 awesome.json 生成（tools/lib/awesome.mjs），不要手改 / Generated from awesome.json -->',
         '',
         '不收进本仓库、以外部链接登记的 Folia 相关作品：音源模组、系统插件、外部程序、开发工具等。它们没有经过 Folium 签名，',
-        '安装和使用前请自行判断；有问题请到各自的仓库反馈。登记新作品：开一个「awesome-Folia 登记」issue。',
+        '安装和使用前请自行判断；有问题请到各自的仓库反馈。登记新作品：开一个「Awesome-Folia 登记」issue。',
         '',
         'Folia-related works kept elsewhere and listed here as links. They are not signed by Folium; report problems to their own repositories.',
         '',

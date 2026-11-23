@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // tools/ci/list-awesome.mjs
-// A maintainer commented `/list` on an awesome-Folia issue (workflow: list.yml): put the entry the issue
+// A maintainer commented `/list` on an Awesome-Folia issue (workflow: list.yml): put the entry the issue
 // describes into awesome.json (and AWESOME.md), push main, report and close the issue.
 //
 //   node tools/ci/list-awesome.mjs
@@ -41,9 +41,9 @@ const git = (args) => execFileSync('git', args, {
 }).trim();
 
 if (!SIGNER_PERMISSIONS.has(await github.getPermission(commenter))) await refuse('只有仓库维护者可以登记。');
-if (event.issue.pull_request) await refuse('awesome-Folia 通过「awesome-Folia 登记」issue 登记。');
+if (event.issue.pull_request) await refuse('Awesome-Folia 通过「Awesome-Folia 登记」issue 登记。');
 const issue = await github.getIssue(number);
-if (issueKind(issue) !== 'awesome') await refuse('这个 issue 不是 awesome-Folia 登记。');
+if (issueKind(issue) !== 'awesome') await refuse('这个 issue 不是 Awesome-Folia 登记。');
 if (issue.state !== 'open') await refuse('issue 已经关闭。');
 const wantedHash = listCommandHash(event.comment.body);
 if (!wantedHash) await refuse('请照格式检查评论里写的评论 `/list <校验码>`：校验码对应你看过的那一版内容。');
@@ -82,7 +82,7 @@ for (let attempt = 1; ; attempt++) {
 }
 
 const commit = git(['rev-parse', 'HEAD']);
-await github.comment(number, `${COMMENT_MARKERS.sign}\n✅ \`${entry.id}\` ${updated ? '已更新' : '已登记'}到 awesome-Folia（${commit.slice(0, 12)}）。站点重新部署后，它会以「外部链接」出现在模组市场和 AWESOME.md 里。\n\n以后要改名称、简介或链接，再开一个 awesome-Folia 登记 issue、填同一个 id 即可。`);
+await github.comment(number, `${COMMENT_MARKERS.sign}\n✅ \`${entry.id}\` ${updated ? '已更新' : '已登记'}到 Awesome-Folia（${commit.slice(0, 12)}）。站点重新部署后，它会以「外部链接」出现在模组市场和 AWESOME.md 里。\n\n以后要改名称、简介或链接，再开一个 Awesome-Folia 登记 issue、填同一个 id 即可。`);
 await github.removeLabel(number, LABELS.awaitingReview);
 await github.addLabels(number, [LABELS.listed]);
 await github.closeIssue(number);
