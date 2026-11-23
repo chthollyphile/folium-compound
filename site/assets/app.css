@@ -221,8 +221,9 @@ button { -webkit-tap-highlight-color: transparent; }
 
 /*
  * Three jigsaw pieces of one shape (mods fitting into Folia): a solid accent piece, an outline piece that
- * slides in from the right and stops just short of locking into it, and a hatched piece fitted below.
- * Corners are rounded by a stroke of the fill's own colour with round joins.
+ * slides in from the right and locks into it, and a hatched piece fitted below. All three sit exactly 100
+ * units apart, so every knob fills its socket; the corners are rounded in the path itself (a fat stroke
+ * would swell the knobs and shrink the sockets, and they would stop fitting).
  */
 .fig-puzzle {
   top: 70px;
@@ -236,9 +237,9 @@ button { -webkit-tap-highlight-color: transparent; }
   --delay: 40ms;
 }
 
-.pz { stroke-linejoin: round; stroke-width: 10; }
+.pz { stroke-linejoin: round; }
 
-.pz-solid { fill: var(--accent); stroke: var(--accent); opacity: 0.92; }
+.pz-solid { fill: var(--accent); stroke: none; opacity: 0.92; }
 
 .pz-outline {
   fill: none;
@@ -267,10 +268,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .pz-outline,
 .pz-hatch { transform-box: fill-box; transform-origin: 50% 50%; }
 
-/* On hover over the hero the outline piece settles the last few units into place. */
-.pz-outline { transition: translate 600ms var(--ease); }
-
-.hero:hover .pz-outline { translate: -6px 0; }
 
 .fig-ring {
   top: 236px;

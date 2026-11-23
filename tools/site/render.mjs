@@ -464,11 +464,11 @@ export const renderMarketPage = (catalog) => {
         <i class="fig fig-line fig-line-2"></i>
         <svg class="fig fig-puzzle" viewBox="-14 -34 260 260" aria-hidden="true">
           <defs>
-            <path id="puzzle-piece" d="M0 0H38A15 15 0 1 1 62 0H100V38A15 15 0 1 1 100 62V100H62A15 15 0 1 0 38 100H0V62A15 15 0 1 0 0 38Z"/>
+            <path id="puzzle-piece" d="M8 0H38A15 15 0 1 1 62 0H92Q100 0 100 8V38A15 15 0 1 1 100 62V92Q100 100 92 100H62A15 15 0 1 0 38 100H8Q0 100 0 92V62A15 15 0 1 0 0 38V8Q0 0 8 0Z"/>
             <pattern id="puzzle-hatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="pz-hatch-line" width="2" height="9"/></pattern>
           </defs>
-          <g transform="translate(0 106)"><use class="pz pz-hatch" href="#puzzle-piece"/></g>
-          <g transform="translate(106 0)"><use class="pz pz-outline" href="#puzzle-piece"/></g>
+          <g transform="translate(0 100)"><use class="pz pz-hatch" href="#puzzle-piece"/></g>
+          <g transform="translate(100 0)"><use class="pz pz-outline" href="#puzzle-piece"/></g>
           <g><use class="pz pz-solid" href="#puzzle-piece"/></g>
         </svg>
         <i class="fig fig-ring"></i>
