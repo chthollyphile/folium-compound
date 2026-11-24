@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "ai-music-recommend",
+  "modVersion": "1.5.0",
+  "digest": "sha256:df7f23200e833581fd9128cc5d587dd5444b27cdc44bd82fbfdcaa6a81f94723",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-24T06:56:16.907Z",
+  "signature": "j01wlwPfImlsfYb+yQxJdJ64y2syCBT2XSyh1lztbrzy571YzwMOLxva3GFltL//XMLNytllMAA9FcqwF6sOCw=="
+}

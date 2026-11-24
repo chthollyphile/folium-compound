@@ -94,6 +94,24 @@
       "signedAt": "2026-09-24T19:10:07.806Z"
     },
     {
+      "id": "ai-music-recommend",
+      "name": "AI 推荐音乐",
+      "version": "1.5.0",
+      "author": "YaoCh",
+      "description": "记录你平时的听歌喜好，用 OpenAI 兼容接口让 AI 推荐新歌，并自动在音源里搜索匹配成可播放的曲目；联动官方「听歌档案」与你网易云账号的歌单（只读），同名歌优先推你常听的版本；「推荐电台」接管队列连播、关闭时恢复原歌单。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/ai-music-recommend",
+      "digest": "sha256:df7f23200e833581fd9128cc5d587dd5444b27cdc44bd82fbfdcaa6a81f94723",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-24T06:56:16.907Z",
+      "owners": [
+        "YaoChenMioYow"
+      ],
+      "source": "https://github.com/YaoChenMioYow/folia-mod-ai-music-recommend",
+      "sourceCommit": "6819f865def4228661234f35e73b3fd922438d2f"
+    },
+    {
       "id": "album-play",
       "name": "专辑随机与专辑循环",
       "version": "0.3.2",
