@@ -1,0 +1,17 @@
+{
+  "folium": 1,
+  "id": "mic-lyric-sync",
+  "name": "麥克風即時聽歌同步歌詞",
+  "version": "1.0.2",
+  "author": "Avery",
+  "description": "會自動偵測系統 Python、使用自訂 Python 路徑或自動下載免安裝 Python 3.12（uv）建立隔離環境並安裝辨識程式（shazamio、sounddevice、numpy），錄製麥克風音訊並上傳至 Shazam 伺服器進行音樂辨識，再透過 Folia 已登入的線上音源搜尋對應曲目並同步顯示原生全螢幕歌詞。",
+  "preview": "preview.png",
+  "main": "index.cjs",
+  "client": "client.mjs",
+  "permissions": [
+    "playback.control",
+    "playback.queue",
+    "filesystem.data"
+  ],
+  "folia": ">=0.7.20"
+}

@@ -482,6 +482,19 @@
       "updatedAt": "2026-10-21",
       "lastIssue": 67
     },
+    "mic-lyric-sync": {
+      "owners": [
+        "Avery11111101"
+      ],
+      "category": "other",
+      "submission": 158,
+      "source": "https://github.com/Avery11111101/mic-lyric-sync-Folia-mod",
+      "path": "mic-lyric-sync",
+      "commit": "a165d40ea45de9ee48de477d988883d984d19ad9",
+      "version": "1.0.2",
+      "addedAt": "2026-11-24",
+      "updatedAt": "2026-11-24"
+    },
     "miside-drop": {
       "owners": [
         "baiyangmuzz"

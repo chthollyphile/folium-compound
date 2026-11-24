@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "mic-lyric-sync",
+  "modVersion": "1.0.2",
+  "digest": "sha256:6a9387ce31f8badae2e65265430901fa04d2b73a558fb283c52724a799fd5c37",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-11-24T01:07:41.183Z",
+  "signature": "oRNZygUi04026WjhHe5B82d9Nyr2X7X0YdZXwh0ytTBNUzqXDui8xx/LHpKvoGFdUtnzY2LdGpZ69bmouUg5Dw=="
+}
