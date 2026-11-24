@@ -112,10 +112,10 @@ export default function activate(folium) {
       button.dataset.visible = String(visible);
       button.setAttribute('aria-pressed', String(visible && !locked));
       button.title = !visible
-        ? '显示云音乐悬浮歌词'
+        ? '显示云风桌面歌词'
         : locked
-          ? '云音乐悬浮歌词已锁定，点击解除鼠标穿透'
-          : '隐藏云音乐悬浮歌词';
+          ? '云风桌面歌词已锁定，点击解除鼠标穿透'
+          : '隐藏云风桌面歌词';
       button.setAttribute('aria-label', button.title);
     }
   };
@@ -182,12 +182,12 @@ export default function activate(folium) {
 
   registerCommand({
     id: 'cloud-lyric-float-toggle',
-    label: { 'zh-CN': '云音乐悬浮歌词：显示 / 隐藏', en: 'Cloud lyrics: show / hide' },
+    label: { 'zh-CN': '云风桌面歌词：显示 / 隐藏', en: 'Cloud lyrics: show / hide' },
     keywords: ['歌词', '悬浮窗', '桌面歌词', 'lyric', 'cloud', 'float'],
     run: async () => {
       const state = await callMain('widget-toggle');
       folium.ui?.toast?.(
-        state && state.visible ? '云音乐悬浮歌词已显示' : '云音乐悬浮歌词已隐藏',
+        state && state.visible ? '云风桌面歌词已显示' : '云风桌面歌词已隐藏',
         { durationMs: 1200 },
       );
     },
@@ -195,7 +195,7 @@ export default function activate(folium) {
 
   registerCommand({
     id: 'cloud-lyric-float-unlock',
-    label: { 'zh-CN': '云音乐悬浮歌词：解锁 / 鼠标穿透', en: 'Cloud lyrics: toggle lock' },
+    label: { 'zh-CN': '云风桌面歌词：解锁 / 鼠标穿透', en: 'Cloud lyrics: toggle lock' },
     keywords: ['歌词', '锁定', '穿透', 'unlock', 'lock', 'lyric'],
     run: async () => {
       await callMain('widget-unlock');
@@ -204,7 +204,7 @@ export default function activate(folium) {
 
   registerCommand({
     id: 'cloud-lyric-float-reset-position',
-    label: { 'zh-CN': '云音乐悬浮歌词：重置窗口位置', en: 'Cloud lyrics: reset window position' },
+    label: { 'zh-CN': '云风桌面歌词：重置窗口位置', en: 'Cloud lyrics: reset window position' },
     keywords: ['歌词', '悬浮窗', '重置', '位置', '丢', 'reset', 'position', 'lyric'],
     run: async () => {
       await callMain('reset-position');
@@ -214,7 +214,7 @@ export default function activate(folium) {
 
   registerCommand({
     id: 'cloud-lyric-float-open-log',
-    label: { 'zh-CN': '云音乐悬浮歌词：打开拖动诊断日志', en: 'Cloud lyrics: open drag log' },
+    label: { 'zh-CN': '云风桌面歌词：打开拖动诊断日志', en: 'Cloud lyrics: open drag log' },
     keywords: ['歌词', '日志', '拖动', '诊断', 'log', 'drag', 'lyric'],
     run: async () => {
       const result = await callMain('open-log');
@@ -227,7 +227,7 @@ export default function activate(folium) {
 
   registerCommand({
     id: 'cloud-lyric-float-settings',
-    label: { 'zh-CN': '云音乐悬浮歌词：打开外观设置', en: 'Cloud lyrics: appearance settings' },
+    label: { 'zh-CN': '云风桌面歌词：打开外观设置', en: 'Cloud lyrics: appearance settings' },
     keywords: ['歌词', '设置', '外观', '字体', 'lyric', 'settings'],
     run: async () => {
       await callMain('open-settings');

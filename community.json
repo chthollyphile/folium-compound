@@ -141,10 +141,11 @@
       "submission": 183,
       "source": "https://github.com/siyiill/cloud-lyric-float",
       "path": "",
-      "commit": "990a869d96dc4cb488f71cc794af941190ed33ad",
-      "version": "1.8.2",
+      "commit": "706fe838e9430c83b481a1b1600a59d523aaeb14",
+      "version": "1.8.3",
       "addedAt": "2026-11-23",
-      "updatedAt": "2026-11-23"
+      "updatedAt": "2026-11-24",
+      "lastIssue": 185
     },
     "daily-30": {
       "owners": [

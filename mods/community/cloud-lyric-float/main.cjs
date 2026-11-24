@@ -1183,7 +1183,7 @@ module.exports = function activate(api) {
         alwaysOnTop: config.alwaysOnTop,
         acceptFirstMouse: true,
         show: false,
-        title: '云音乐悬浮歌词',
+        title: '云风桌面歌词',
         webPreferences: {
           preload: path.join(__dirname, 'preload.cjs'),
           nodeIntegration: false,

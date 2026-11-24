@@ -629,9 +629,9 @@ const measureOverflow = () => {
 const updateMeta = () => {
   const data = state.data;
   const song = data?.song || {};
-  const title = song.title || '云音乐悬浮歌词';
+  const title = song.title || '云风桌面歌词';
   const artist = song.artist || '';
-  el.songTitle.textContent = artist ? title : `${title}${data?.status === 'idle' ? '' : ' · 云音乐悬浮歌词'}`;
+  el.songTitle.textContent = artist ? title : `${title}${data?.status === 'idle' ? '' : ' · 云风桌面歌词'}`;
   el.artist.textContent = artist;
   document.body.classList.toggle('is-playing', data?.state === 'playing');
 };

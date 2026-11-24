@@ -203,21 +203,21 @@
     },
     {
       "id": "cloud-lyric-float",
-      "name": "云音乐风悬浮歌词",
-      "version": "1.8.2",
+      "name": "云风桌面歌词",
+      "version": "1.8.3",
       "author": "siyii11 & 大肥鱼",
-      "description": "云☁️风桌面悬浮歌词：动态自适应透明窗口、逐字染色、双语歌词、滚动歌词板、右键长按拖动、鼠标穿透与播放控制。",
+      "description": "云风桌面歌词：动态自适应透明窗口、逐字染色、双语歌词、滚动歌词板、可配置拖动、鼠标穿透与播放控制。",
       "origin": "community",
       "channel": "release",
       "path": "mods/community/cloud-lyric-float",
-      "digest": "sha256:823b7ad3a08d4b35d2509eafd3bc94c336f315bf0923cc733215e4af82e4699b",
+      "digest": "sha256:880ef5933e0cc7994c2737b6120ddeb88be75c08a6cf5ca31e5f0ffd6d9d2004",
       "keyId": "folium-ci-2026-1",
-      "signedAt": "2026-11-23T01:09:19.914Z",
+      "signedAt": "2026-11-24T01:08:03.902Z",
       "owners": [
         "siyiill"
       ],
       "source": "https://github.com/siyiill/cloud-lyric-float",
-      "sourceCommit": "990a869d96dc4cb488f71cc794af941190ed33ad"
+      "sourceCommit": "706fe838e9430c83b481a1b1600a59d523aaeb14"
     },
     {
       "id": "emofx",
