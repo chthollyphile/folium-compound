@@ -19,6 +19,6 @@ Folia-related works kept elsewhere and listed here as links. They are not signed
 ## 系统插件 / System plugin
 
 - [folia-lyrics（GNOME Shell 歌词）](https://github.com/Yohane-Mashiro/folia-lyrics) — [@Yohane-Mashiro](https://github.com/Yohane-Mashiro) · 歌词显示  
-  GNOME Shell 顶栏歌词扩展：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度与控制；悬浮详情里有封面、原文、翻译和播放控制。支持 GNOME Shell 45–51。由 lia.lines 移植而来。
+  GNOME Shell 顶栏歌词扩展：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度与控制；悬浮详情里有封面、原文、翻译和播放控制。支持 GNOME Shell 45–51。
 - [lia.lines（Quickshell / Omarchy 歌词）](https://github.com/chthollyphile/lia.lines) — [@chthollyphile](https://github.com/chthollyphile) · 歌词显示  
   Omarchy 状态栏的 Quickshell 歌词插件：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度，没有歌词时显示媒体标题；悬浮详情里有封面、原文、翻译和播放控制。也能在不装 Omarchy 的 Quickshell 上用。
