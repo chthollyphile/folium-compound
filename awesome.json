@@ -18,6 +18,42 @@
       "submission": 36
     },
     {
+      "id": "folia-lyrics-gnome",
+      "name": "folia-lyrics（GNOME Shell 歌词）",
+      "kind": "plugin",
+      "category": "lyrics",
+      "description": "GNOME Shell 顶栏歌词扩展：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度与控制；悬浮详情里有封面、原文、翻译和播放控制。支持 GNOME Shell 45–51。由 lia.lines 移植而来。",
+      "url": "https://github.com/Yohane-Mashiro/folia-lyrics",
+      "owners": [
+        "Yohane-Mashiro"
+      ],
+      "tags": [
+        "gnome",
+        "linux",
+        "mpris"
+      ],
+      "addedAt": "2026-11-24",
+      "updatedAt": "2026-11-24"
+    },
+    {
+      "id": "lia-lines",
+      "name": "lia.lines（Quickshell / Omarchy 歌词）",
+      "kind": "plugin",
+      "category": "lyrics",
+      "description": "Omarchy 状态栏的 Quickshell 歌词插件：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度，没有歌词时显示媒体标题；悬浮详情里有封面、原文、翻译和播放控制。也能在不装 Omarchy 的 Quickshell 上用。",
+      "url": "https://github.com/chthollyphile/lia.lines",
+      "owners": [
+        "chthollyphile"
+      ],
+      "tags": [
+        "quickshell",
+        "linux",
+        "mpris"
+      ],
+      "addedAt": "2026-11-24",
+      "updatedAt": "2026-11-24"
+    },
+    {
       "id": "lx-source",
       "name": "LX 音源适配 / LX Source Adapter",
       "kind": "source",
