@@ -79,7 +79,8 @@ function createDesktopInput({ getWindow, log }) {
             owned.on('closed', () => { if(window === owned) { window = null; release(); signature = ''; } });
             void owned.loadFile(path.join(__dirname,'input.html')).catch(error => log.error(error));
         } else {
-            window.setBounds(bounds,false);
+            const current = window.getBounds();
+            if (current.x !== bounds.x || current.y !== bounds.y || current.width !== bounds.width || current.height !== bounds.height) window.setBounds(bounds,false);
             window.setShape(rects);
             place();
         }

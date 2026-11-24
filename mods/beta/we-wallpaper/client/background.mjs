@@ -3,14 +3,13 @@ import { NATIVE_VERSION, isMainContext, isBackgroundSelected, liveBackgroundLaye
 
 const liveSurfaces = new WeakMap();
 
-function stopSurface(surface) {
+function stopSurface(surface, clear = false) {
     ++surface.epoch;
     if (surface.attached || surface.attaching) surface.native?.detachCanvas(surface.id);
     surface.attached = false;
     surface.ready = false;
     surface.requestKey = '';
-    surface.canvas.width = 1;
-    surface.canvas.height = 1;
+    if (clear) { surface.canvas.width = 1; surface.canvas.height = 1; }
 }
 
 function liveSurface(folium) {
@@ -28,7 +27,7 @@ function liveSurface(folium) {
     folium.onDispose(() => {
         surface.ended = true;
         clearTimeout(surface.releaseTimer);
-        stopSurface(surface);
+        stopSurface(surface, true);
         surface.owner = null;
         liveSurfaces.delete(folium);
     });
@@ -55,7 +54,7 @@ function mountPreview(folium, root, ctx, message) {
     const stopSelection = folium.rpc.on('we-selection', ({ id }) => {
         if (snapshot) { snapshot.selectedId = id; render(); }
     });
-    callHost('assets').then(result => { snapshot = result; render(); })
+    callHost(folium, 'assets').then(result => { snapshot = result; render(); })
         .catch(error => { if (!disposed) message.textContent = error.message; });
     return () => { disposed = true; stopChange(); stopSelection(); root.remove(); };
 }
@@ -71,23 +70,44 @@ export function mountBackground(folium, container, ctx) {
     root.append(message);
     container.append(root);
     const layer = liveBackgroundLayer(folium, container);
-    if (!layer || layer.hasAttribute('inert')) return mountPreview(folium, root, ctx, message);
+    if (!layer) return mountPreview(folium, root, ctx, message);
 
     const surface = liveSurface(folium);
     const canvas = surface.canvas;
     const native = surface.native;
     const consumerId = surface.id;
     let disposed = false;
+    let heldFrame = null;
+    const available = () => !disposed && container.isConnected && !layer.closest('[inert]') && isBackgroundSelected(folium);
     const owner = {
-        active: () => !disposed && surface.owner === owner && container.isConnected
-            && !layer.hasAttribute('inert') && isBackgroundSelected(folium),
+        active: () => surface.owner === owner && available(),
+        holdFrame() {
+            if (disposed || !root.isConnected || canvas.parentElement !== root || canvas.width < 2 || canvas.height < 2) return;
+            heldFrame ||= document.createElement('canvas');
+            heldFrame.width = canvas.width; heldFrame.height = canvas.height;
+            heldFrame.getContext('2d', { alpha:false }).drawImage(canvas, 0, 0);
+            root.prepend(heldFrame);
+        },
     };
-    clearTimeout(surface.releaseTimer);
-    surface.owner = owner;
-    root.prepend(canvas);
+    const clearHeldFrame = () => {
+        if (!heldFrame) return;
+        heldFrame.width = 1; heldFrame.height = 1; heldFrame.remove(); heldFrame = null;
+    };
+    const claim = () => {
+        if (!available()) return false;
+        if (surface.owner === owner) return true;
+        clearTimeout(surface.releaseTimer);
+        surface.owner?.holdFrame();
+        surface.owner = owner;
+        clearHeldFrame();
+        root.prepend(canvas);
+        return true;
+    };
+    claim();
     let starting = false;
     let requested = false;
     let timer;
+    let recoveryAttempted = false;
     let lastGeometry = '';
     let viewport;
     const error = value => { if (!disposed) message.textContent = value.message || String(value); };
@@ -98,16 +118,36 @@ export function mountBackground(folium, container, ctx) {
         stopSurface(surface);
         ctx.onNativeStopped?.();
     };
+    const drawn = event => {
+        if (!owner.active() || !surface.attached) return;
+        surface.frameWidth = event.detail.width;
+        surface.frameHeight = event.detail.height;
+        surface.ready = true;
+        recoveryAttempted = false;
+        message.textContent = '';
+        ctx.onNativeReady?.();
+    };
+    canvas.addEventListener('we-native-frame', drawn);
     const status = state => {
         if (!owner.active() || !surface.attached) return;
         if (state.phase === 'streaming') {
-            message.textContent = '';
+            if (surface.ready) message.textContent = '';
             surface.frameWidth = state.width;
             surface.frameHeight = state.height;
-            surface.ready = true;
-            ctx.onNativeReady?.();
-        } else if (state.phase === 'opening') message.textContent = t('opening');
-        else if (state.phase === 'error') message.textContent = state.message;
+            if (surface.ready) ctx.onNativeReady?.();
+        } else if (state.phase === 'opening') { native.expectFrame(consumerId); message.textContent = t('opening'); }
+        else if (state.phase === 'error' || state.phase === 'idle' || state.phase === 'paused') {
+            surface.requestKey = '';
+            surface.ready = false;
+            native.expectFrame(consumerId);
+            message.textContent = state.phase === 'error' ? state.message : state.phase === 'paused' ? t('paused') : '';
+            ctx.onNativeStopped?.();
+            if (state.phase === 'error' && !recoveryAttempted) {
+                recoveryAttempted = true;
+                clearTimeout(timer);
+                timer = setTimeout(start, 800);
+            }
+        }
     };
     const stopStatus = folium.rpc.on('native-status', status);
 
@@ -147,7 +187,7 @@ export function mountBackground(folium, container, ctx) {
             surface.requestKey = key;
             const epoch = surface.epoch;
             try {
-                const state = await callHost('start', params);
+                const state = await callHost(folium, 'start', params);
                 if (epoch === surface.epoch && surface.requestKey === key) status(state);
             } catch (value) {
                 if (surface.requestKey === key) surface.requestKey = '';
@@ -163,6 +203,17 @@ export function mountBackground(folium, container, ctx) {
         clearTimeout(timer);
         timer = setTimeout(start, 180);
     };
+    const recover = () => {
+        if (document.hidden || !owner.active()) return;
+        void callHost(folium, 'status').then(state => {
+            if (!owner.active()) return;
+            status(state);
+            if (state.phase === 'error' || state.phase === 'idle' || state.phase === 'paused') {
+                surface.requestKey = '';
+                schedule();
+            }
+        }).catch(error);
+    };
     const geometry = () => {
         const rect = container.getBoundingClientRect();
         const next = { left: rect.left, top: rect.top, width: rect.width, height: rect.height, innerWidth: window.innerWidth };
@@ -171,12 +222,18 @@ export function mountBackground(folium, container, ctx) {
         if (key !== lastGeometry) { lastGeometry = key; viewport = next; schedule(); }
     };
     const stopResize = ctx.onResize(geometry);
+    let lastSettings = '';
     const stopChange = ctx.onChange(() => {
         if (!owner.active()) stopLive();
-        else schedule();
+        else {
+            const settings = ctx.getSettings();
+            const key = JSON.stringify([settings.source, settings.followWE, settings.presetName, settings.fps]);
+            if (key !== lastSettings) { lastSettings = key; schedule(); }
+        }
     });
     let selected = owner.active();
     const selectionChanged = () => {
+        if (available() && !surface.owner?.active()) claim();
         const next = owner.active();
         if (next === selected) return;
         selected = next;
@@ -194,10 +251,13 @@ export function mountBackground(folium, container, ctx) {
     });
     window.addEventListener('resize', geometry);
     window.addEventListener('storage', selectionChanged);
+    document.addEventListener('visibilitychange', recover);
+    window.addEventListener('focus', recover);
+    canvas.addEventListener('contextrestored', recover);
     if (native?.version !== NATIVE_VERSION) message.textContent = t('reloadHint');
     else {
         if (!surface.ready) message.textContent = t('opening');
-        else ctx.onNativeReady?.();
+        else if (owner.active()) ctx.onNativeReady?.();
         geometry();
     }
 
@@ -231,6 +291,10 @@ export function mountBackground(folium, container, ctx) {
         disposed = true;
         clearTimeout(timer);
         observer.disconnect();
+        canvas.removeEventListener('we-native-frame', drawn);
+        canvas.removeEventListener('contextrestored', recover);
+        document.removeEventListener('visibilitychange', recover);
+        window.removeEventListener('focus', recover);
         stopResize(); stopChange(); stopSelection(); stopStatus(); stopSelectionCheck();
         window.removeEventListener('resize', geometry);
         window.removeEventListener('storage', selectionChanged);
@@ -238,11 +302,12 @@ export function mountBackground(folium, container, ctx) {
         if (surface.owner === owner) {
             surface.owner = null;
             const release = () => {
-                if (!surface.owner) { stopSurface(surface); ctx.onNativeStopped?.(); }
+                if (!surface.owner) { stopSurface(surface, true); ctx.onNativeStopped?.(); }
             };
-            if (!isBackgroundSelected(folium) || layer.hasAttribute('inert')) release();
+            if (!isBackgroundSelected(folium)) release();
             else surface.releaseTimer = setTimeout(release, 250);
         }
+        clearHeldFrame();
         root.remove();
     };
 }

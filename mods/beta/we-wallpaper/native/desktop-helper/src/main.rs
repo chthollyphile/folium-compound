@@ -171,6 +171,7 @@ pub fn handle_detach_request() {
     if DETACH_REQUESTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return; // already detached
     }
+    let _mutation = monitor::WINDOW_MUTATION.lock().unwrap_or_else(|error| error.into_inner());
     unsafe {
         if let Some(hwnd) = monitor::resident_folia_hwnd() {
             match attach::detach_window(HWND(hwnd as _)) {

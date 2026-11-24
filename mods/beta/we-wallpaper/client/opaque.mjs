@@ -13,7 +13,7 @@ export function watchOpaqueBackground(folium) {
         changing = true;
         attempted = true;
         try {
-            const handoff = await callHost('capture-for-opaque');
+            const handoff = await callHost(folium, 'capture-for-opaque');
             if (!handoff) return;
             if (disposed || !isBackgroundSelected(folium) || localStorage.getItem('transparent_player_background') !== 'true') {
                 // Finish the handoff in the user's current mode if they changed the selection.

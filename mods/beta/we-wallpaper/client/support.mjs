@@ -1,8 +1,8 @@
 // Official Folia mounts identify previews in the DOM; staticMode also changes on the live player.
-export const NATIVE_VERSION = '0.3.5';
+export const NATIVE_VERSION = '0.4.8';
 
-export function callHost(name, ...args) {
-    return window.foliaWeNative.request(name, args);
+export function callHost(folium, name, ...args) {
+    return folium.rpc.call(name, window.foliaWeNative.rpcSession, ...args);
 }
 
 export const isMainContext = folium => folium.env.context === 'main';

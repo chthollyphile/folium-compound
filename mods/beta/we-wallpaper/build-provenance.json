@@ -1,0 +1,18 @@
+{
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "node": "v24.22.2",
+  "files": [
+    {
+      "sha256": "417ac21ee941b1515f41c012f7eaace9c79036a56fe3583852ce5836a914c82a",
+      "bytes": 200192,
+      "path": "we-wallpaper/bin/folia-wallpaper-helper.exe"
+    },
+    {
+      "sha256": "385350833c4bb7bc4460bdd6eb32d16a430d2e80f19f1918ea7c32253eb84280",
+      "bytes": 434176,
+      "path": "we-wallpaper/bin/we-capture-v2.win32-x64.node"
+    }
+  ],
+  "commit": "bbcf46c08ee0ae0d35a99c242877824e828924c3",
+  "workflowRun": "https://github.com/Lavender3533/folia-we-wallpaper-native/actions/runs/44618646333"
+}

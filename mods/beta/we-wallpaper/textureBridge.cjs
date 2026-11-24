@@ -1,20 +1,37 @@
 'use strict';
 
 const path = require('path');
+const { randomBytes } = require('crypto');
 const { ipcMain, session, sharedTexture, screen, BrowserWindow } = require('electron');
 
 // Only texture metadata crosses JS IPC; pixels stay in GPU resources.
 const PREFIX = 'folia-we-native:';
-const VERSION = '0.3.5';
+const VERSION = '0.4.8';
 
-function installTextureBridge({ getMainWindow, onRequest, onDetach, onPointer, onError }) {
+function installTextureBridge({ getMainWindow, onDetach, onPointer, onError }) {
     const targets = new Map();
     const watched = new Map();
+    let rpcGrant = null;
+    let clearGrant = () => {};
     const authorized = event => event.sender === getMainWindow()?.webContents && event.senderFrame === event.sender.mainFrame;
-    ipcMain.handle(PREFIX + 'request', (event, name, args) => {
-        if (!authorized(event)) throw new Error('WE operations are available only to the Folia main window');
-        if (typeof name !== 'string' || !Array.isArray(args)) throw new Error('Invalid WE request');
-        return onRequest(name, args);
+    ipcMain.handle(PREFIX + 'bootstrap', event => {
+        if (!authorized(event)) return null;
+        if (rpcGrant?.contents === event.sender && rpcGrant.frame === event.senderFrame) return rpcGrant.token;
+        clearGrant();
+        const contents = event.sender;
+        rpcGrant = { token: randomBytes(32).toString('hex'), contents, frame: event.senderFrame };
+        const navigation = details => { if (details.isMainFrame && !details.isSameDocument) clearGrant(); };
+        const revoke = () => {
+            rpcGrant = null;
+            contents.removeListener('did-start-navigation', navigation);
+            contents.removeListener('render-process-gone', revoke);
+            contents.removeListener('destroyed', revoke);
+        };
+        clearGrant = revoke;
+        contents.on('did-start-navigation', navigation);
+        contents.on('render-process-gone', revoke);
+        contents.on('destroyed', revoke);
+        return rpcGrant.token;
     });
     const preloadId = session.defaultSession.registerPreloadScript({
         type: 'frame', filePath: path.join(__dirname, 'texturePreload.cjs'),
@@ -48,11 +65,20 @@ function installTextureBridge({ getMainWindow, onRequest, onDetach, onPointer, o
     const pointer = (event, data) => {
         if (authorized(event) && targets.get(data.consumerId)?.contents === event.sender) onPointer(data);
     };
+    const drawFailed = (event, consumerId, message) => {
+        if (authorized(event) && targets.get(consumerId)?.contents === event.sender) onError(new Error(String(message).slice(0, 500)));
+    };
     ipcMain.on(PREFIX + 'detach', detach);
     ipcMain.on(PREFIX + 'pointer', pointer);
+    ipcMain.on(PREFIX + 'draw-failed', drawFailed);
 
     return {
         version: VERSION,
+        allowsRequest(token) {
+            const contents = getMainWindow()?.webContents;
+            return Boolean(rpcGrant && token === rpcGrant.token && contents === rpcGrant.contents
+                && !contents.isDestroyed() && !rpcGrant.frame.detached && contents.mainFrame === rpcGrant.frame);
+        },
         has: consumerId => targets.has(consumerId),
         window(consumerId) {
             const contents = targets.get(consumerId)?.contents;
@@ -74,7 +100,8 @@ function installTextureBridge({ getMainWindow, onRequest, onDetach, onPointer, o
         },
         async send(consumerId, capture, frame) {
             const target = targets.get(consumerId);
-            if (!target || target.contents.isDestroyed() || target.frame.detached || target.sending) {
+            const owner = target && !target.contents.isDestroyed() ? BrowserWindow.fromWebContents(target.contents) : null;
+            if (!target || target.contents.isDestroyed() || target.frame.detached || target.sending || !owner || owner.isMinimized() || !owner.isVisible()) {
                 capture.release(frame.frameId);
                 return;
             }
@@ -98,11 +125,13 @@ function installTextureBridge({ getMainWindow, onRequest, onDetach, onPointer, o
             }
         },
         dispose() {
+            clearGrant();
             session.defaultSession.unregisterPreloadScript(preloadId);
             ipcMain.removeHandler(PREFIX + 'attach');
-            ipcMain.removeHandler(PREFIX + 'request');
+            ipcMain.removeHandler(PREFIX + 'bootstrap');
             ipcMain.removeListener(PREFIX + 'detach', detach);
             ipcMain.removeListener(PREFIX + 'pointer', pointer);
+            ipcMain.removeListener(PREFIX + 'draw-failed', drawFailed);
             for (const { contents, cleanup } of watched.values()) {
                 contents.removeListener('render-process-gone', cleanup);
                 contents.removeListener('destroyed', cleanup);

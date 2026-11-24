@@ -45,6 +45,8 @@ pub struct AppState {
 
 static APP_STATE: Mutex<Option<AppState>> = Mutex::new(None);
 static REATTACHING: AtomicBool = AtomicBool::new(false);
+// A successful detach must be the final parenting operation before this helper exits.
+pub(crate) static WINDOW_MUTATION: Mutex<()> = Mutex::new(());
 
 fn with_state<T>(f: impl FnOnce(&mut AppState) -> T) -> Option<T> {
     APP_STATE.lock().ok().and_then(|mut guard| {
@@ -242,6 +244,7 @@ fn spawn_reattach() {
     }
     std::thread::spawn(|| unsafe {
         for attempt in 0..REATTACH_MAX_ATTEMPTS {
+            let _mutation = WINDOW_MUTATION.lock().unwrap_or_else(|error| error.into_inner());
             if crate::DETACH_REQUESTED.load(Ordering::SeqCst) {
                 break;
             }

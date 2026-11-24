@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "we-wallpaper",
-  "modVersion": "0.3.5",
-  "digest": "sha256:40641e3e1c074ced3e1ecb92cd97c5b4c1a11efdf08d1d54d6ddf004f051dfae",
+  "modVersion": "0.4.8",
+  "digest": "sha256:87d0492c483f904a8615f83cd56d73bc0c8c466f7ebedf39dc1a7d55fe4f45cf",
   "keyId": "folium-beta-2026-1",
-  "signedAt": "2026-11-10T01:10:18.346Z",
-  "signature": "tns2EdKrIMIgcVfI+hDb8fJzP/eOHmQU1i8QE6dNf3h2IjElcryuE1r3e0BDmss/vfTEbhCrtKa0skKlBDU/Cg=="
+  "signedAt": "2026-11-24T01:08:53.840Z",
+  "signature": "afC2XIRzyQWUpRKbx9LysGTKk4LAa5miRgJqrWl8W0oHovSKpFGxFahCod73p7xRxYYA3lElqlGwwyMQGQQNAQ=="
 }

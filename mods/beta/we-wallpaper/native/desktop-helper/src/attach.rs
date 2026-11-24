@@ -20,7 +20,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GWL_EXSTYLE, GWL_STYLE, HWND_TOP, SMTO_NORMAL, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE,
     SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, WINDOW_EX_STYLE, WINDOW_STYLE,
     WS_CHILDWINDOW, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_WINDOWEDGE,
-    WS_CAPTION, WS_THICKFRAME,
+    WS_CAPTION, WS_POPUP, WS_THICKFRAME,
 };
 
 // Progman's private "spawn a WorkerW below the icon layer" message (0xD/0x1 params, as used by
@@ -123,7 +123,7 @@ pub unsafe fn detect_worker_w() -> Option<(HWND, AttachMode)> {
 /// SetParent semantics) and drop styles that interfere with a wallpaper window.
 unsafe fn normalize_styles(hwnd: HWND) {
     let style = WINDOW_STYLE(GetWindowLongPtrW(hwnd, GWL_STYLE) as u32);
-    let style = (style | WS_CHILDWINDOW) & !WS_CLIPSIBLINGS & !WS_CAPTION & !WS_THICKFRAME;
+    let style = (style | WS_CHILDWINDOW) & !WS_POPUP & !WS_CLIPSIBLINGS & !WS_CAPTION & !WS_THICKFRAME;
     SetWindowLongPtrW(hwnd, GWL_STYLE, style.0 as isize);
 
     let ex_style = WINDOW_EX_STYLE(GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32);

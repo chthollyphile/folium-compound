@@ -1,11 +1,14 @@
 'use strict';
 
-const { contextBridge, ipcRenderer, sharedTexture } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 // Draw inside the isolated world so a VideoFrame never crosses contextBridge.
-if (process.isMainFrame) {
+async function initialize() {
     const prefix = 'folia-we-native:';
-    const version = '0.3.5';
+    const rpcSession = await ipcRenderer.invoke(prefix + 'bootstrap');
+    if (!rpcSession) return;
+    const { sharedTexture } = require('electron');
+    const version = '0.4.8';
     const canvases = new Map();
 
     sharedTexture.setSharedTextureReceiver(async ({ importedSharedTexture }, consumerId) => {
@@ -19,6 +22,13 @@ if (process.isMainFrame) {
                 target.canvas.height = frame.displayHeight;
             }
             target.context.drawImage(frame, 0, 0);
+            const size = frame.displayWidth + 'x' + frame.displayHeight;
+            if (target.size !== size) {
+                target.size = size;
+                target.canvas.dispatchEvent(new CustomEvent('we-native-frame', { detail: { width: frame.displayWidth, height: frame.displayHeight } }));
+            }
+        } catch (error) {
+            ipcRenderer.send(prefix + 'draw-failed', consumerId, String(error.message || error));
         } finally {
             frame?.close();
             importedSharedTexture.release();
@@ -27,7 +37,8 @@ if (process.isMainFrame) {
 
     contextBridge.exposeInMainWorld('foliaWeNative', {
         version,
-        request: (name, args) => ipcRenderer.invoke(prefix + 'request', name, args),
+        rpcSession,
+        expectFrame(consumerId) { const target = canvases.get(consumerId); if (target) target.size = ''; },
         async attachCanvas(canvasId, consumerId) {
             const roots = [document];
             let canvas;
@@ -39,7 +50,7 @@ if (process.isMainFrame) {
                 }
             }
             if (!(canvas instanceof HTMLCanvasElement)) throw new Error('没有找到 WE 背景画布');
-            canvases.set(consumerId, { canvas, context: canvas.getContext('2d', { alpha: false, desynchronized: true }) });
+            canvases.set(consumerId, { canvas, size: '', context: canvas.getContext('2d', { alpha: false, desynchronized: true }) });
             try {
                 return await ipcRenderer.invoke(prefix + 'attach', { consumerId, version });
             } catch (error) {
@@ -53,9 +64,14 @@ if (process.isMainFrame) {
         },
         pointer(data) { ipcRenderer.send(prefix + 'pointer', data); },
     });
+    window.dispatchEvent(new Event('folia-we-native-ready'));
 
     window.addEventListener('pagehide', () => {
         for (const consumerId of canvases.keys()) ipcRenderer.send(prefix + 'detach', consumerId);
         canvases.clear();
     });
+}
+if (process.isMainFrame) {
+    if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', () => { void initialize().catch(error => console.error('[WE preload]', error)); }, { once: true });
+    else void initialize().catch(error => console.error('[WE preload]', error));
 }

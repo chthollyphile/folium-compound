@@ -34,6 +34,12 @@ class WeRuntime {
         this.instance = randomUUID().slice(0, 8);
         this.windowEvents = [];
         this.hidden = false;
+        this.owner = null;
+        this.ownerConsumerId = null;
+        this.lastParams = null;
+        this.suspendTimer = null;
+        this.lastFrameAt = 0;
+        this.frameCount = 0;
     }
 
     enqueue(action) {
@@ -47,7 +53,7 @@ class WeRuntime {
             this.state = { ...this.state, ...patch };
             this.publish(this.state);
         }
-        return this.state;
+        return { ...this.state, frameCount: this.frameCount, lastFrameAt: this.lastFrameAt };
     }
 
     async cli(command, args = []) {
@@ -69,9 +75,6 @@ class WeRuntime {
     }
 
     async closeActive() {
-        for (const [window, name, listener] of this.windowEvents) window.removeListener(name, listener);
-        this.windowEvents = [];
-        this.hidden = false;
         const capture = this.capture;
         this.capture = null;
         const active = this.active;
@@ -85,9 +88,12 @@ class WeRuntime {
 
     start(params) {
         this.desired = params.consumerId;
+        this.lastParams = params;
         const epoch = ++this.epoch;
         return this.enqueue(async () => {
             if (epoch !== this.epoch || !this.bridge.has(params.consumerId)) return this.status();
+            this.bindOwner(params.consumerId);
+            if (this.hidden) return this.status({ phase: 'paused', message: '' });
             const source = params.followWE ? this.catalog.selectedId || params.source : params.source || this.catalog.selectedId;
             const wallpaper = this.catalog.byId.get(source);
             if (!wallpaper) throw new Error('请先在模组中选择一张 WE 壁纸');
@@ -99,8 +105,7 @@ class WeRuntime {
             if (this.active?.signature === signature && this.capture) {
                 this.active.consumerId = params.consumerId;
                 this.active.viewport = params.viewport;
-                this.placeSource(viewport);
-                this.bindOwner();
+                await this.placeSource(viewport);
                 return this.status();
             }
             await this.closeActive();
@@ -108,6 +113,8 @@ class WeRuntime {
             const name = 'Folia WE ' + this.instance + ' ' + epoch;
             this.status({ phase: 'opening', source, message: '' });
             this.active = { name, source, presetName, signature, consumerId: params.consumerId, viewport: params.viewport, hwnd: null };
+            this.frameCount = 0;
+            this.lastFrameAt = 0;
             await this.cli('openWallpaper', [
                 '-file', wallpaper.projectPath, '-playInWindow', name, '-borderless',
                 '-width', String(viewport.width), '-height', String(viewport.height),
@@ -145,6 +152,8 @@ class WeRuntime {
                 }
                 if (error) { this.fail(error, capture); return; }
                 if (this.capture !== capture || !this.active) { capture.release(frame.frameId); return; }
+                this.lastFrameAt = Date.now();
+                ++this.frameCount;
                 const nextSize = frame.width + 'x' + frame.height;
                 if (frameSize !== nextSize) {
                     frameSize = nextSize;
@@ -167,8 +176,7 @@ class WeRuntime {
                 return this.status();
             }
             // WGC must acquire the window before it is removed from the taskbar.
-            this.placeSource(viewport);
-            this.bindOwner();
+            await this.placeSource(viewport);
             return this.status();
         }).catch(async error => {
             if (epoch === this.epoch) {
@@ -181,43 +189,71 @@ class WeRuntime {
         });
     }
 
-    placeSource(bounds) {
+    async placeSource(bounds) {
+        const active = this.active;
         const position = this.bridge.sourcePosition();
         const geometry = [position.x, position.y, bounds.width, bounds.height].join(',');
-        if (this.active.geometry === geometry) return;
-        this.native.placeWindow(this.active.hwnd, position.x, position.y, bounds.width, bounds.height);
-        this.active.geometry = geometry;
+        if (active.geometry === geometry) return;
+        await this.native.placeWindow(active.hwnd, position.x, position.y, bounds.width, bounds.height);
+        if (this.active === active) active.geometry = geometry;
     }
 
-    bindOwner() {
-            for (const [window, name, listener] of this.windowEvents) window.removeListener(name, listener);
-            this.windowEvents = [];
-            const active = this.active;
-            const owner = this.bridge.window(active.consumerId);
-            const visibility = () => {
-                const next = owner.isMinimized() || !owner.isVisible();
-                if (next === this.hidden) return;
-                this.hidden = next;
-                void this.enqueue(async () => {
-                    if (active === this.active) await this.cli(next ? 'pause' : 'play', ['-location', active.name]);
-                }).catch(error => this.log.warn('[WE wallpaper] ' + error.message));
-            };
-            for (const name of ['minimize', 'restore', 'hide', 'show']) {
-                owner.on(name, visibility);
-                this.windowEvents.push([owner, name, visibility]);
+    unbindOwner() {
+        clearTimeout(this.suspendTimer);
+        this.suspendTimer = null;
+        for (const [window, name, listener] of this.windowEvents) window.removeListener(name, listener);
+        this.windowEvents = [];
+        this.owner = null;
+        this.ownerConsumerId = null;
+    }
+
+    bindOwner(consumerId) {
+        const owner = this.bridge.window(consumerId);
+        if (!owner || owner.isDestroyed()) throw new Error('Folia 的壁纸显示区域已经关闭');
+        if (owner === this.owner && consumerId === this.ownerConsumerId) return;
+        this.unbindOwner();
+        this.owner = owner;
+        this.ownerConsumerId = consumerId;
+        this.hidden = owner.isMinimized() || !owner.isVisible();
+        const visibility = () => {
+            if (this.owner !== owner || owner.isDestroyed()) return;
+            const next = owner.isMinimized() || !owner.isVisible();
+            const changed = next !== this.hidden;
+            this.hidden = next;
+            clearTimeout(this.suspendTimer);
+            this.suspendTimer = null;
+            if (next) {
+                // WE pause/play are global commands. Close only our own render window after transient fades.
+                this.suspendTimer = setTimeout(() => {
+                    this.suspendTimer = null;
+                    void this.enqueue(async () => {
+                        if (this.owner !== owner || !this.hidden) return;
+                        await this.closeActive();
+                        this.status({ phase: 'paused', message: '' });
+                    }).catch(error => this.log.warn('[WE wallpaper]', error));
+                }, 1500);
+                this.suspendTimer.unref();
+            } else if (changed && this.lastParams && this.desired === consumerId) {
+                void this.start(this.lastParams).catch(error => this.log.warn('[WE wallpaper]', error));
             }
-            const move = () => {
-                if (this.active !== active) return;
-                const bounds = this.bridge.viewport(this.active.consumerId, this.active.viewport);
-                this.placeSource(bounds);
-            };
-            owner.on('move', move);
-            this.windowEvents.push([owner, 'move', move]);
-            for (const name of ['display-added', 'display-removed', 'display-metrics-changed']) {
-                screen.on(name, move);
-                this.windowEvents.push([screen, name, move]);
-            }
-            visibility();
+        };
+        const move = () => {
+            void this.enqueue(async () => {
+                if (!this.active?.hwnd || this.hidden) return;
+                await this.placeSource(this.bridge.viewport(this.active.consumerId));
+            }).catch(error => this.log.warn('[WE wallpaper]', error));
+        };
+        for (const name of ['minimize', 'restore', 'hide', 'show']) {
+            owner.on(name, visibility);
+            this.windowEvents.push([owner, name, visibility]);
+        }
+        owner.on('move', move);
+        this.windowEvents.push([owner, 'move', move]);
+        for (const name of ['display-added', 'display-removed', 'display-metrics-changed']) {
+            screen.on(name, move);
+            this.windowEvents.push([screen, name, move]);
+        }
+        visibility();
     }
 
     fail(error, capture = this.capture) {
@@ -233,6 +269,9 @@ class WeRuntime {
     stop(consumerId) {
         if (consumerId && this.desired !== consumerId) return Promise.resolve();
         this.desired = null;
+        this.lastParams = null;
+        this.unbindOwner();
+        this.hidden = false;
         ++this.epoch;
         return this.enqueue(async () => {
             await this.closeActive();

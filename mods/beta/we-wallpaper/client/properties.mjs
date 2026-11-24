@@ -68,7 +68,7 @@ export function createPropertySettings(folium) {
             if (!id || key === current) return;
             current = key;
             const request = ++sequence;
-            const description = await callHost('describe', id, presetName);
+            const description = await callHost(folium, 'describe', id, presetName);
             if (request !== sequence) return;
             clear();
             const fields = Object.entries(description.definitions)
@@ -80,7 +80,7 @@ export function createPropertySettings(folium) {
                 label: label('WE 原属性 · ' + description.title, 'WE properties · ' + description.title, 'Properti WE · ' + description.title),
                 settings: fields.map(item => item.schema),
             });
-            write = patch => callHost('properties', id, presetName, patch);
+            write = patch => callHost(folium, 'properties', id, presetName, patch);
             let previous = Object.fromEntries(fields.map(item => [item.schema.key, item.schema.defaultValue]));
             const changed = () => {
                 const values = section.settings.get();

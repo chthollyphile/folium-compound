@@ -6,6 +6,10 @@ export function mountDesktopInput(folium, ctx, navigation) {
     let frame = 0;
     let signature = '';
     let openingWindow = false;
+    let watching = false;
+    let popupDirty = true;
+    let lastLayout;
+    let lastDisplay = '';
     const popupSelector = '[role="dialog"],[role="menu"],[role="listbox"],[data-folia-keyboard-window="true"],[data-testid="capsule-quick-actions"]';
     const visible = element => {
         if(element.closest('[inert],[hidden],[aria-hidden="true"]')) return false;
@@ -20,6 +24,9 @@ export function mountDesktopInput(folium, ctx, navigation) {
             const display = ctx.getDisplay();
             const layout = ctx.getLayout();
             const active = navigation.desktop && display.visualizerOpacity > 0;
+            const displayKey = [active, display.isPlayerChromeHidden, innerWidth, innerHeight, JSON.stringify(navigation.hitRegion)].join(':');
+            if (lastLayout === layout && lastDisplay === displayKey && !popupDirty) return;
+            lastLayout = layout; lastDisplay = displayKey; popupDirty = false;
             const popups = active ? [...document.querySelectorAll(popupSelector)].filter(visible) : [];
             const keyboardPopup = popups.some(element => element.matches('[data-folia-keyboard-window="true"]'));
             if(keyboardPopup && !openingWindow) {
@@ -30,35 +37,53 @@ export function mountDesktopInput(folium, ctx, navigation) {
             for(const element of popups) {
                 const rect = element.getBoundingClientRect();
                 rects.push({ left:rect.left, top:rect.top, width:rect.width, height:rect.height });
-                popupResize.observe(element);
+                if (!observedPopups.includes(element)) popupResize.observe(element);
             }
             for(const element of observedPopups) if(!popups.includes(element)) popupResize.unobserve(element);
+            if (popups.length !== observedPopups.length || popups.some(element => !observedPopups.includes(element))) {
+                popupStyle.disconnect();
+                for (const element of popups) popupStyle.observe(element, { attributes:true, attributeFilter:['style','class'] });
+            }
             observedPopups = popups;
-            if(active) rects.push({ left:Math.max(0,innerWidth-240), top:Math.max(0,innerHeight-200), width:Math.min(240,innerWidth), height:Math.min(200,innerHeight) });
+            if (active && navigation.hitRegion) {
+                const rect = navigation.hitRegion;
+                rects.push({ left:Math.max(0,rect.left - rect.revealPadding), top:Math.max(0,rect.top - rect.revealPadding), width:rect.width + rect.revealPadding * 2, height:rect.height + rect.revealPadding * 2 });
+            }
             const key = JSON.stringify(rects);
             if(key === signature) return;
             signature = key;
-            void callHost('desktop-input-regions',rects).catch(error => { if(!disposed) folium.log.error('[WE desktop input] ' + error.message); });
+            void callHost(folium, 'desktop-input-regions',rects).catch(error => { if(!disposed) folium.log.error('[WE desktop input] ' + error.message); });
         });
     };
     let observedPopups = [];
-    const popupResize = new ResizeObserver(report);
+    const popupChanged = () => { popupDirty = true; report(); };
+    const popupResize = new ResizeObserver(popupChanged);
+    const popupStyle = new MutationObserver(popupChanged);
     const popupObserver = new MutationObserver(changes => {
         if(changes.some(change => change.type === 'attributes'
             ? change.target.matches?.(popupSelector)
-            : [...change.addedNodes,...change.removedNodes].some(node => node instanceof Element && (node.matches(popupSelector) || node.querySelector(popupSelector))))) report();
+            : [...change.addedNodes,...change.removedNodes].some(node => node instanceof Element && (node.matches(popupSelector) || node.querySelector(popupSelector))))) popupChanged();
     });
-    popupObserver.observe(document.body,{ childList:true, subtree:true, attributes:true, attributeFilter:['hidden','inert','aria-hidden'] });
+    const navigationChanged = () => {
+        if (watching !== navigation.desktop) {
+            watching = navigation.desktop;
+            if (watching) popupObserver.observe(document.body,{ childList:true, subtree:true, attributes:true, attributeFilter:['hidden','inert','aria-hidden'] });
+            else { popupObserver.disconnect(); popupResize.disconnect(); popupStyle.disconnect(); observedPopups = []; }
+            popupDirty = true;
+        }
+        report();
+    };
     const offLayout = ctx.onChange(report);
-    const offNavigation = navigation.subscribe(report);
+    const offNavigation = navigation.subscribe(navigationChanged);
+    const offButton = navigation.onLayout(report);
     window.addEventListener('resize',report);
-    report();
+    navigationChanged();
     return () => {
         disposed = true;
         cancelAnimationFrame(frame);
-        offLayout(); offNavigation();
-        popupResize.disconnect(); popupObserver.disconnect();
+        offLayout(); offNavigation(); offButton();
+        popupResize.disconnect(); popupObserver.disconnect(); popupStyle.disconnect();
         window.removeEventListener('resize',report);
-        void callHost('desktop-input-regions',[]).catch(() => {});
+        void callHost(folium, 'desktop-input-regions',[]).catch(() => {});
     };
 }

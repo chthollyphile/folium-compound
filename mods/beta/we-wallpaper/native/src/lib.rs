@@ -54,9 +54,12 @@ impl Task for CreateCapture {
         let (started, ready) = mpsc::sync_channel(1);
         let frame_sender = sender.clone();
         let worker = std::thread::Builder::new().name("folia-we-capture".into()).spawn(move || {
-            if let Err(error) = capture::run(hwnd, fps, vendor_id, device_id, frame_sender, receiver, &started, &callback) {
+            let mut started = Some(started);
+            if let Err(error) = capture::run(hwnd, fps, vendor_id, device_id, frame_sender, receiver, &mut started, &callback) {
                 let message = error.to_string();
-                if started.send(Err(message.clone())).is_err() {
+                if let Some(started) = started.take() {
+                    let _ = started.send(Err(message));
+                } else {
                     callback.call(Err(Error::from_reason(message)), ThreadsafeFunctionCallMode::NonBlocking);
                 }
             }
@@ -133,9 +136,24 @@ pub fn find_window(title: String) -> Option<String> {
 }
 
 #[napi]
-pub fn place_window(hwnd: String, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
-    source::place_window(source::parse_hwnd(&hwnd)?, x, y, width, height)
-        .map_err(|error| Error::from_reason(error.to_string()))
+pub fn place_window(hwnd: String, x: i32, y: i32, width: i32, height: i32) -> Result<AsyncTask<PlaceWindow>> {
+    Ok(AsyncTask::new(PlaceWindow { hwnd: source::parse_hwnd(&hwnd)? as usize, x, y, width, height }))
+}
+
+pub struct PlaceWindow {
+    hwnd: usize, x: i32, y: i32, width: i32, height: i32,
+}
+
+impl Task for PlaceWindow {
+    type Output = ();
+    type JsValue = ();
+
+    fn compute(&mut self) -> Result<()> {
+        source::place_window(self.hwnd as *mut _, self.x, self.y, self.width, self.height)
+            .map_err(|error| Error::from_reason(error.to_string()))
+    }
+
+    fn resolve(&mut self, _env: Env, _output: ()) -> Result<()> { Ok(()) }
 }
 
 #[napi]
