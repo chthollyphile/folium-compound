@@ -22,7 +22,7 @@
       "name": "folia-lyrics（GNOME Shell 歌词）",
       "kind": "plugin",
       "category": "lyrics",
-      "description": "GNOME Shell 顶栏歌词扩展：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度与控制；悬浮详情里有封面、原文、翻译和播放控制。支持 GNOME Shell 45–51。由 lia.lines 移植而来。",
+      "description": "GNOME Shell 顶栏歌词扩展：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度与控制；悬浮详情里有封面、原文、翻译和播放控制。支持 GNOME Shell 45–51。",
       "url": "https://github.com/Yohane-Mashiro/folia-lyrics",
       "owners": [
         "Yohane-Mashiro"
