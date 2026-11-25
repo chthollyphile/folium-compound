@@ -208,11 +208,11 @@
       "submission": 140,
       "source": "https://github.com/L-OONES/endfolia-global-right-back",
       "path": "",
-      "commit": "3569fc08af5069c71444937f705e2a466c40d312",
-      "version": "1.1.0",
+      "commit": "58a96cbe6ae91a664fbf57574a8e31723471825b",
+      "version": "1.1.1",
       "addedAt": "2026-11-11",
-      "updatedAt": "2026-11-13",
-      "lastIssue": 151
+      "updatedAt": "2026-11-25",
+      "lastIssue": 195
     },
     "enhanced-remote-widget": {
       "owners": [

@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "endfolia-global-right-back",
-  "modVersion": "1.1.0",
-  "digest": "sha256:8359cbfec3c1b70c7019ef30c8359433863d273e1a3d7aa15f376182964a585c",
+  "modVersion": "1.1.1",
+  "digest": "sha256:c7848e7bdfa83105608fef364a6871d3024596a06642efc8d3e4cb24de4fd31a",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-11-13T06:34:03.469Z",
-  "signature": "bgS7bIPhp/Mtv0QzYewveL6xuVuQiHPD9dwwO8RIBckArrqLODUtHLKw3eDw0s6qEQSchD8PjcHB7aVLwiujCg=="
+  "signedAt": "2026-11-25T07:56:28.171Z",
+  "signature": "zWHlo9GLRIFsQZg2sMTQt2N3V5dRbi3xnXPjC3ua+srPxgyfPx9BaINvXWzmq0YkhhaQdM6N7kELD8D3I9NiBA=="
 }

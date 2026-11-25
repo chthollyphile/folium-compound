@@ -258,20 +258,20 @@
     {
       "id": "endfolia-global-right-back",
       "name": "ENDFOLIA全局右键返回",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "author": null,
       "description": "灵感来自 ENDFIELD 的全局右键返回。在 Folia 主窗口右键退一层，先关闭弹窗和面板。",
       "origin": "community",
       "channel": "release",
       "path": "mods/community/endfolia-global-right-back",
-      "digest": "sha256:8359cbfec3c1b70c7019ef30c8359433863d273e1a3d7aa15f376182964a585c",
+      "digest": "sha256:c7848e7bdfa83105608fef364a6871d3024596a06642efc8d3e4cb24de4fd31a",
       "keyId": "folium-ci-2026-1",
-      "signedAt": "2026-11-13T06:34:03.469Z",
+      "signedAt": "2026-11-25T07:56:28.171Z",
       "owners": [
         "L-OONES"
       ],
       "source": "https://github.com/L-OONES/endfolia-global-right-back",
-      "sourceCommit": "3569fc08af5069c71444937f705e2a466c40d312"
+      "sourceCommit": "58a96cbe6ae91a664fbf57574a8e31723471825b"
     },
     {
       "id": "enhanced-remote-widget",
