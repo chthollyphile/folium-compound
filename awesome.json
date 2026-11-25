@@ -52,6 +52,22 @@
       "updatedAt": "2026-11-24"
     },
     {
+      "id": "gdstudio-music",
+      "name": "GD 音乐台音源",
+      "kind": "source",
+      "category": "source",
+      "description": "基于 Folium 2 规范封装的 GD 音乐台（music.gdstudio.xyz）第三方音源模组。支持网易云（netease）、JOOX、Bilibili 等上游平台切换与搜歌，支持最高 Hi-Res（999）无损播放与自动回退、按需缓存封面代理、原文与翻译歌词获取以及网易云歌曲精确跨源对应；内置热门榜单并支持在首页「歌单」与「探索」页导入/同步歌单（支持网易云用户 UID、单张歌单 ID/链接，以及 GD 音乐台网页端导出的本地 JSON 备份）。\n\n前提与说明：\n1. 需在 Folia「设置 → 模组」中开启「社区模组」后，从仓库 Releases 下载 zip 安装并启用。\n2. 接口与数据来源为 GD 音乐台公开 API（music-api.gdstudio.xyz），存在频率限制（约 5 分钟 50 次请求），仅供个人学习与研究使用，请勿用于商业用途。",
+      "url": "https://github.com/xiang1234-bit/folia-gdstudio-source",
+      "owners": [
+        "xiang1234-bit"
+      ],
+      "license": "MIT",
+      "tags": [],
+      "addedAt": "2026-11-25",
+      "updatedAt": "2026-11-25",
+      "submission": 197
+    },
+    {
       "id": "lia-lines",
       "name": "lia.lines（Quickshell / Omarchy 歌词）",
       "kind": "plugin",

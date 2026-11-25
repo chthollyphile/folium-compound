@@ -13,6 +13,8 @@ Folia-related works kept elsewhere and listed here as links. They are not signed
   Folium 2 原生 bilibili 音源：扫码登录，把自建/收藏的收藏夹与 UP 主合集接入书库；搜索全站视频，播放用视频自身音频，歌词用 CC 字幕或跨平台匹配，探索页读首页推荐。需要 Folia 0.8.x；模组未签名，从仓库 Releases 安装。
 - [Online Music Source](https://github.com/wumeng114514/folia-lx-music-mod) — [@wumeng114514](https://github.com/wumeng114514)  
   在线音源适配器，支持多平台搜索和播放。原为先行测试模组（1.0.2，Folium 1 的 omni.providers），2026-11 按音源政策移出仓库。
+- [GD 音乐台音源](https://github.com/xiang1234-bit/folia-gdstudio-source) — [@xiang1234-bit](https://github.com/xiang1234-bit) · 音源  
+  基于 Folium 2 规范封装的 GD 音乐台（music.gdstudio.xyz）第三方音源模组。支持网易云（netease）、JOOX、Bilibili 等上游平台切换与搜歌，支持最高 Hi-Res（999）无损播放与自动回退、按需缓存封面代理、原文与翻译歌词获取以及网易云歌曲精确跨源对应；内置热门榜单并支持在首页「歌单」与「探索」页导入/同步歌单（支持网易云用户 UID、单张歌单 ID/链接，以及 GD 音乐台网页端导出的本地 JSON 备份）。 前提与说明： 1. 需在 Folia「设置 → 模组」中开启「社区模组」后，从仓库 Releases 下载 zip 安装并启用。 2. 接口与数据来源为 GD 音乐台公开 API（music-api.gdstudio.xyz），存在频率限制（约 5 分钟 50 次请求），仅供个人学习与研究使用，请勿用于商业用途。
 - [LX 音源适配 / LX Source Adapter](https://github.com/paysonx/folium-lx-source) — [@paysonx](https://github.com/paysonx)  
   用户确认导入 LX 脚本后解析播放地址；搜索和歌词用你在 Folia 登录的平台账号读取。不内置音源脚本或链接。原为先行测试模组（0.1.1），2026-11 按音源政策移出仓库。
 - [汽水音乐（本机客户端）](https://github.com/syh0119/folia-soda-music) — [@syh0119](https://github.com/syh0119)  
