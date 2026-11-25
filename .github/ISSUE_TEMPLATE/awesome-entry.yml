@@ -84,6 +84,7 @@ body:
         - 数据与统计 / Data & stats (data)
         - AI / AI tools (ai)
         - 开发样例 / Samples (sample)
+        - 音源 / Music sources (source)
         - 其他 / Other (other)
       default: 0
     validations:

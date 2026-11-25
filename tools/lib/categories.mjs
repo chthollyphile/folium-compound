@@ -17,6 +17,8 @@ export const CATEGORIES = Object.freeze([
     { id: 'data', label: { 'zh-CN': '数据与统计', en: 'Data & stats' } },
     { id: 'ai', label: { 'zh-CN': 'AI', en: 'AI tools' } },
     { id: 'sample', label: { 'zh-CN': '开发样例', en: 'Samples' } },
+    // Folium 2 source mods are not signed here; only Awesome-Folia entries use this one.
+    { id: 'source', label: { 'zh-CN': '音源', en: 'Music sources' } },
     { id: 'other', label: { 'zh-CN': '其他', en: 'Other' } },
 ]);
 
