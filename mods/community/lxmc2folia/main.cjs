@@ -6,14 +6,16 @@
 // 安全约定：
 //   - 只接受 format === "folia-playlist" 且 version 为数字的 JSON；
 //   - 文件名只取 basename，去掉路径分隔符和 Windows 非法字符；
-//   - 重名时自动加 (2)、(3)… 不覆盖用户已有文件；
+//   - 重名时自动加 (2)、(3)… 不覆盖用户已有文件（用 wx 标志原子地创建，避免竞态）；
 //   - 大小上限 8 MB。
+//
+// 按维护者审查建议使用 fs.promises 异步写，不阻塞主进程。
 
 const fs = require('fs');
 const path = require('path');
 
 const MAX_CONTENT_BYTES = 8 * 1024 * 1024;
-const REPORT_NAME = /^[^\\/:*?"<>|\u0000-\u001f]{1,160}\.json$/i;
+const MAX_SUFFIX_ATTEMPTS = 1000;
 
 const sanitizeFileName = (raw) => {
     const base = path.basename(String(raw || '').trim()).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/^\.+/, '');
@@ -21,19 +23,15 @@ const sanitizeFileName = (raw) => {
     return /\.json$/i.test(name) ? name : name + '.folia-playlist.json';
 };
 
-const uniquePath = (dir, fileName) => {
-    const target = path.join(dir, fileName);
-    if (!fs.existsSync(target)) return target;
+/** 第 0 次用原名，第 n 次用 "(n+1)" 后缀；写失败交给调用方判断是不是重名。 */
+const candidatePath = (directory, fileName, attempt) => {
+    if (attempt === 0) return path.join(directory, fileName);
     const base = fileName.replace(/\.json$/i, '');
-    for (let n = 2; n < 1000; n += 1) {
-        const candidate = path.join(dir, base + ' (' + n + ').json');
-        if (!fs.existsSync(candidate)) return candidate;
-    }
-    return path.join(dir, base + ' (' + Date.now() + ').json');
+    return path.join(directory, base + ' (' + (attempt + 1) + ').json');
 };
 
 module.exports = function activate(api) {
-    api.rpc.handle('save-file', (payload) => {
+    api.rpc.handle('save-file', async (payload) => {
         const input = payload && typeof payload === 'object' ? payload : {};
         const content = typeof input.content === 'string' ? input.content : '';
         if (!content) throw new Error('empty-content');
@@ -55,12 +53,20 @@ module.exports = function activate(api) {
         } catch (error) {
             directory = api.paths.documents;
         }
-        fs.mkdirSync(directory, { recursive: true });
+        await fs.promises.mkdir(directory, { recursive: true });
 
         const fileName = sanitizeFileName(input.fileName);
-        const target = uniquePath(directory, fileName);
-        fs.writeFileSync(target, content, 'utf8');
-        api.log.info('wrote Folia playlist file', { path: target });
-        return { path: target };
+        for (let attempt = 0; attempt < MAX_SUFFIX_ATTEMPTS; attempt += 1) {
+            const target = candidatePath(directory, fileName, attempt);
+            try {
+                await fs.promises.writeFile(target, content, { encoding: 'utf8', flag: 'wx' });
+                api.log.info('wrote Folia playlist file', { path: target });
+                return { path: target };
+            } catch (error) {
+                if (error && error.code === 'EEXIST') continue;
+                throw error;
+            }
+        }
+        throw new Error('too-many-duplicate-names');
     });
 };

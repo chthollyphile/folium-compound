@@ -10,6 +10,8 @@
 const FOLIA_FILE_FORMAT = 'folia-playlist';
 const FOLIA_FILE_VERSION = 1;
 const UNSUPPORTED_PLATFORMS = { mg: 1 };
+const SUPPORTED_PLATFORMS = { wy: 1, tx: 1, kg: 1, kw: 1 };
+const PLATFORM_LABELS = { wy: '网易云', tx: 'QQ', kg: '酷狗', kw: '酷我' };
 
 const CTRL = /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g;
 const HAS_CTRL = /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/;
@@ -145,7 +147,10 @@ export function convert(lxmc, options = {}) {
   const warnings = [];
   const seen = new Set();
   const counts = {};
-  const skipped = { unsupported: 0, duplicate: 0, invalid: 0, local: 0, mg: 0 };
+  const skipped = { unsupported: 0, duplicate: 0, invalid: 0, local: 0, mg: 0, byPlatform: {} };
+  const allowed = Array.isArray(options.platforms) && options.platforms.length
+    ? new Set(options.platforms.filter((platform) => SUPPORTED_PLATFORMS[platform]))
+    : null;
 
   parsed.songs.forEach((song, i) => {
     song = song || {};
@@ -183,6 +188,11 @@ export function convert(lxmc, options = {}) {
     if (UNSUPPORTED_PLATFORMS[src]) {
       skipped.mg += 1;
       if (warnings.length < 10) warnings.push('已跳过咪咕歌曲（Folia 洛雪音源不支持咪咕）：' + clip(song.name, 40));
+      return;
+    }
+
+    if (allowed && SUPPORTED_PLATFORMS[src] && !allowed.has(src)) {
+      skipped.byPlatform[src] = (skipped.byPlatform[src] || 0) + 1;
       return;
     }
 
@@ -285,6 +295,7 @@ const CSS = `
 .lxmc2folia .msg.ok { color: #4cc38a; }
 .lxmc2folia .stats { font-size: 13px; margin-top: 10px; }
 .lxmc2folia .stats b { font-weight: 600; }
+.lxmc2folia .platlabel { font-size: 13px; opacity: .65; }
 .lxmc2folia .tag { display: inline-block; border-radius: 7px; padding: 1px 8px; margin: 0 6px 4px 0; font-size: 12px; background: color-mix(in srgb, currentColor 10%, transparent); }
 .lxmc2folia .warn { color: #e8b04b; font-size: 12.5px; margin-top: 8px; }
 .lxmc2folia .path { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; word-break: break-all; opacity: .9; }
@@ -324,6 +335,13 @@ function buildPage(folium, container, ctx) {
         <div class="row">
           <label class="opt"><input type="checkbox" id="fav" checked> ${t('标记为「我喜欢的音乐」', 'Mark as “Liked Songs”')}</label>
           <label class="opt"><input type="checkbox" id="local" checked> ${t('包含本地歌（只写文件名和时长线索）', 'Include local songs (file name + duration hint only)')}</label>
+        </div>
+        <div class="row">
+          <span class="platlabel">${t('平台：', 'Platforms: ')}</span>
+          <label class="opt"><input type="checkbox" id="p-wy" checked> ${t('网易云', 'NetEase')}</label>
+          <label class="opt"><input type="checkbox" id="p-tx" checked> QQ</label>
+          <label class="opt"><input type="checkbox" id="p-kg" checked> ${t('酷狗', 'Kugou')}</label>
+          <label class="opt"><input type="checkbox" id="p-kw" checked> ${t('酷我', 'Kuwo')}</label>
         </div>
         <div class="row">
           <button class="primary" id="convert" disabled>${t('转换', 'Convert')}</button>
@@ -400,6 +418,10 @@ function buildPage(folium, container, ctx) {
         name: nameInput.value.trim(),
         favorite: favInput.checked,
         includeLocal: localInput.checked,
+        platforms: ['wy', 'tx', 'kg', 'kw'].filter((platform) => {
+          const box = root.querySelector('#p-' + platform);
+          return !box || box.checked;
+        }),
       });
       if (!converted.stats.entries) {
         throw new Error(t('这个歌单里没有能导入的歌。', 'Nothing in this playlist can be imported.'));
@@ -443,6 +465,9 @@ function buildPage(folium, container, ctx) {
     if (stats.skipped.unsupported) skipped.push(t('无法识别 ', 'unrecognized ') + stats.skipped.unsupported);
     if (stats.skipped.duplicate) skipped.push(t('重复 ', 'duplicate ') + stats.skipped.duplicate);
     if (stats.skipped.invalid) skipped.push(t('无效 ', 'invalid ') + stats.skipped.invalid);
+    Object.entries(stats.skipped.byPlatform || {}).forEach(([platform, count]) => {
+      skipped.push(t('平台未选 ', 'platform off ') + (PLATFORM_LABELS[platform] || platform) + ' ' + count);
+    });
     if (skipped.length) {
       const skipLine = document.createElement('div');
       skipLine.className = 'stats';

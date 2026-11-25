@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "lxmc2folia",
-  "modVersion": "1.0.2",
-  "digest": "sha256:63a4e3780faf3fc053500ec7b515b924f21c22b4afdfe6384706bd78bd66337c",
+  "modVersion": "1.0.4",
+  "digest": "sha256:28a64f109ee8b0780b29149557d405da43799c6aeb0f92de3e1b57c4022c15f9",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-11-25T07:56:49.249Z",
-  "signature": "3pIy8qQIi27oMzHzMGSPb0ZU79Mc4VBYZbmKgjH246EzNgSOFBDZ66yuJB+nfDxMuk8vQnYqWvrMhCAPetF6BQ=="
+  "signedAt": "2026-11-25T15:15:58.145Z",
+  "signature": "m7r65TcKKJgipNZrDgn2xsr9r6z58rf1bT5+h6waOUp0iIW0HMBUHUdUTr4NQtYekSWTWWga7V7VSdcUt7VaDQ=="
 }
