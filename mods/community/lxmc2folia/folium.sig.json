@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "lxmc2folia",
+  "modVersion": "1.0.2",
+  "digest": "sha256:63a4e3780faf3fc053500ec7b515b924f21c22b4afdfe6384706bd78bd66337c",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-25T07:56:49.249Z",
+  "signature": "3pIy8qQIi27oMzHzMGSPb0ZU79Mc4VBYZbmKgjH246EzNgSOFBDZ66yuJB+nfDxMuk8vQnYqWvrMhCAPetF6BQ=="
+}

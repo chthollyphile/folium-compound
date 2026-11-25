@@ -436,6 +436,24 @@
       "sourceCommit": "c84c1c6e7a2a81a22adf7693c533cb81c4fc104e"
     },
     {
+      "id": "lxmc2folia",
+      "name": "落雪歌单转换",
+      "version": "1.0.2",
+      "author": "ww085213",
+      "description": "把洛雪（LX Music）导出的 .lxmc 歌单转换成 Folia 歌单文件（.folia-playlist.json），再用 Folia 的「导入歌单」导入。纯本地转换，不联网、不下载音频。",
+      "origin": "community",
+      "channel": "release",
+      "path": "mods/community/lxmc2folia",
+      "digest": "sha256:63a4e3780faf3fc053500ec7b515b924f21c22b4afdfe6384706bd78bd66337c",
+      "keyId": "folium-ci-2026-1",
+      "signedAt": "2026-11-25T07:56:49.249Z",
+      "owners": [
+        "ww085213"
+      ],
+      "source": "https://github.com/ww085213/lxmc2folia",
+      "sourceCommit": "38a29d2da1d20ec53b3176a2ff2366ec72df786a"
+    },
+    {
       "id": "lyric-ai-director",
       "name": "AI 歌词动画导演",
       "version": "1.4.1",

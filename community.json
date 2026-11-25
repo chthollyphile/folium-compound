@@ -389,6 +389,19 @@
       "updatedAt": "2026-11-01",
       "lastIssue": 109
     },
+    "lxmc2folia": {
+      "owners": [
+        "ww085213"
+      ],
+      "category": "other",
+      "submission": 193,
+      "source": "https://github.com/ww085213/lxmc2folia",
+      "path": "",
+      "commit": "38a29d2da1d20ec53b3176a2ff2366ec72df786a",
+      "version": "1.0.2",
+      "addedAt": "2026-11-25",
+      "updatedAt": "2026-11-25"
+    },
     "lyric-ai-director": {
       "owners": [
         "duoduo1232"
