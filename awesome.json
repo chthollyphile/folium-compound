@@ -3,6 +3,22 @@
   "version": 1,
   "entries": [
     {
+      "id": "bilibili",
+      "name": "bilibili for Folia",
+      "kind": "source",
+      "category": "source",
+      "description": "Folium 2 原生 bilibili 音源：扫码登录，把自建/收藏的收藏夹与 UP 主合集接入书库；搜索全站视频，播放用视频自身音频，歌词用 CC 字幕或跨平台匹配，探索页读首页推荐。需要 Folia 0.8.x；模组未签名，从仓库 Releases 安装。",
+      "url": "https://github.com/qingxian997/folia-bilibili-source",
+      "owners": [
+        "qingxian997"
+      ],
+      "license": "MIT",
+      "tags": [],
+      "addedAt": "2026-11-25",
+      "updatedAt": "2026-11-25",
+      "submission": 191
+    },
+    {
       "id": "folia-lx-music-mod",
       "name": "Online Music Source",
       "kind": "source",

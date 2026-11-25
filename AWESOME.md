@@ -9,6 +9,8 @@ Folia-related works kept elsewhere and listed here as links. They are not signed
 
 ## 音源模组 / Source mod
 
+- [bilibili for Folia](https://github.com/qingxian997/folia-bilibili-source) — [@qingxian997](https://github.com/qingxian997) · 音源  
+  Folium 2 原生 bilibili 音源：扫码登录，把自建/收藏的收藏夹与 UP 主合集接入书库；搜索全站视频，播放用视频自身音频，歌词用 CC 字幕或跨平台匹配，探索页读首页推荐。需要 Folia 0.8.x；模组未签名，从仓库 Releases 安装。
 - [Online Music Source](https://github.com/wumeng114514/folia-lx-music-mod) — [@wumeng114514](https://github.com/wumeng114514)  
   在线音源适配器，支持多平台搜索和播放。原为先行测试模组（1.0.2，Folium 1 的 omni.providers），2026-11 按音源政策移出仓库。
 - [LX 音源适配 / LX Source Adapter](https://github.com/paysonx/folium-lx-source) — [@paysonx](https://github.com/paysonx)  
