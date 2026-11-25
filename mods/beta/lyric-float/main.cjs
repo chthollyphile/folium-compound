@@ -69,9 +69,10 @@
 
 'use strict';
 
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const LOG_PREFIX = '[lyric-float]';
 
@@ -115,6 +116,9 @@ const IPC_POPUP_FRAME = 'lyric-float:popup-frame';
 const POPUP_SHOW_FALLBACK_MS = 320;
 const RPC_PLAYLIST_DATA = 'playlist-data';
 const RPC_PLAYBACK_HINT = 'playback-hint';
+// 1.9.0 反馈闭环：导出诊断日志（写 txt 并打开文件夹）/ 打开外部链接（反馈 issue）。
+const RPC_COLLECT_DIAGNOSTICS = 'collect-diagnostics';
+const RPC_OPEN_EXTERNAL = 'open-external';
 // 穿透态下「退出穿透」键的命中外扩（和桌面歌词固定键同一口径）。
 const POPUP_POINTER_PADDING = 2;
 
@@ -187,6 +191,11 @@ const SHOWN_FRAME_WAIT_MS = 200;
 // 1.8.4：上屏之后强制摘「显示中」铺底的最长等待（ms）。暂停/停止时 client 不再发新帧，
 // 旧逻辑等「下一帧」会永远等不到，body.showing 挂住 → 窗口铺底色、按钮显隐错乱。
 const SHOW_RELEASE_MS = 320;
+// 1.8.9：页面等不到「这次显示之后的新帧」时，不再拿现有画面回信（那就是旧句闪一下的成因），
+// 改为再向 client 要一帧，最多要 SHOW_RETRY_LIMIT 次；仍等不到才用空白上屏。
+const SHOW_RETRY_LIMIT = 2;
+// 1.8.9 页面 → 主进程：握手还没等到新帧，麻烦再让 client 强制发一帧。
+const IPC_NEED_FRAME = 'lyric-float:need-frame';
 // 右上角 ×（1.4.0，页面→主进程）：只隐藏悬浮窗，不停用模组。重新显示走播放条上的「词」按钮。
 const IPC_CLOSE = 'lyric-float:close';
 // 1.5.1 显示握手（解决「× 关掉再打开时先闪一下旧画面」）：
@@ -268,6 +277,8 @@ const ICON_PATHS = {
     'list-music': '<path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/>',
     // 1.7.0：形态切换（桌面歌词 ⇄ 悬浮窗歌词）：外框里套一个小窗，示意「换成可缩放的悬浮窗」。
     popup: '<rect width="20" height="14" x="2" y="4" rx="2"/><rect width="8" height="6" x="12" y="10" rx="1"/><path d="M6 8h4"/>',
+    // 1.9.1：收藏（喜欢）当前歌曲。只有一条路径，已收藏由 CSS 用 currentColor 填实（见 #like[data-mode="on"]）。
+    heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
 };
 
 /** 包一层 <svg>：只有 filled 的图标用 currentColor 填实（和播放器的 Pause/Play 一致）。 */
@@ -299,6 +310,8 @@ const ICON_SVG = {
     'volume-1': svgIcon('volume-1'),
     'volume-2': svgIcon('volume-2'),
     'volume-x': svgIcon('volume-x'),
+    // 1.9.1：收藏键。已收藏只是换 CSS 填充色（不换图形），避免两套路径不一致。
+    heart: svgIcon('heart'),
     layout: layoutIcon,
     pin: svgIcon('pin'),
     'pin-off': svgIcon('pin-off'),
@@ -447,6 +460,58 @@ const normalizeConfig = (raw) => {
     if (desktopSource) config.desktop.marquee = desktopSource.marquee === true;
     return config;
 };
+
+/**
+ * 1.9.0：自定义颜色对比度提醒。
+ * 宿主设置里挑颜色时不会告诉用户「挑了个和壁纸差不多的颜色」。这里按 WCAG 相对亮度算一下，
+ * 命中就在日志里说清楚哪一对颜色太接近、建议多少（不打断用户，也不改用户选的颜色）：
+ *   - 逐字染色时「已唱色」和歌词色对比太低 → 看不出唱到哪；
+ *   - 歌词色本身太暗 → 深色壁纸上整句看不清。
+ */
+const hexLuminance = (hex) => {
+    const value = typeof hex === 'string' ? hex.replace('#', '') : '';
+    if (!/^[0-9a-f]{6}$/i.test(value)) return null;
+    const channel = (offset) => {
+        const c = parseInt(value.slice(offset, offset + 2), 16) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+};
+const contrastRatioOf = (first, second) => {
+    const a = hexLuminance(first);
+    const b = hexLuminance(second);
+    if (a === null || b === null) return null;
+    const hi = Math.max(a, b);
+    const lo = Math.min(a, b);
+    return (hi + 0.05) / (lo + 0.05);
+};
+const contrastHintsOf = (config) => {
+    const hints = [];
+    if (config.shared.karaoke) {
+        const desktopRatio = contrastRatioOf(config.shared.lyricColor, config.shared.sungColor);
+        if (desktopRatio !== null && desktopRatio < 1.6) {
+            hints.push('已唱色 ' + config.shared.sungColor + ' 与桌面歌词色 ' + config.shared.lyricColor
+                + ' 对比度只有 ' + desktopRatio.toFixed(2) + '（建议 ≥ 1.6），逐字进度会看不出来');
+        }
+        const popupRatio = contrastRatioOf(config.shared.popupColor, config.shared.sungColor);
+        if (popupRatio !== null && popupRatio < 1.6) {
+            hints.push('已唱色 ' + config.shared.sungColor + ' 与悬浮窗当前句颜色 ' + config.shared.popupColor
+                + ' 对比度只有 ' + popupRatio.toFixed(2) + '（建议 ≥ 1.6），逐字进度会看不出来');
+        }
+    }
+    const desktopLuma = hexLuminance(config.shared.lyricColor);
+    if (desktopLuma !== null && desktopLuma < 0.02) {
+        hints.push('桌面歌词色 ' + config.shared.lyricColor + ' 偏暗（相对亮度 ' + desktopLuma.toFixed(3)
+            + '），深色壁纸上会看不清，建议调亮');
+    }
+    const popupLuma = hexLuminance(config.shared.popupColor);
+    if (popupLuma !== null && popupLuma < 0.02) {
+        hints.push('悬浮窗当前句颜色 ' + config.shared.popupColor + ' 偏暗（相对亮度 ' + popupLuma.toFixed(3)
+            + '），深色壁纸上会看不清，建议调亮');
+    }
+    return hints;
+};
+let lastContrastSignature = '';
 
 /**
  * 1.5.1：启动时先落一份默认配置，拿到 client 推来的真配置之前先用它建窗口。
@@ -664,7 +729,7 @@ const WIDGET_HTML = `<!DOCTYPE html>
         border: 1px solid transparent;
         border-radius: var(--widget-radius, 16px);
         overflow: hidden;
-        transition: background-color 0.22s ease, border-color 0.22s ease, opacity 0.2s ease;
+        transition: background-color 0.22s ease, border-color 0.22s ease, opacity 0.22s ease;
     }
     body.hover:not(.pinned) .widget {
         background: rgba(0, 0, 0, var(--surface-alpha, 0.58));
@@ -898,7 +963,15 @@ const WIDGET_HTML = `<!DOCTYPE html>
      */
     .controls-side.right {
         justify-content: flex-end;
-        padding-right: 44px;
+        /* 1.8.7：右上角 × 的 44px 位置改由组内 .close-gap 占位，不再用 padding-right。
+           原因：flex-basis: 0 + box-sizing: border-box 时，padding 会算进这条 flex 项的最小基础尺寸，
+           右组因此比左组宽 44px，正中的固定键被挤偏 22px（实测 pin 中心 298，窗口中心 320）。 */
+    }
+    /* 占位元素：44px 宽度里吃掉组内 gap 的 8px，净占位还是 44px（和原来 padding 的视觉结果一致）。 */
+    .close-gap {
+        flex: none;
+        width: 44px;
+        margin-left: -8px;
     }
     button {
         -webkit-app-region: no-drag;
@@ -950,7 +1023,7 @@ const WIDGET_HTML = `<!DOCTYPE html>
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
         opacity: 0;
         pointer-events: none;
-        transition: opacity 0.12s ease;
+        transition: opacity 0.18s ease;
     }
     button:hover::after,
     button:focus-visible::after {
@@ -1046,6 +1119,41 @@ const WIDGET_HTML = `<!DOCTYPE html>
         text-align: center;
         background: rgba(8, 22, 36, 0.55);
         border-radius: 6px;
+        cursor: pointer;
+    }
+    /* 1.9.1：点百分比就地变输入框。输入框要和胶囊同宽同高，切换时不跳。 */
+    .volume-input {
+        flex: none;
+        width: 48px;
+        box-sizing: border-box;
+        padding: 1px 3px;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.4;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+        color: #eaf6ff;
+        background: rgba(8, 22, 36, 0.85);
+        border: 1px solid #7dd3fc;
+        border-radius: 6px;
+        outline: none;
+        -webkit-app-region: no-drag;
+        /* 去掉 number 输入的上下箭头，避免误点成步进。 */
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+    .volume-input::-webkit-outer-spin-button,
+    .volume-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    /* 1.9.1：收藏键。已收藏填实；当前歌曲不支持收藏（canLike=false）时压暗且不可点。 */
+    #like[data-mode="on"] .icon {
+        fill: currentColor;
+    }
+    #like:disabled {
+        opacity: 0.32;
+        cursor: default;
     }
     body.volume-dragging .volume-value {
         color: #7dd3fc;
@@ -1064,6 +1172,14 @@ const WIDGET_HTML = `<!DOCTYPE html>
     body.showing .controls {
         transform: none;
         opacity: 1;
+    }
+    /*
+     * 1.8.9 显示握手中（body.show-pending）：把歌词区压住。
+     * 只在「窗口本来不可见」时挂上，收到这次显示之后的第一帧有效快照再摘掉。
+     * 于是任何兜底提前上屏最多是短暂空白，绝不会再露出上一个句子。
+     */
+    body.show-pending .lyric {
+        opacity: 0;
     }
     /*
      * 右上角的关闭按钮（1.4.0）：只隐藏悬浮窗，不停用模组（播放条上的「词」按钮能找回来）。
@@ -1103,6 +1219,7 @@ const WIDGET_HTML = `<!DOCTYPE html>
             <button id="prev" type="button" data-tip="上一首" aria-label="上一首">${ICON_SVG.prev}</button>
             <button id="toggle" type="button" data-tip="播放" aria-label="播放">${ICON_SVG.play}</button>
             <button id="next" type="button" data-tip="下一首" aria-label="下一首">${ICON_SVG.next}</button>
+            <button id="like" type="button" data-tip="收藏" aria-label="收藏" data-mode="off">${ICON_SVG.heart}</button>
             <button id="surface" type="button" data-tip="切换到悬浮窗歌词" aria-label="切换到悬浮窗歌词">${ICON_SVG.popup}</button>
         </div>
         <button id="pin" type="button" data-tip="固定位置" aria-label="固定位置" data-mode="floating">${ICON_SVG.pin}</button>
@@ -1111,7 +1228,9 @@ const WIDGET_HTML = `<!DOCTYPE html>
             <button id="layout" type="button" data-tip="排版：只显示原文" aria-label="排版" data-mode="text">${ICON_SVG.layout}</button>
             <span class="volume-icon" id="volume-icon" aria-hidden="true">${ICON_SVG['volume-2']}</span>
             <input id="volume" class="volume" type="range" min="0" max="100" step="1" value="100" title="音量" aria-label="音量">
-            <span class="volume-value" id="volume-value">100%</span>
+            <span class="volume-value" id="volume-value" role="button" tabindex="0" title="点击输入音量（0–100）">100%</span>
+            <input id="volume-input" class="volume-input" type="number" min="0" max="100" step="1" inputmode="numeric" aria-label="音量百分比" hidden>
+            <span class="close-gap" aria-hidden="true"></span>
         </div>
     </div>
     <div class="lyric" id="lyric" data-layout="text">
@@ -1140,6 +1259,7 @@ const els = {
     prev: document.getElementById('prev'),
     toggle: document.getElementById('toggle'),
     next: document.getElementById('next'),
+    like: document.getElementById('like'),
     loop: document.getElementById('loop'),
     layout: document.getElementById('layout'),
     surface: document.getElementById('surface'),
@@ -1148,6 +1268,7 @@ const els = {
     volume: document.getElementById('volume'),
     volumeIcon: document.getElementById('volume-icon'),
     volumeValue: document.getElementById('volume-value'),
+    volumeInput: document.getElementById('volume-input'),
     close: document.getElementById('close'),
 };
 
@@ -1184,6 +1305,8 @@ const volumeIconName = (percent) => {
 let volumeDragging = false;
 let volumeTimer = null;
 let lastVolumeSent = null;
+// 1.9.1：正在手输音量时，主进程回推的帧不许覆盖输入框（否则打一个字就被上一帧拽回去）。
+let volumeEditing = false;
 
 const sendAction = (payload) => {
     debugToMain('sendAction: ' + JSON.stringify(payload));
@@ -1402,7 +1525,10 @@ const renderKaraokeLine = (line, payload, receivedAt) => {
         return false;
     }
     const key = String(line.text || '') + '|' + words.map((word) => word.startTime).join(',');
-    if (!karaoke || karaoke.key !== key) {
+    // 1.8.9：span 被别的路径（显示握手清字、重新渲染）摘出 DOM 后，key 还是同一个，
+    // 只重设基准就会画在已经脱离文档的节点上 → 原文空白。这里补一道 isConnected 保险。
+    const detached = Boolean(karaoke && karaoke.spans.length && !karaoke.spans[0].el.isConnected);
+    if (!karaoke || detached || karaoke.key !== key) {
         stopKaraoke();
         els.lineTrack.textContent = '';
         const spans = [];
@@ -1775,7 +1901,18 @@ const render = (payload, receivedAt) => {
     els.loop.setAttribute('data-mode', loopMode);
     setButtonLabel(els.loop, '循环模式：' + LOOP_TITLES[loopMode]);
 
-    if (!volumeDragging) {
+    // 1.9.1：收藏键状态。canLike=false（本地文件 / 外部舞台 / 电台）时压暗不可点，
+    // 否则「点了没反应」会被当成 bug。
+    const liked = payload.liked === true;
+    const canLike = payload.canLike === true;
+    if (els.like) {
+        els.like.dataset.mode = canLike ? (liked ? 'on' : 'off') : 'off';
+        els.like.disabled = !canLike;
+        els.like.setAttribute('aria-pressed', liked ? 'true' : 'false');
+        setButtonLabel(els.like, canLike ? (liked ? '取消收藏' : '收藏') : '当前歌曲不支持收藏');
+    }
+
+    if (!volumeDragging && !volumeEditing) {
         const volume = Number.isFinite(payload.volume) ? payload.volume : 1;
         const percent = Math.round(Math.min(1, Math.max(0, volume)) * 100);
         els.volume.value = String(percent);
@@ -1814,6 +1951,8 @@ const scheduleVolume = () => {
 els.prev.addEventListener('click', () => sendAction('prev'));
 els.toggle.addEventListener('click', () => sendAction('toggle'));
 els.next.addEventListener('click', () => sendAction('next'));
+// 1.9.1：收藏当前歌曲（结果由下一帧 payload.liked 回写，按钮会自己亮/灭）。
+els.like.addEventListener('click', () => sendAction({ type: 'toggle-like' }));
 els.loop.addEventListener('click', () => sendAction({ type: 'cycle-loop' }));
 // 排版切换是纯显示逻辑，不用问宿主：切完用最后一次快照就地重渲染。
 els.layout.addEventListener('click', () => {
@@ -1844,6 +1983,8 @@ let shownPending = false;
 let showTimer = null;
 // 1.8.4：上屏后摘「显示中」铺底的兜底定时器（见 flushShown）。
 let showReleaseTimer = null;
+// 1.8.9：这次显示握手已经重试过几次（见 waitForFreshFrame）。
+let showRetry = 0;
 // 1.5.6 铺底：applyShownStyle 挂上 body.showing（底色 + 控制条提前展开），
 // releaseShownStyle 在上屏之后的第一帧快照里撤掉，交还给悬停规则。
 const applyShownStyle = () => {
@@ -1879,7 +2020,39 @@ const syncShownState = () => {
     // 旧判据会把这次握手判成「永远等不到」，最后走 400ms 兜底、上屏旧句。
     // 现在 IPC_SHOW 会把旧字清掉，所以标记之后的第一帧一定是新内容。
     applyShownStyle();
+    releaseShowPending();
     flushShown();
+};
+
+// 1.8.9：摘掉显示握手期间的歌词遮罩（规则见 body.show-pending）。
+const releaseShowPending = () => {
+    document.body.classList.remove('show-pending');
+};
+
+/**
+ * 1.8.9：等「这次显示之后生成」的第一帧再上屏。
+ * 原先 200ms 一到就拿现有画面回信 —— 页面上停着的是关闭那一刻的句子，上屏就成了「闪一下旧句」。
+ * 现在改成先向 client 再要一帧（最多 SHOW_RETRY_LIMIT 次），仍等不到才用空白上屏：
+ * 歌词区在 IPC_SHOW 时已清空并挂了遮罩，所以最差也只是空一下，绝不会露出别的句子。
+ */
+const waitForFreshFrame = () => {
+    if (showTimer) {
+        clearTimeout(showTimer);
+        showTimer = null;
+    }
+    showTimer = setTimeout(() => {
+        showTimer = null;
+        if (!shownPending) return;
+        if (showRetry < ${SHOW_RETRY_LIMIT}) {
+            showRetry += 1;
+            ipcRenderer.send('${IPC_NEED_FRAME}');
+            waitForFreshFrame();
+            return;
+        }
+        applyShownStyle();
+        releaseShowPending();
+        flushShown();
+    }, ${SHOWN_FRAME_WAIT_MS});
 };
 // 主进程在页面加载完后推来上次的排版选择（值不合法就保持默认的 text）。
 ipcRenderer.on('${IPC_LAYOUT}', (event, value) => {
@@ -1909,10 +2082,17 @@ ipcRenderer.on('${IPC_SHOW}', (event, info) => {
     // 1.8.5：只有窗口当时不可见才清字。窗口已经可见时清空就是一次肉眼可见的「闪白」，
     // 这次显示不需要再藏旧画面（本来就在屏幕上）。
     const wasVisible = Boolean(info && info.visible);
+    showRetry = 0;
     if (!wasVisible) {
+        // 1.8.9：清字之前必须先把逐字状态作废。1.8.5 只清了 DOM 没清 karaoke，
+        // 下一帧同句 key 相同 → renderKaraokeLine 不重建 span、只重设基准 → 原文永久空白，
+        // 只剩译文（真机「重开后原文消失、只剩译文」就是这么来的）。
+        stopKaraoke();
         if (els.lineTrack) els.lineTrack.textContent = '';
         if (els.transTrack) els.transTrack.textContent = '';
         if (els.trans) els.trans.hidden = true;
+        // 1.8.9：遮住歌词区，等这次显示之后的第一帧有效快照再摘掉。
+        document.body.classList.add('show-pending');
     }
     // 先把旧画面压住（窗口还没上屏，这一步是防「万一露出来」和「同步 render 重绘后空一帧」）。
     applyShownStyle();
@@ -1923,13 +2103,8 @@ ipcRenderer.on('${IPC_SHOW}', (event, info) => {
     // 控制器标成「显示中」：按钮立刻点亮；同时整窗先穿透（窗口还没上屏，万一在握手期间露出来
     // 也不能吃点击；上屏后主进程会把穿透状态改回真实的，见 ignore-hint）。
     ipcRenderer.send('${IPC_IGNORE_HINT}', true);
-    // 兜底：400ms 等不到新帧就用现有画面回信（回信前同样先铺底）。
-    showTimer = setTimeout(() => {
-        showTimer = null;
-        if (!shownPending) return;
-        applyShownStyle();
-        flushShown();
-    }, ${SHOWN_FRAME_WAIT_MS});
+    // 1.8.9：等不到新帧时不再「用现有画面回信」，改为再要一帧（见 waitForFreshFrame）。
+    waitForFreshFrame();
 });
 applyLayoutButton();
 
@@ -2044,6 +2219,7 @@ const setVolumeDragging = (dragging) => {
 };
 
 els.volume.addEventListener('pointerdown', () => {
+    if (volumeEditing) endVolumeEdit(true);
     setVolumeDragging(true);
 });
 els.volume.addEventListener('input', () => {
@@ -2067,7 +2243,66 @@ window.addEventListener('pointercancel', stopVolumeDragging);
 window.addEventListener('blur', stopVolumeDragging);
 els.volume.addEventListener('lostpointercapture', stopVolumeDragging);
 
+// 1.9.1：点百分比就地变输入框（0–100 整数）。Enter / 失焦提交，Esc 取消。
+// 输入期间 volumeEditing 为真：render() 不再用回推帧覆盖输入框，拖动滑块也会先结束输入。
+const clampPercent = (value) => Math.min(100, Math.max(0, Math.round(Number(value))));
+const endVolumeEdit = (commit) => {
+    if (!volumeEditing) return;
+    volumeEditing = false;
+    const typed = Number(els.volumeInput.value);
+    els.volumeInput.hidden = true;
+    els.volumeValue.hidden = false;
+    if (!commit || !Number.isFinite(typed)) {
+        els.volumeValue.textContent = Math.round(Number(els.volume.value)) + '%';
+        return;
+    }
+    const percent = clampPercent(typed);
+    els.volume.value = String(percent);
+    els.volumeValue.textContent = percent + '%';
+    lastVolumeSent = percent;
+    setIcon(els.volumeIcon, volumeIconName(percent));
+    sendAction({ type: 'set-volume', value: percent });
+    // 用户要求（1.9.1）：静音时手输音量「输多少就调成多少」——顺带取消静音，否则听不到效果。
+    if (lastPayload && lastPayload.muted === true) sendAction({ type: 'set-muted', muted: false });
+    debugToMain('volume edit commit: ' + percent);
+};
+const startVolumeEdit = () => {
+    if (volumeEditing) return;
+    volumeEditing = true;
+    const current = Math.round(Number(els.volume.value));
+    els.volumeInput.value = String(Number.isFinite(current) ? current : 100);
+    els.volumeValue.hidden = true;
+    els.volumeInput.hidden = false;
+    els.volumeInput.focus();
+    els.volumeInput.select();
+};
+els.volumeValue.addEventListener('click', startVolumeEdit);
+els.volumeValue.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        startVolumeEdit();
+    }
+});
+els.volumeInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        endVolumeEdit(true);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        endVolumeEdit(false);
+    }
+});
+els.volumeInput.addEventListener('blur', () => endVolumeEdit(true));
+els.volumeInput.addEventListener('click', (event) => event.stopPropagation());
+
 ipcRenderer.on('${IPC_DATA}', (event, payload) => {
+    const sentAt = Number(payload && payload.sentAt);
+    // 1.8.9：握手期间拒绝「画」旧帧 —— 1.8.5 只做到「不拿它回信」，但 render 是无条件的，
+    // 旧帧照样被画上屏，兜底一上屏就是旧句（偶发闪旧句的真正成因）。
+    if (shownPending && showMark && Number.isFinite(sentAt) && sentAt < showMark.since) {
+        debugToMain('握手中丢弃旧帧 sentAt=' + sentAt + ' since=' + showMark.since);
+        return;
+    }
     payloadFrame += 1;
     const frameNo = payloadFrame;
     render(payload, Date.now());
@@ -2081,7 +2316,6 @@ ipcRenderer.on('${IPC_DATA}', (event, payload) => {
         // 1.8.5：必须是「这次显示之后生成」的帧才放行（sentAt 由 client 生成快照时打）。
         // 旧版本只要收到任意一帧就回信，而 request-sync 那一帧和正常轮询帧会竞争，
         // 旧帧先到就先上屏旧句 —— 这就是「当前句闪」偶发的原因。
-        const sentAt = Number(payload && payload.sentAt);
         if (!Number.isFinite(sentAt) || sentAt >= showMark.since) {
             showMark.rendered = true;
             syncShownState();
@@ -2198,7 +2432,7 @@ body.hover:not([data-desktop="true"]) .topbar { opacity: 1; pointer-events: auto
     color: #eaf6ff;
     opacity: 0.78;
     cursor: pointer;
-    transition: background 0.16s ease, opacity 0.16s ease, color 0.16s ease;
+    transition: background 0.18s ease, opacity 0.18s ease, color 0.18s ease;
 }
 .icon-btn:hover { background: rgba(125, 211, 252, 0.14); opacity: 1; }
 .icon-btn[data-on="true"] { color: #7dd3fc; opacity: 1; }
@@ -2253,7 +2487,34 @@ body[data-desktop="true"] .topbar { visibility: hidden; }
     font-variant-numeric: tabular-nums;
     color: #eaf6ff;
     opacity: 0.85;
+    cursor: pointer;
 }
+/* 1.9.1：点百分比就地变输入框（0–100 整数）。 */
+.volume-input {
+    flex: 0 0 auto;
+    width: 34px;
+    box-sizing: border-box;
+    padding: 0 2px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    color: #eaf6ff;
+    background: rgba(8, 22, 36, 0.85);
+    border: 1px solid #7dd3fc;
+    border-radius: 5px;
+    outline: none;
+    -webkit-app-region: no-drag;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.volume-input::-webkit-outer-spin-button,
+.volume-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+/* 1.9.1：收藏键。已收藏填实；当前歌曲不支持收藏时压暗不可点。 */
+#like[data-mode="on"] .icon { fill: currentColor; color: #7dd3fc; }
+#like:disabled { opacity: 0.32; cursor: default; }
 /* 右列放不下的按钮挪到左列音量条下方（用户要求：先缩音量条的空间）。 */
 .rail-extra {
     flex: 0 0 auto;
@@ -2284,7 +2545,11 @@ body[data-desktop="true"] .topbar { visibility: hidden; }
     padding: 2px 0;
     will-change: transform;
 }
-.rows.anim { transition: transform 0.24s cubic-bezier(0.25, 0.8, 0.35, 1); }
+/*
+ * 1.9.0：动效时长统一成两档 —— 悬停 / 控件 0.18s，容器与底色 0.22s。
+ * 之前这两个页面里散着 0.12 / 0.15 / 0.16 / 0.2 / 0.24s，同一类交互快慢不一，看起来像掉帧。
+ * （1.8.5 改掉整块重建后，旧的 .rows.anim 规则已经没人引用了，一并删掉。）
+ */
 
 .row {
     text-align: center;
@@ -2313,6 +2578,11 @@ body[data-desktop="true"] .topbar { visibility: hidden; }
 .row.current .row-sub { text-overflow: clip; }
 /* 1.8.1：当前句在横向滚动时改成左对齐 —— 居中会把句子开头裁掉，第一秒就看不到从哪开始。 */
 .row.current.is-scrolling { text-align: left; }
+/*
+ * 1.8.8：上一行改成左对齐时，译文行也跟着继承了 left，表现为「切到悬浮窗后译文靠左、
+ * 等这一句唱完才回正中」。译文不参与横向滚动，这里显式拉回居中。
+ */
+.row.current.is-scrolling .row-sub { text-align: center; }
 /* 1.8.1 逐字染色：只在「已唱 / 未唱」两态之间切 class，颜色与透明度来自 CSS 变量。 */
 .word { transition: color 0.1s linear, opacity 0.1s linear; }
 .word.is-unsung { opacity: var(--unsung-opacity, 0.55); }
@@ -2406,7 +2676,8 @@ body[data-desktop="true"][data-pointer="true"] #desktop-exit { opacity: 1; }
         <div class="rail left" id="rail-left">
             <span class="volume-icon" id="volume-icon">${ICON_SVG['volume-2']}</span>
             <input id="volume" type="range" min="0" max="100" step="1" value="100" aria-label="音量" />
-            <span id="volume-value">100%</span>
+            <span id="volume-value" role="button" tabindex="0" title="点击输入音量（0–100）">100%</span>
+            <input id="volume-input" class="volume-input" type="number" min="0" max="100" step="1" inputmode="numeric" aria-label="音量百分比" hidden>
             <div class="rail-extra" id="rail-extra"></div>
         </div>
 
@@ -2418,6 +2689,7 @@ body[data-desktop="true"][data-pointer="true"] #desktop-exit { opacity: 1; }
             <button id="surface" class="icon-btn" type="button" title="切换到桌面歌词" aria-label="切换到桌面歌词">${ICON_SVG.popup}</button>
             <button id="layout" class="icon-btn" type="button" data-mode="text" title="歌词排版：原文" aria-label="歌词排版">${ICON_SVG.layout}</button>
             <button id="playlist" class="icon-btn" type="button" title="播放列表" aria-label="播放列表">${ICON_SVG['list-music']}</button>
+            <button id="like" class="icon-btn" type="button" title="收藏" aria-label="收藏" data-mode="off">${ICON_SVG.heart}</button>
             <button id="loop" class="icon-btn" type="button" title="循环模式：不循环" aria-label="循环模式">${ICON_SVG['loop-off']}</button>
             <button id="prev" class="icon-btn" type="button" title="上一首" aria-label="上一首">${ICON_SVG.prev}</button>
             <button id="toggle" class="icon-btn" type="button" title="播放/暂停" aria-label="播放/暂停">${ICON_SVG.play}</button>
@@ -2479,12 +2751,14 @@ const els = {
     playlistList: document.getElementById('playlist-list'),
     playlistClose: document.getElementById('playlist-close'),
     playlist: document.getElementById('playlist'),
+    like: document.getElementById('like'),
     surface: document.getElementById('surface'),
     layout: document.getElementById('layout'),
     close: document.getElementById('close'),
     volume: document.getElementById('volume'),
     volumeIcon: document.getElementById('volume-icon'),
     volumeValue: document.getElementById('volume-value'),
+    volumeInput: document.getElementById('volume-input'),
 };
 
 const setIcon = (element, name) => {
@@ -2509,6 +2783,8 @@ let lastLineIndex = null;
 let volumeDragging = false;
 let volumeTimer = null;
 let lastVolumeSent = null;
+// 1.9.1：手输音量期间不接收回推帧的音量覆盖。
+let volumeEditing = false;
 let popupLayout = 'text';
 let config = { shared: { popupFontSize: ${POPUP_FONT_SIZE_DEFAULT}, popupColor: '#eaf6ff', karaoke: false, sungColor: '#7dd3fc', unsungOpacity: 0.55 } };
 // 滚动歌词的几何量：每次 fitLayout 重算。
@@ -2952,7 +3228,17 @@ const render = (payload) => {
     els.loop.dataset.mode = loopMode;
     els.loop.title = '循环模式：' + LOOP_TITLES[loopMode];
 
-    if (!volumeDragging) {
+    // 1.9.1：收藏键状态（canLike=false 时压暗不可点）。
+    if (els.like) {
+        const liked = payload.liked === true;
+        const canLike = payload.canLike === true;
+        els.like.dataset.mode = canLike && liked ? 'on' : 'off';
+        els.like.disabled = !canLike;
+        els.like.setAttribute('aria-pressed', liked ? 'true' : 'false');
+        els.like.title = canLike ? (liked ? '取消收藏' : '收藏') : '当前歌曲不支持收藏';
+    }
+
+    if (!volumeDragging && !volumeEditing) {
         const volume = Number.isFinite(payload.volume) ? payload.volume : 1;
         const percent = Math.round(Math.min(1, Math.max(0, volume)) * 100);
         els.volume.value = String(percent);
@@ -2965,7 +3251,7 @@ const render = (payload) => {
 };
 
 /** 按可用高度把 8 颗按钮分配到右列 / 左列（放不下时先缩音量条的空间）。 */
-const BUTTON_ORDER = ['surface', 'layout', 'playlist', 'loop', 'prev', 'toggle', 'next'];
+const BUTTON_ORDER = ['surface', 'layout', 'playlist', 'like', 'loop', 'prev', 'toggle', 'next'];
 const packRails = () => {
     if (!els.railRight || !els.railExtra) return;
     const stageHeight = els.stage ? els.stage.clientHeight : 0;
@@ -3017,6 +3303,8 @@ if (els.desktop) els.desktop.addEventListener('click', () => sendCommand({ type:
 if (els.desktopExit) els.desktopExit.addEventListener('click', () => sendCommand({ type: 'toggle-desktop' }));
 if (els.surface) els.surface.addEventListener('click', () => sendCommand({ type: 'toggle-surface' }));
 if (els.playlist) els.playlist.addEventListener('click', () => togglePlaylistPanel());
+// 1.9.1：收藏当前歌曲（结果由下一帧 payload.liked 回写）。
+if (els.like) els.like.addEventListener('click', () => sendCommand({ type: 'toggle-like' }));
 if (els.prev) els.prev.addEventListener('click', () => sendCommand({ type: 'prev' }));
 if (els.toggle) els.toggle.addEventListener('click', () => sendCommand({ type: 'toggle' }));
 if (els.next) els.next.addEventListener('click', () => sendCommand({ type: 'next' }));
@@ -3045,7 +3333,7 @@ const scheduleVolume = () => {
     }, 150);
 };
 if (els.volume) {
-    const startDrag = () => { volumeDragging = true; };
+    const startDrag = () => { if (volumeEditing) endVolumeEdit(true); volumeDragging = true; };
     const stopDrag = () => {
         if (!volumeDragging) return;
         volumeDragging = false;
@@ -3057,6 +3345,61 @@ if (els.volume) {
     els.volume.addEventListener('change', stopDrag);
     els.volume.addEventListener('pointerup', stopDrag);
     window.addEventListener('pointerup', stopDrag);
+}
+
+/* 1.9.1：点百分比就地变输入框（0–100 整数）。Enter / 失焦提交，Esc 取消。
+ * 输入期间 volumeEditing 为真：render() 不用回推帧覆盖输入框，拖音量条会先结束输入。 */
+const clampVolumePercent = (value) => Math.min(100, Math.max(0, Math.round(Number(value))));
+const endVolumeEdit = (commit) => {
+    if (!volumeEditing) return;
+    volumeEditing = false;
+    const typed = Number(els.volumeInput.value);
+    els.volumeInput.hidden = true;
+    els.volumeValue.hidden = false;
+    if (!commit || !Number.isFinite(typed)) {
+        els.volumeValue.textContent = Math.round(Number(els.volume.value)) + '%';
+        return;
+    }
+    const percent = clampVolumePercent(typed);
+    els.volume.value = String(percent);
+    els.volumeValue.textContent = percent + '%';
+    lastVolumeSent = percent;
+    setIcon(els.volumeIcon, percent > 0 ? (percent > 50 ? 'volume-2' : 'volume-1') : 'volume-x');
+    sendCommand({ type: 'set-volume', value: percent });
+    // 用户要求（1.9.1）：静音时手输音量「输多少就调成多少」——顺带取消静音，否则听不到效果。
+    if (lastPayload && lastPayload.muted === true) sendCommand({ type: 'set-muted', muted: false });
+};
+const startVolumeEdit = () => {
+    if (volumeEditing) return;
+    volumeEditing = true;
+    const current = Math.round(Number(els.volume.value));
+    els.volumeInput.value = String(Number.isFinite(current) ? current : 100);
+    els.volumeValue.hidden = true;
+    els.volumeInput.hidden = false;
+    els.volumeInput.focus();
+    els.volumeInput.select();
+};
+if (els.volumeValue) {
+    els.volumeValue.addEventListener('click', startVolumeEdit);
+    els.volumeValue.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            startVolumeEdit();
+        }
+    });
+}
+if (els.volumeInput) {
+    els.volumeInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            endVolumeEdit(true);
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            endVolumeEdit(false);
+        }
+    });
+    els.volumeInput.addEventListener('blur', () => endVolumeEdit(true));
+    els.volumeInput.addEventListener('click', (event) => event.stopPropagation());
 }
 
 /* ---- 主进程 → 页面 ---- */
@@ -3521,6 +3864,11 @@ module.exports = function activate(api) {
                 }
                 case 'set-loop':
                     return LOOP_MODES.includes(raw.mode) ? { action: 'set-loop', mode: raw.mode } : null;
+                // 1.9.1：收藏 / 静音开关。静音是 set 语义（不是 toggle），两个窗口同时点也不会互相抵消。
+                case 'toggle-like':
+                    return { action: 'toggle-like' };
+                case 'set-muted':
+                    return { action: 'set-muted', muted: raw.muted !== false };
                 // 1.7.0：悬浮窗歌词的播放列表按钮 → client.mjs 调 folium.ui.openPlayerPanel()。
                 case 'open-playlist':
                     return { action: 'open-playlist' };
@@ -3548,7 +3896,10 @@ module.exports = function activate(api) {
             case 'prev':
             case 'toggle':
             case 'request-sync':
+            case 'toggle-like':
                 return { action: raw.type };
+            case 'set-muted':
+                return { action: 'set-muted', muted: raw.value !== false && raw.muted !== false };
             case 'open-playlist':
                 return { action: 'open-playlist' };
             default:
@@ -4036,6 +4387,38 @@ module.exports = function activate(api) {
      * 重绘是给透明分层窗口补帧（被完全遮挡期间 DWM 可能停更，露出来会显示旧画面）。
      * 独占全屏（D3D exclusive）绕开合成器，任何窗口都盖不上去 —— 那种情况只能让路。
      */
+    // 1.9.2：置顶失败的诊断状态。    // 2026-11-25 的真机日志里出现过「窗口可见、但调用完 setAlwaysOnTop(true) 之后 isAlwaysOnTop() 仍是 false」，
+    // 而原来的 catch 把异常吞掉了，查不出是系统拒绝置顶还是 Electron 返回值不准。这里把异常、重设结果和
+    // 持续时长记下来（只在状态变化时打日志，不会每秒刷屏），也写进「导出诊断日志」。
+    const topmostTrouble = {
+        win: { since: 0, lastError: '', lastWarnAt: 0 },
+        popup: { since: 0, lastError: '', lastWarnAt: 0 },
+    };
+    const reportTopmostTrouble = (key, error, onTopAfterReset) => {
+        const trouble = topmostTrouble[key];
+        const now = Date.now();
+        const reason = error ? (error.message || String(error)) : '强制重设后 isAlwaysOnTop() 仍为 false';
+        trouble.lastError = reason;
+        if (!trouble.since) {
+            trouble.since = now;
+            trouble.lastWarnAt = now;
+            api.log.warn(LOG_PREFIX + ' 置顶重申失败', JSON.stringify({ window: key, reason, onTopAfterReset }));
+            return;
+        }
+        // 持续失败：最多每 10 秒记一条，避免把日志刷满。
+        if (now - trouble.lastWarnAt >= 10000) {
+            trouble.lastWarnAt = now;
+            api.log.warn(LOG_PREFIX + ' 置顶重申持续失败', JSON.stringify({ window: key, reason, failedForMs: now - trouble.since }));
+        }
+    };
+    const clearTopmostTrouble = (key) => {
+        const trouble = topmostTrouble[key];
+        if (!trouble.since) return;
+        api.log.info(LOG_PREFIX + ' 置顶重申恢复', JSON.stringify({ window: key, failedForMs: Date.now() - trouble.since }));
+        trouble.since = 0;
+        trouble.lastError = '';
+        trouble.lastWarnAt = 0;
+    };
     const reassertTopmost = () => {
         // 1.8.4：改成「永远置顶」——用户要求无论锁定与否都保持顶置，不再跟随设置开关。
         // 每秒重申一次置顶 + 强制重绘：moveTop() 是 SWP_NOACTIVATE（不抢焦点、不改尺寸），
@@ -4043,12 +4426,35 @@ module.exports = function activate(api) {
         // 独占全屏（D3D exclusive）绕开合成器，任何窗口都盖不上去 —— 那种情况只能让路。
         for (const target of [state.win, state.popup]) {
             if (!target || target.isDestroyed() || !target.isVisible()) continue;
+            const key = target === state.popup ? 'popup' : 'win';
+            let error = null;
             try {
                 if (!target.isAlwaysOnTop()) target.setAlwaysOnTop(true);
                 target.moveTop();
-            } catch (error) {
-                // 单个窗口失败不影响另一个窗口。
+            } catch (failure) {
+                // 单个窗口失败不影响另一个窗口，但要记下来（1.9.2）。
+                error = failure;
             }
+            let onTop = false;
+            try {
+                onTop = target.isAlwaysOnTop();
+            } catch (failure) {
+                error = error || failure;
+            }
+            // 1.9.2：复核不过就做一次「硬重设」——先取消置顶再重新置顶，让 Windows 重写一遍 WS_EX_TOPMOST。
+            // 被全屏应用的顶层窗口压过之后、或窗口刚重建时，这一步比单纯重复 setAlwaysOnTop(true) 有效。
+            if (!onTop) {
+                try {
+                    target.setAlwaysOnTop(false);
+                    target.setAlwaysOnTop(true, 'screen-saver');
+                    target.moveTop();
+                    onTop = target.isAlwaysOnTop();
+                } catch (failure) {
+                    error = error || failure;
+                }
+            }
+            if (onTop) clearTopmostTrouble(key);
+            else reportTopmostTrouble(key, error, onTop);
             nudgeRepaintFor(target);
         }
     };
@@ -5463,6 +5869,139 @@ module.exports = function activate(api) {
             return { ok: false };
         }
     });
+    // 1.9.0 反馈闭环：导出诊断日志 / 打开外部链接。
+    //   做法对齐已经上架的 wallpaper-engine-bg：那边是「导出错误日志」+「上报」两个按钮，
+    //   我们这里换成命令面板两个命令 —— 日志文件由主进程写（它有 fs，也读得到宿主日志目录），
+    //   打开链接也必须在主进程里做（模组 API 没有 openExternal，见 mods/folium.d.ts）。
+    const DIAGNOSTICS_LOG_TAIL_LINES = 240;
+    const readTodayLogTail = () => {
+        try {
+            const dir = path.join(app.getPath('appData'), 'Folia', 'logs', 'runtime');
+            if (!fs.existsSync(dir)) return '(日志目录不存在)';
+            const files = fs.readdirSync(dir)
+                .filter((name) => name.endsWith('.log'))
+                .map((name) => {
+                    const full = path.join(dir, name);
+                    return { full, mtime: fs.statSync(full).mtimeMs };
+                })
+                .sort((a, b) => b.mtime - a.mtime);
+            if (files.length === 0) return '(日志目录里没有 .log 文件)';
+            const text = fs.readFileSync(files[0].full, 'utf8');
+            const lines = text.split(/\r?\n/);
+            const tail = lines.slice(Math.max(0, lines.length - DIAGNOSTICS_LOG_TAIL_LINES));
+            return '文件：' + files[0].full + '\n\n' + tail.join('\n');
+        } catch (error) {
+            return '(读取日志失败：' + String((error && error.message) || error) + ')';
+        }
+    };
+    // 2.0.0：诊断里带上窗口矩形，方便判断「位置顶出屏幕 / 尺寸算错」这类问题。
+    const boundsTextOf = (target) => {
+        if (!target || typeof target.isDestroyed !== 'function' || target.isDestroyed()) return 'destroyed';
+        try {
+            const bounds = target.getBounds();
+            return bounds.x + ',' + bounds.y + ',' + bounds.width + ',' + bounds.height;
+        } catch (error) {
+            return '(读取失败：' + String((error && error.message) || error) + ')';
+        }
+    };
+    const writeDiagnosticsFile = (runtime) => {
+        const dir = path.join(app.getPath('userData'), 'diagnostics');
+        fs.mkdirSync(dir, { recursive: true });
+        const stamp = new Date();
+        const pad = (value) => String(value).padStart(2, '0');
+        const name = 'lyric-float-' + stamp.getFullYear() + pad(stamp.getMonth() + 1) + pad(stamp.getDate())
+            + '-' + pad(stamp.getHours()) + pad(stamp.getMinutes()) + pad(stamp.getSeconds()) + '.txt';
+        const file = path.join(dir, name);
+        let persisted = '(状态文件不存在)';
+        try {
+            if (fs.existsSync(stateFilePath())) persisted = fs.readFileSync(stateFilePath(), 'utf8');
+        } catch (error) {
+            persisted = '(读取状态文件失败：' + String((error && error.message) || error) + ')';
+        }
+        const lines = [
+            '歌词浮岛 / Lyric Float —— 诊断日志',
+            '生成时间 / Generated: ' + stamp.toString(),
+            '',
+            '== 版本 / Versions ==',
+            '- 模组 / mod: ' + ((api.manifest && api.manifest.version) || 'unknown'),
+            '- Folia: ' + app.getVersion(),
+            '- Folium: ' + (runtime.folium ? JSON.stringify(runtime.folium) : 'unknown'),
+            '- Electron: ' + process.versions.electron,
+            '- Chrome: ' + process.versions.chrome,
+            '- Node: ' + process.versions.node,
+            '- 平台 / Platform: ' + process.platform + ' ' + process.arch + ' ' + os.release(),
+            '- 上下文 / Context: ' + (runtime.context || 'unknown'),
+            '',
+            '== 运行状态 / Runtime ==',
+            '- 形态 / Surface: ' + state.surface,
+            '- 桌面歌词窗口 / Desktop window: visible=' + (state.win && !state.win.isDestroyed() ? state.win.isVisible() : 'destroyed')
+                + ' open=' + state.widgetOpen + ' pinned=' + state.pinned
+                // 2.0.0：桌面排版存在状态文件里（state.persisted.layout），原来打印的是不存在的 state.layout，恒为 undefined。
+                + ' layout=' + ((state.persisted && state.persisted.layout) || 'text')
+                + ' bounds=' + boundsTextOf(state.win),
+            '- 悬浮窗歌词 / Popup: alive=' + Boolean(popupAlive())
+                + ' visible=' + (popupAlive() ? popupAlive().isVisible() : false)
+                + ' pinned=' + state.popupPinned + ' layout=' + state.popupLayout
+                + ' desktopMode=' + state.popupDesktop
+                + ' bounds=' + boundsTextOf(popupAlive()),
+            '- 置顶重申 / Topmost watch: ' + Boolean(state.topmostTick),
+            // 1.9.2：置顶失败的现场，用户导出诊断日志时一并带上（没出问题时是 0）
+            '- 置顶状态 / Topmost: ' + JSON.stringify({
+                desktop: state.win && !state.win.isDestroyed() ? state.win.isAlwaysOnTop() : null,
+                popup: popupAlive() ? popupAlive().isAlwaysOnTop() : null,
+                desktopFailedForMs: topmostTrouble.win.since ? Date.now() - topmostTrouble.win.since : 0,
+                popupFailedForMs: topmostTrouble.popup.since ? Date.now() - topmostTrouble.popup.since : 0,
+                lastError: topmostTrouble.win.lastError || topmostTrouble.popup.lastError || '',
+            }),
+            '',
+            '== 当前配置 / Config ==',
+            JSON.stringify(state.config, null, 2),
+            '',
+            '== 状态文件 / State file ==',
+            persisted,
+            '',
+            '== 今日日志尾部 / Log tail ==',
+            readTodayLogTail(),
+            '',
+        ];
+        fs.writeFileSync(file, lines.join('\n'), 'utf8');
+        return file;
+    };
+    api.rpc.handle(RPC_COLLECT_DIAGNOSTICS, (payload) => {
+        try {
+            const file = writeDiagnosticsFile({
+                folium: payload && payload.folium,
+                context: payload && payload.context,
+            });
+            api.log.info(LOG_PREFIX + ' 诊断日志已导出', file);
+            try {
+                shell.showItemInFolder(file);
+            } catch (error) {
+                api.log.warn(LOG_PREFIX + ' 打开诊断日志所在文件夹失败', error);
+            }
+            return { ok: true, path: file };
+        } catch (error) {
+            api.log.warn(LOG_PREFIX + ' 导出诊断日志失败', error);
+            return { ok: false, error: String((error && error.message) || error) };
+        }
+    });
+    api.rpc.handle(RPC_OPEN_EXTERNAL, async (payload) => {
+        const raw = payload && typeof payload.url === 'string' ? payload.url.trim() : '';
+        let parsed;
+        try {
+            parsed = new URL(raw);
+        } catch (error) {
+            return { ok: false, error: 'bad-url' };
+        }
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return { ok: false, error: 'bad-url' };
+        try {
+            await shell.openExternal(parsed.toString());
+            return { ok: true };
+        } catch (error) {
+            api.log.warn(LOG_PREFIX + ' 打开外部链接失败', error);
+            return { ok: false, error: 'open-failed' };
+        }
+    });
     api.rpc.handle(RPC_TOGGLE_DESKTOP_MODE, () => ({ desktopMode: togglePopupDesktop() }));
     // 1.5.0：配置真源在宿主的模组设置里，client 每次变化后整份推过来。
     // 这里只做校验与生效：改窗口高度、把整份配置转给页面；没变化就不动，免得每帧都重设尺寸。
@@ -5478,6 +6017,17 @@ module.exports = function activate(api) {
             LOG_PREFIX + ' 配置已更新',
             JSON.stringify({ shared: next.shared, desktop: next.desktop }),
         );
+        // 1.9.0：颜色对比度提醒。同样一次配置只报一次，避免每帧刷屏。
+        try {
+            const hints = contrastHintsOf(next);
+            const signature = hints.join('|');
+            if (signature !== lastContrastSignature) {
+                lastContrastSignature = signature;
+                for (const hint of hints) api.log.warn(LOG_PREFIX + ' 配色提醒：' + hint);
+            }
+        } catch (error) {
+            api.log.warn(LOG_PREFIX + ' 配色对比度检查失败', error);
+        }
         return { changed: true, height: windowHeightFor(next) };
     });
     // 1.5.0：命令面板的「锁定 / 解锁」。和页面上那个固定键走同一套状态，命令回来的结果自带新值。
@@ -5505,6 +6055,17 @@ module.exports = function activate(api) {
         noteShownFrame(shownGate, frame);
     };
 
+    /**
+     * 1.8.9：页面在显示握手里没等到「这次显示之后的新帧」。
+     * 以前直接拿现有画面回信，上屏就是旧句；现在由页面请求补发，主进程转给 client 强制重发。
+     */
+    const onNeedFrameFromWindow = (event) => {
+        if (!state.win || state.win.isDestroyed()) return;
+        if (event.sender !== state.win.webContents) return;
+        api.log.info(LOG_PREFIX + ' 显示握手未等到新帧，请求补发快照');
+        sendActionToClient({ action: 'request-sync' });
+    };
+
     ipcMain.on(IPC_ACTION, onActionFromWindowDebug);
     ipcMain.on(IPC_SHOWN_FRAME, onShownFrameFromWindow);
     ipcMain.on(IPC_DEBUG, onDebugFromWindow);
@@ -5515,6 +6076,8 @@ module.exports = function activate(api) {
     ipcMain.on(IPC_CLOSE, onCloseFromWindow);
     ipcMain.on(IPC_SHOWN, onShownFromWindow);
     ipcMain.on(IPC_IGNORE_HINT, onIgnoreHintFromWindow);
+    // 1.8.9：显示握手期间页面要不到新帧时，请主进程转给 client 强制重发。
+    ipcMain.on(IPC_NEED_FRAME, onNeedFrameFromWindow);
     // 1.7.0：悬浮窗歌词自己的控制通道（上一曲/播放/音量/循环/固定/桌面模式/播放列表/关闭）。
     ipcMain.on(IPC_POPUP_COMMAND, onPopupCommand);
     ipcMain.on(IPC_POPUP_POINTER_RECT, onPopupPointerRect);
@@ -5575,6 +6138,7 @@ module.exports = function activate(api) {
             ipcMain.removeListener(IPC_CLOSE, onCloseFromWindow);
             ipcMain.removeListener(IPC_SHOWN, onShownFromWindow);
             ipcMain.removeListener(IPC_IGNORE_HINT, onIgnoreHintFromWindow);
+            ipcMain.removeListener(IPC_NEED_FRAME, onNeedFrameFromWindow);
             ipcMain.removeListener(IPC_POPUP_COMMAND, onPopupCommand);
             ipcMain.removeListener(IPC_POPUP_POINTER_RECT, onPopupPointerRect);
             ipcMain.removeListener(IPC_TOGGLE_SURFACE, onToggleSurfaceFromWindow);

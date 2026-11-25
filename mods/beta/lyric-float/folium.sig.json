@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "lyric-float",
-  "modVersion": "1.8.6",
-  "digest": "sha256:e79cb19f4f409880dd72eb5c21b31e91e356f9f8c3229b301250f19458067572",
+  "modVersion": "2.0.0",
+  "digest": "sha256:1c43bce9ae580c7cc066024ad65cb21ed5dac52d0e3bfff915a1f60e3b29405f",
   "keyId": "folium-beta-2026-1",
-  "signedAt": "2026-11-13T06:34:12.252Z",
-  "signature": "ohzlmoJ1uzgktAfQD2CBNzocR9ujnoN8Gbc2uBApawdwx8EiolqWtXfhE5bV7uC2T+y6E6OVFk5pNSsaKRLgAw=="
+  "signedAt": "2026-11-25T15:54:00.643Z",
+  "signature": "VEPv7V3t4T6xsZrJvYvnIubllrC0tXZziGfDz2JjPB5RMwPFtURG+mgQEBcgEEadU5vRYdW42ezjoPkcLyI5Ag=="
 }
