@@ -1,8 +1,8 @@
 {
   "folium": 1,
   "id": "lxmc2folia",
-  "name": "落雪歌单转换",
-  "version": "1.0.4",
+  "name": "洛雪歌单转换",
+  "version": "1.0.5",
   "author": "ww085213",
   "description": "把洛雪（LX Music）导出的 .lxmc 歌单转换成 Folia 歌单文件（.folia-playlist.json），再用 Folia 的「导入歌单」导入。纯本地转换，不联网、不下载音频。",
   "main": "main.cjs",

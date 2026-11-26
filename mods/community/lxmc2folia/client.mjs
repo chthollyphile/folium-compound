@@ -1,11 +1,11 @@
-// 落雪歌单转换 · Folium 客户端入口
+// 洛雪歌单转换 · Folium 客户端入口
 //
 // 把洛雪（LX Music）导出的 .lxmc 歌单转换成 Folia 的歌单文件（.folia-playlist.json），
 // 让用户在 Folia 的「导入歌单」里导入。纯本地转换：只读用户选的文件，不联网、不下载音频。
 //
 // 入口：
-//   - 首页新页面「落雪歌单转换」：拖入 / 选择 .lxmc，选好选项，转换成 Folia 歌单并保存到下载文件夹
-//   - 命令「打开落雪歌单转换」：从命令面板打开这个页面
+//   - 首页新页面「洛雪歌单转换」：拖入 / 选择 .lxmc，选好选项，转换成 Folia 歌单并保存到下载文件夹
+//   - 命令「打开洛雪歌单转换」：从命令面板打开这个页面
 
 const FOLIA_FILE_FORMAT = 'folia-playlist';
 const FOLIA_FILE_VERSION = 1;
@@ -272,43 +272,301 @@ export function nameFromFileName(fileName) {
 // ---------------------------------------------------------------------------
 
 const CSS = `
-.lxmc2folia { box-sizing: border-box; height: 100%; overflow: auto; padding: 28px 28px 120px; font: 14px/1.7 var(--folium-font, "Microsoft YaHei", system-ui, sans-serif); color: inherit; }
+.lxmc2folia {
+  --lx-fg: rgba(255, 255, 255, 0.95);
+  --lx-muted: rgba(255, 255, 255, 0.74);
+  --lx-faint: rgba(255, 255, 255, 0.52);
+  --lx-card: rgba(255, 255, 255, 0.05);
+  --lx-card-strong: rgba(255, 255, 255, 0.08);
+  --lx-border: rgba(255, 255, 255, 0.10);
+  --lx-border-strong: rgba(255, 255, 255, 0.18);
+  --lx-input: rgba(255, 255, 255, 0.06);
+  --lx-accent: #a8d96b;
+  --lx-accent-strong: #7fb83c;
+  --lx-on-accent: #0e1806;
+  --lx-ok: #86e08b;
+  --lx-danger: #ff8f85;
+  --lx-glow: rgba(255, 255, 255, 0.16);
+  position: relative;
+  overflow: hidden;
+  font-family: inherit;
+  color: var(--lx-fg);
+  padding: 32px 24px 140px;
+  isolation: isolate;
+}
+.lxmc2folia.theme-light {
+  --lx-fg: rgba(16, 24, 15, 0.93);
+  --lx-muted: rgba(16, 24, 15, 0.72);
+  --lx-faint: rgba(16, 24, 15, 0.50);
+  --lx-card: rgba(255, 255, 255, 0.58);
+  --lx-card-strong: rgba(255, 255, 255, 0.86);
+  --lx-border: rgba(16, 24, 15, 0.10);
+  --lx-border-strong: rgba(16, 24, 15, 0.18);
+  --lx-input: rgba(255, 255, 255, 0.82);
+  --lx-accent: #4f8f1f;
+  --lx-accent-strong: #3a6f10;
+  --lx-on-accent: #ffffff;
+  --lx-ok: #2f7a35;
+  --lx-danger: #b42318;
+  --lx-glow: rgba(255, 255, 255, 0.65);
+}
 .lxmc2folia * { box-sizing: border-box; }
-.lxmc2folia .wrap { max-width: 920px; margin: 0 auto; }
-.lxmc2folia h1 { margin: 0 0 4px; font-size: 22px; }
-.lxmc2folia .sub { margin: 0 0 20px; opacity: .7; font-size: 13px; }
-.lxmc2folia .card { border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 16px; padding: 18px; margin-bottom: 16px; background: color-mix(in srgb, currentColor 4%, transparent); }
-.lxmc2folia .drop { border: 2px dashed color-mix(in srgb, currentColor 26%, transparent); border-radius: 14px; padding: 26px 16px; text-align: center; cursor: pointer; transition: .15s; }
-.lxmc2folia .drop:hover, .lxmc2folia .drop.hover { border-color: #6f9cff; background: color-mix(in srgb, #6f9cff 8%, transparent); }
-.lxmc2folia .drop b { display: block; font-size: 15px; margin-bottom: 2px; }
-.lxmc2folia .drop span { opacity: .65; font-size: 12.5px; }
-.lxmc2folia .fileline { margin-top: 10px; font-size: 13px; opacity: .85; }
-.lxmc2folia .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: 14px; }
-.lxmc2folia label.opt { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; font-size: 13px; }
-.lxmc2folia input[type=text] { flex: 1; min-width: 200px; background: color-mix(in srgb, currentColor 6%, transparent); border: 1px solid color-mix(in srgb, currentColor 20%, transparent); border-radius: 9px; color: inherit; padding: 8px 12px; font: inherit; outline: none; }
-.lxmc2folia input[type=text]:focus { border-color: #6f9cff; }
-.lxmc2folia button { border: 1px solid color-mix(in srgb, currentColor 30%, transparent); background: color-mix(in srgb, currentColor 8%, transparent); color: inherit; border-radius: 999px; padding: 8px 20px; font: inherit; font-weight: 600; cursor: pointer; }
-.lxmc2folia button.primary { background: #6f9cff; border-color: #6f9cff; color: #0b0e13; }
-.lxmc2folia button:disabled { opacity: .4; cursor: default; }
-.lxmc2folia .msg { font-size: 13px; margin-top: 12px; min-height: 18px; }
-.lxmc2folia .msg.err { color: #ff6b6b; }
-.lxmc2folia .msg.ok { color: #4cc38a; }
-.lxmc2folia .stats { font-size: 13px; margin-top: 10px; }
-.lxmc2folia .stats b { font-weight: 600; }
-.lxmc2folia .platlabel { font-size: 13px; opacity: .65; }
-.lxmc2folia .tag { display: inline-block; border-radius: 7px; padding: 1px 8px; margin: 0 6px 4px 0; font-size: 12px; background: color-mix(in srgb, currentColor 10%, transparent); }
-.lxmc2folia .warn { color: #e8b04b; font-size: 12.5px; margin-top: 8px; }
-.lxmc2folia .path { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; word-break: break-all; opacity: .9; }
-.lxmc2folia ol { margin: 8px 0 0; padding-left: 20px; font-size: 13px; opacity: .8; }
-.lxmc2folia code { background: color-mix(in srgb, currentColor 10%, transparent); border-radius: 5px; padding: 1px 6px; font-size: 12.5px; }
+.lxmc2folia .aura {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.55;
+}
+.lxmc2folia .aura-1 {
+  width: 560px; height: 560px; left: -180px; top: -160px;
+  background: radial-gradient(circle at 35% 35%, color-mix(in srgb, var(--lx-accent) 55%, transparent), transparent 70%);
+}
+.lxmc2folia .aura-2 {
+  width: 520px; height: 520px; right: -200px; top: 240px;
+  background: radial-gradient(circle at 60% 40%, rgba(110, 150, 255, 0.38), transparent 72%);
+}
+.lxmc2folia .aura-3 {
+  width: 420px; height: 420px; left: 30%; bottom: -180px;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 140, 190, 0.22), transparent 72%);
+}
+.lxmc2folia .wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 980px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.lxmc2folia h1 {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  color: var(--lx-fg);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+.lxmc2folia .sub {
+  margin: 8px 0 0;
+  max-width: 760px;
+  color: var(--lx-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.lxmc2folia .card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(150deg,
+      color-mix(in srgb, var(--lx-fg) 8%, transparent),
+      color-mix(in srgb, var(--lx-fg) 3%, transparent) 55%,
+      color-mix(in srgb, var(--lx-fg) 5%, transparent)) padding-box;
+  backdrop-filter: blur(28px) saturate(1.7);
+  -webkit-backdrop-filter: blur(28px) saturate(1.7);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 var(--lx-glow),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.lxmc2folia .card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.08) 42%, rgba(255, 255, 255, 0.02) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.lxmc2folia .card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(140px 70px at 16% 0%, rgba(255, 255, 255, 0.10), transparent 72%);
+  pointer-events: none;
+  z-index: 0;
+}
+.lxmc2folia .card > b { position: relative; z-index: 1; font-size: 15px; font-weight: 650; }
+.lxmc2folia .card > * { position: relative; z-index: 1; }
+.lxmc2folia .drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 32px 22px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 20px;
+  border: 1.5px dashed var(--lx-border-strong);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.lxmc2folia .drop b { font-size: 15px; font-weight: 600; }
+.lxmc2folia .drop span { color: var(--lx-muted); font-size: 13px; }
+.lxmc2folia .drop:hover,
+.lxmc2folia .drop.hover {
+  border-color: var(--lx-accent);
+  background: color-mix(in srgb, var(--lx-accent) 10%, transparent);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--lx-accent) 16%, transparent);
+}
+.lxmc2folia .fileline { color: var(--lx-muted); font-size: 13px; }
+.lxmc2folia .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.lxmc2folia input[type="text"],
+.lxmc2folia input[type="number"],
+.lxmc2folia select {
+  min-width: 0;
+  padding: 11px 15px;
+  border-radius: 14px;
+  border: 1px solid var(--lx-border);
+  background: var(--lx-input);
+  color: var(--lx-fg);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  backdrop-filter: blur(10px);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.lxmc2folia input[type="text"] { flex: 1 1 240px; }
+.lxmc2folia input[type="text"]::placeholder { color: var(--lx-faint); }
+.lxmc2folia input[type="text"]:focus,
+.lxmc2folia input[type="number"]:focus,
+.lxmc2folia select:focus {
+  border-color: var(--lx-accent);
+  background: color-mix(in srgb, var(--lx-accent) 6%, var(--lx-input));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lx-accent) 24%, transparent);
+}
+.lxmc2folia select option { background: #151915; color: #f2f2f2; }
+.lxmc2folia.theme-light select option { background: #ffffff; color: #10180f; }
+.lxmc2folia button {
+  position: relative;
+  overflow: hidden;
+  padding: 11px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lx-fg) 14%, transparent), color-mix(in srgb, var(--lx-fg) 6%, transparent));
+  color: var(--lx-fg);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 22px rgba(0, 0, 0, 0.22);
+  transition: transform 0.12s ease, background 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.lxmc2folia button::after {
+  content: '';
+  position: absolute;
+  inset: 1px 6% 52% 6%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), transparent);
+  pointer-events: none;
+  opacity: 0.8;
+}
+.lxmc2folia button:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 14px 30px rgba(0, 0, 0, 0.28);
+}
+.lxmc2folia button:active { transform: translateY(0); }
+.lxmc2folia button:disabled { opacity: 0.42; cursor: default; transform: none; }
+.lxmc2folia button.primary {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--lx-accent) 92%, white), var(--lx-accent-strong));
+  color: var(--lx-on-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 12px 30px color-mix(in srgb, var(--lx-accent) 34%, transparent);
+}
+.lxmc2folia button.primary:hover { filter: brightness(1.06); }
+.lxmc2folia .opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--lx-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.lxmc2folia .opt input { accent-color: var(--lx-accent); margin: 0; }
+.lxmc2folia .platlabel {
+  color: var(--lx-faint);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lxmc2folia .msg { min-height: 16px; font-size: 13px; line-height: 1.55; color: var(--lx-muted); }
+.lxmc2folia .msg.ok { color: var(--lx-ok); }
+.lxmc2folia .msg.err { color: var(--lx-danger); }
+.lxmc2folia .stats {
+  padding: 13px 15px;
+  border-radius: 16px;
+  border: 1px solid var(--lx-border);
+  background: var(--lx-card-strong);
+  backdrop-filter: blur(10px);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.lxmc2folia .path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--lx-muted);
+  word-break: break-all;
+  margin-top: 6px;
+}
+.lxmc2folia .warn { color: var(--lx-muted); font-size: 12.5px; line-height: 1.65; }
+.lxmc2folia .warn + .warn { margin-top: 4px; }
+.lxmc2folia ol { margin: 6px 0 0; padding-left: 20px; color: var(--lx-muted); font-size: 12.5px; line-height: 1.8; }
+.lxmc2folia ::selection { background: color-mix(in srgb, var(--lx-accent) 35%, transparent); }
+@media (max-width: 720px) {
+  .lxmc2folia { padding: 20px 14px 120px; }
+  .lxmc2folia .card { padding: 16px; border-radius: 20px; }
+  .lxmc2folia .aura { filter: blur(70px); opacity: 0.4; }
+}
 `;
+
+/** 读宿主背景亮度，决定用深色还是浅色配色（跟着 Folia 的主题走）。 */
+function detectHostPalette() {
+  try {
+    const parse = (color) => {
+      const match = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(color || '');
+      if (!match) return null;
+      return (0.2126 * Number(match[1]) + 0.7152 * Number(match[2]) + 0.0722 * Number(match[3])) / 255;
+    };
+    for (const element of [document.body, document.documentElement]) {
+      if (!element) continue;
+      const luminance = parse(getComputedStyle(element).backgroundColor || '');
+      if (luminance === null) continue;
+      return luminance > 0.5 ? 'light' : 'dark';
+    }
+  } catch (error) { /* ignore */ }
+  return 'dark';
+}
 
 function buildPage(folium, container, ctx) {
   const zh = String((ctx && ctx.locale) || navigator.language || '').toLowerCase().startsWith('zh');
   const t = (zhText, enText) => (zh ? zhText : enText);
   const rpc = folium.rpc;
-  let pickedFile = null;
-  let lastResult = null;
+  let pickedFiles = [];
+  let lastResults = [];
+  let converting = false;
 
   const style = document.createElement('style');
   style.textContent = CSS;
@@ -316,21 +574,29 @@ function buildPage(folium, container, ctx) {
   const root = document.createElement('div');
   root.className = 'lxmc2folia';
   root.innerHTML = `
+    <div class="aura aura-1"></div>
+    <div class="aura aura-2"></div>
+    <div class="aura aura-3"></div>
     <div class="wrap">
-      <h1>${t('落雪歌单转换', 'LX Music playlist converter')}</h1>
+      <h1>${t('洛雪歌单转换', 'LX Music playlist converter')}</h1>
       <p class="sub">${t(
         '把洛雪（LX Music）导出的 .lxmc 歌单转换成 Folia 的歌单文件，再用 Folia 的「导入歌单」导入。纯本地转换，不联网、不下载音频。',
-        'Convert an LX Music .lxmc playlist into a Folia playlist file, then import it with Folia\'s “Import playlist”. Local only: no network, no audio downloads.'
+        'Convert LX Music .lxmc playlists into Folia playlist files, then import them with Folia\'s “Import playlist”. Local only: no network, no audio downloads.'
       )}</p>
       <div class="card">
         <div class="drop" id="drop">
-          <b>${t('把 .lxmc 文件拖到这里', 'Drop an .lxmc file here')}</b>
-          <span>${t('或点击选择文件', 'or click to choose a file')}</span>
-          <input type="file" id="picker" accept=".lxmc,.json,application/json,application/gzip" hidden>
+          <b>${t('把 .lxmc 文件拖到这里', 'Drop .lxmc files here')}</b>
+          <span>${t('或点击选择文件（可以一次选多个）', 'or click to choose files (multiple allowed)')}</span>
+          <input type="file" id="picker" accept=".lxmc,.json,application/json,application/gzip" hidden multiple>
         </div>
         <div class="fileline" id="fileline">${t('还没有选择文件', 'No file selected yet')}</div>
         <div class="row">
-          <input type="text" id="name" placeholder="${t('歌单名（留空用文件里的名字）', 'Playlist name (leave empty to use the file name)')}">
+          <input type="text" id="name" placeholder="${t('歌单名（留空自动命名）', 'Playlist name (leave empty to auto-name)')}">
+        </div>
+        <div class="row">
+          <span class="platlabel">${t('导入方式：', 'Mode: ')}</span>
+          <label class="opt"><input type="radio" name="mode" value="merge" checked> ${t('合并成一张歌单', 'Merge into one playlist')}</label>
+          <label class="opt"><input type="radio" name="mode" value="separate"> ${t('分开，每张单独', 'Separate playlists')}</label>
         </div>
         <div class="row">
           <label class="opt"><input type="checkbox" id="fav" checked> ${t('标记为「我喜欢的音乐」', 'Mark as “Liked Songs”')}</label>
@@ -355,16 +621,21 @@ function buildPage(folium, container, ctx) {
         <ol>
           <li>${t('保存后，打开 Folia 的本地音乐 / 歌单区域', 'After saving, open the local music / playlists area in Folia')}</li>
           <li>${t('操作菜单（新建歌单、排序歌单那一排）→「导入歌单」', 'Open the actions menu (next to New playlist / Reorder) → “Import playlist”')}</li>
-          <li>${t('选择刚才保存的 .folia-playlist.json，确认预览后导入', 'Pick the saved .folia-playlist.json and confirm the preview')}</li>
+          <li>${t('选择保存的 .folia-playlist.json，确认预览后导入', 'Pick the saved .folia-playlist.json and confirm the preview')}</li>
         </ol>
         <p class="warn">${t(
-          '转换后的歌单里的歌指向 Folia 的「洛雪音源（lxmusic）」。能不能播放取决于你在 Folia 里启用的音源和导入的第三方脚本——这部分和本模组无关，脚本来源与可用性由你自己负责。',
-          'Songs point at Folia\'s lxmusic source. Whether they play depends on the sources you enable and the third-party scripts you import — outside this mod, and the scripts\' provenance is your own responsibility.'
+          '注意：Folia 的「导入歌单」一次只能选一个文件。合并模式只生成一个文件、导入一次；分开模式会生成多个文件，需要逐个导入。',
+          'Note: Folia imports one file at a time. Merge mode produces a single file (one import); separate mode produces one file per playlist (import each).'
+        )}</p>
+        <p class="warn">${t(
+          '转换后的歌指向 Folia 的「洛雪音源（lxmusic）」。能不能播放取决于你在 Folia 里启用的音源和导入的第三方脚本——这部分和本模组无关。',
+          'Songs point at Folia\'s lxmusic source; playback depends on the sources and third-party scripts you enable — outside this mod.'
         )}</p>
       </div>
     </div>
   `;
   container.append(style, root);
+  root.classList.add(detectHostPalette() === 'light' ? 'theme-light' : 'theme-dark');
 
   const drop = root.querySelector('#drop');
   const picker = root.querySelector('#picker');
@@ -376,89 +647,112 @@ function buildPage(folium, container, ctx) {
   const saveBtn = root.querySelector('#save');
   const msg = root.querySelector('#msg');
   const result = root.querySelector('#result');
-
-  let converting = false;
-
   const setMsg = (text, kind) => {
     msg.textContent = text || '';
     msg.className = 'msg' + (kind ? ' ' + kind : '');
   };
 
-  const chooseFile = (file) => {
-    if (!file) return;
-    pickedFile = file;
-    fileline.textContent = t('已选择：', 'Selected: ') + file.name + '（' + Math.max(1, Math.round(file.size / 1024)) + ' KB）';
+  const updateFileLine = () => {
+    if (!pickedFiles.length) {
+      fileline.textContent = t('还没有选择文件', 'No file selected yet');
+      return;
+    }
+    const names = pickedFiles.slice(0, 3).map((file) => file.name).join('、');
+    const more = pickedFiles.length > 3 ? ' …' : '';
+    fileline.textContent = t('已选择 ', 'Selected ') + pickedFiles.length + t(' 个文件：', ' file(s): ') + names + more;
+  };
+
+  const chooseFiles = (fileList) => {
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (!files.length) return;
+    pickedFiles = files;
+    updateFileLine();
     convertBtn.disabled = false;
     saveBtn.disabled = true;
-    lastResult = null;
+    lastResults = [];
     result.textContent = '';
     setMsg('');
   };
 
-  drop.addEventListener('click', () => picker.click());
+  // 点击拖拽区打开文件选择。input 在 drop 里面，程序化 click 的事件会冒泡回 drop，
+  // 必须先把这类冒泡事件挡掉，否则会自己触发自己直到栈溢出（表现为“点了没反应/报错”）。
+  drop.addEventListener('click', (event) => {
+    if (event.target === picker) return;
+    event.preventDefault();
+    picker.value = '';
+    picker.click();
+  });
   drop.addEventListener('dragover', (event) => { event.preventDefault(); drop.classList.add('hover'); });
   drop.addEventListener('dragleave', () => drop.classList.remove('hover'));
   drop.addEventListener('drop', (event) => {
     event.preventDefault();
     drop.classList.remove('hover');
-    const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
-    if (file) chooseFile(file);
+    chooseFiles(event.dataTransfer && event.dataTransfer.files);
   });
-  picker.addEventListener('change', () => { if (picker.files && picker.files[0]) chooseFile(picker.files[0]); });
+  picker.addEventListener('change', () => chooseFiles(picker.files));
 
-  convertBtn.addEventListener('click', async () => {
-    if (!pickedFile || converting) return;
-    converting = true;
-    convertBtn.disabled = true;
-    setMsg(t('正在读取并转换…', 'Reading and converting…'));
-    try {
-      const bytes = new Uint8Array(await pickedFile.arrayBuffer());
-      const lxmc = await parseLxmcBytes(bytes);
-      const converted = convert(lxmc, {
-        name: nameInput.value.trim(),
-        favorite: favInput.checked,
-        includeLocal: localInput.checked,
-        platforms: ['wy', 'tx', 'kg', 'kw'].filter((platform) => {
-          const box = root.querySelector('#p-' + platform);
-          return !box || box.checked;
-        }),
+  const platformOptions = () => ['wy', 'tx', 'kg', 'kw'].filter((platform) => {
+    const box = root.querySelector('#p-' + platform);
+    return !box || box.checked;
+  });
+
+  const safeFileName = (name) => String(name || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/^\.+/, '').slice(0, 120) || 'lxmc';
+
+  const mode = () => {
+    const checked = root.querySelector('input[name="mode"]:checked');
+    return checked ? checked.value : 'merge';
+  };
+
+  const buildResults = (parsed) => {
+    const baseOptions = {
+      favorite: favInput.checked,
+      includeLocal: localInput.checked,
+      platforms: platformOptions(),
+    };
+    const typedName = nameInput.value.trim();
+    const results = [];
+
+    if (mode() === 'merge') {
+      const songs = [];
+      parsed.forEach((item) => { songs.push(...playlistOf(item.lxmc).songs); });
+      const mergedName = typedName || (t('合并歌单', 'Merged playlist') + ' · ' + parsed.length + t(' 个文件', ' files'));
+      const converted = convert({ data: { name: mergedName, list: songs } }, Object.assign({}, baseOptions, { name: mergedName }));
+      if (!converted.stats.entries) throw new Error(t('这些歌单里没有能导入的歌。', 'Nothing in these playlists can be imported.'));
+      results.push({
+        label: t('合并歌单', 'Merged playlist'),
+        fileName: safeFileName(mergedName) + '.folia-playlist.json',
+        content: JSON.stringify(converted.file, null, 1) + '\n',
+        stats: converted.stats,
+        from: parsed.length + t(' 个文件', ' files'),
       });
-      if (!converted.stats.entries) {
-        throw new Error(t('这个歌单里没有能导入的歌。', 'Nothing in this playlist can be imported.'));
-      }
-      const suggested = nameFromFileName(pickedFile.name) + '.folia-playlist.json';
-      lastResult = { fileName: suggested, content: JSON.stringify(converted.file, null, 1) + '\n' };
-      renderResult(converted.stats);
-      saveBtn.disabled = false;
-      setMsg(t('转换完成，可以保存了。', 'Converted — ready to save.'), 'ok');
-    } catch (error) {
-      lastResult = null;
-      saveBtn.disabled = true;
-      setMsg((error && error.message) || String(error), 'err');
-    } finally {
-      converting = false;
-      convertBtn.disabled = !pickedFile;
+      return results;
     }
-  });
 
-  const renderResult = (stats) => {
-    result.textContent = '';
-    const line = document.createElement('div');
-    line.className = 'stats';
-    line.innerHTML = t('歌单名：', 'Playlist: ') + '<b>' + escapeHtml(stats.name) + '</b> · '
-      + t('原文件 ', 'file ') + '<b>' + stats.total + '</b> ' + t('首', 'songs') + ' · '
-      + t('写入 ', 'imported ') + '<b>' + stats.entries + '</b> ' + t('首', 'songs')
-      + '（' + t('在线 ', 'online ') + stats.online + (stats.local ? t('，本地 ', ', local ') + stats.local : '') + '）';
-    result.append(line);
-    const tags = document.createElement('div');
-    tags.className = 'stats';
-    Object.entries(stats.platforms).forEach(([platform, count]) => {
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.textContent = platform + ' ' + count;
-      tags.append(tag);
+    parsed.forEach((item) => {
+      const autoName = typedName
+        ? typedName + ' - ' + nameFromFileName(item.file.name)
+        : nameFromFileName(item.file.name);
+      const converted = convert(item.lxmc, Object.assign({}, baseOptions, { name: autoName }));
+      if (!converted.stats.entries) return;
+      results.push({
+        label: item.file.name,
+        fileName: safeFileName(autoName) + '.folia-playlist.json',
+        content: JSON.stringify(converted.file, null, 1) + '\n',
+        stats: converted.stats,
+        from: '',
+      });
     });
-    result.append(tags);
+    if (!results.length) throw new Error(t('没有能导入的歌。', 'Nothing importable.'));
+    return results;
+  };
+
+  const statsLine = (stats) => {
+    const parts = [];
+    parts.push(t('原文件 ', 'file ') + stats.total + t(' 首', ' songs'));
+    parts.push(t('写入 ', 'imported ') + stats.entries + t(' 首', ' songs'));
+    if (stats.online) parts.push(t('在线 ', 'online ') + stats.online);
+    if (stats.local) parts.push(t('本地 ', 'local ') + stats.local);
+    Object.entries(stats.platforms).forEach(([platform, count]) => parts.push((PLATFORM_LABELS[platform] || platform) + ' ' + count));
     const skipped = [];
     if (stats.skipped.local) skipped.push(t('本地 ', 'local ') + stats.skipped.local);
     if (stats.skipped.mg) skipped.push(t('咪咕 ', 'mg ') + stats.skipped.mg);
@@ -468,38 +762,97 @@ function buildPage(folium, container, ctx) {
     Object.entries(stats.skipped.byPlatform || {}).forEach(([platform, count]) => {
       skipped.push(t('平台未选 ', 'platform off ') + (PLATFORM_LABELS[platform] || platform) + ' ' + count);
     });
-    if (skipped.length) {
-      const skipLine = document.createElement('div');
-      skipLine.className = 'stats';
-      skipLine.textContent = t('跳过：', 'Skipped: ') + skipped.join('，');
-      result.append(skipLine);
-    }
-    if (stats.warnings.length) {
-      const warn = document.createElement('div');
-      warn.className = 'warn';
-      warn.textContent = '⚠ ' + stats.warnings.slice(0, 6).join('\n⚠ ');
-      result.append(warn);
-    }
+    return { line: parts.join(' · '), skipped };
   };
 
+  const renderResults = (results) => {
+    result.textContent = '';
+    results.forEach((item) => {
+      const card = document.createElement('div');
+      card.className = 'stats';
+      const head = document.createElement('div');
+      head.innerHTML = '<b>' + escapeHtml(item.label) + '</b>' + (item.from ? ' · ' + escapeHtml(item.from) : '');
+      card.append(head);
+      const { line, skipped } = statsLine(item.stats);
+      const body = document.createElement('div');
+      body.textContent = line;
+      card.append(body);
+      if (skipped.length) {
+        const skip = document.createElement('div');
+        skip.className = 'warn';
+        skip.textContent = t('跳过：', 'Skipped: ') + skipped.join(t('，', ', '));
+        card.append(skip);
+      }
+      if (item.stats.warnings && item.stats.warnings.length) {
+        const warn = document.createElement('div');
+        warn.className = 'warn';
+        warn.textContent = '⚠ ' + item.stats.warnings.slice(0, 4).join('\n⚠ ');
+        card.append(warn);
+      }
+      result.append(card);
+    });
+  };
+
+  convertBtn.addEventListener('click', async () => {
+    if (!pickedFiles.length || converting) return;
+    converting = true;
+    convertBtn.disabled = true;
+    saveBtn.disabled = true;
+    setMsg(t('正在读取并转换…', 'Reading and converting…'));
+    try {
+      const parsed = [];
+      for (const file of pickedFiles) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        parsed.push({ file, lxmc: await parseLxmcBytes(bytes) });
+      }
+      lastResults = buildResults(parsed);
+      renderResults(lastResults);
+      saveBtn.disabled = false;
+      setMsg(
+        lastResults.length === 1
+          ? t('转换完成，可以保存了。', 'Converted — ready to save.')
+          : t('转换完成，共 ' + lastResults.length + ' 个文件，可以保存了。', 'Converted ' + lastResults.length + ' files — ready to save.'),
+        'ok'
+      );
+    } catch (error) {
+      lastResults = [];
+      saveBtn.disabled = true;
+      setMsg((error && error.message) || String(error), 'err');
+    } finally {
+      converting = false;
+      convertBtn.disabled = !pickedFiles.length;
+    }
+  });
+
   saveBtn.addEventListener('click', async () => {
-    if (!lastResult) return;
+    if (!lastResults.length) return;
     saveBtn.disabled = true;
     setMsg(t('正在保存…', 'Saving…'));
     try {
-      const saved = await rpc.call('save-file', lastResult);
-      const path = saved && typeof saved.path === 'string' ? saved.path : '';
+      const savedPaths = [];
+      for (const item of lastResults) {
+        const saved = await rpc.call('save-file', { fileName: item.fileName, content: item.content });
+        savedPaths.push(saved && typeof saved.path === 'string' ? saved.path : '');
+      }
       result.textContent = '';
-      const line = document.createElement('div');
-      line.className = 'stats';
-      line.innerHTML = t('已保存到：', 'Saved to: ');
-      const code = document.createElement('div');
-      code.className = 'path';
-      code.textContent = path;
-      result.append(line, code);
-      setMsg(t('下载文件夹里已经生成 Folia 歌单文件，去「导入歌单」导入它。', 'Saved to your Downloads folder — import it with “Import playlist”.'), 'ok');
+      const title = document.createElement('div');
+      title.className = 'stats';
+      title.textContent = t('已保存 ' + savedPaths.length + ' 个文件：', 'Saved ' + savedPaths.length + ' file(s):');
+      result.append(title);
+      savedPaths.forEach((savedPath) => {
+        const code = document.createElement('div');
+        code.className = 'path';
+        code.textContent = savedPath;
+        result.append(code);
+      });
+      setMsg(
+        lastResults.length === 1
+          ? t('已生成 1 个 Folia 歌单文件，去「导入歌单」导入它。', 'Saved 1 Folia playlist — import it with “Import playlist”.')
+          : t('已生成 ' + savedPaths.length + ' 个文件，需要在 Folia 里逐个导入。', 'Saved ' + savedPaths.length + ' files — import them one by one.'),
+        'ok'
+      );
       if (folium.ui && folium.ui.toast) {
-        folium.ui.toast(t('已保存 ' + lastResult.fileName, 'Saved ' + lastResult.fileName), { type: 'success' });
+        folium.ui.toast(t('已保存 ' + savedPaths.length + ' 个歌单文件', 'Saved ' + savedPaths.length + ' playlist file(s)'), { type: 'success' });
       }
     } catch (error) {
       saveBtn.disabled = false;
@@ -520,7 +873,7 @@ export default function activate(folium) {
   const tab = folium.registries.homeTabs.register({
     id: 'converter',
     order: 300,
-    label: { 'zh-CN': '落雪歌单转换', 'zh-TW': '落雪歌單轉換', en: 'LX playlist converter' },
+    label: { 'zh-CN': '洛雪歌单转换', 'zh-TW': '洛雪歌單轉換', en: 'LX playlist converter' },
     mount(container, ctx) {
       return buildPage(folium, container, ctx);
     },
@@ -528,9 +881,9 @@ export default function activate(folium) {
 
   const command = folium.registries.commands.register({
     id: 'open',
-    label: { 'zh-CN': '打开落雪歌单转换', 'zh-TW': '開啟落雪歌單轉換', en: 'Open LX playlist converter' },
+    label: { 'zh-CN': '打开洛雪歌单转换', 'zh-TW': '開啟洛雪歌單轉換', en: 'Open LX playlist converter' },
     description: { 'zh-CN': '把 .lxmc 歌单转换成 Folia 歌单文件', en: 'Convert an .lxmc playlist into a Folia playlist file' },
-    keywords: ['lxmc', 'lx music', '落雪', '歌单', 'playlist', 'convert'],
+    keywords: ['lxmc', 'lx music', '洛雪', '歌单', 'playlist', 'convert'],
     run() {
       folium.ui.openHomeTab('converter');
       return { message: 'ok' };

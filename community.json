@@ -397,11 +397,11 @@
       "submission": 193,
       "source": "https://github.com/ww085213/lxmc2folia",
       "path": "",
-      "commit": "4d3f327903bfe21c8f1d38e611676fdf77c97edf",
-      "version": "1.0.4",
+      "commit": "7ebe8ea995b886eb3c0ada5e2d02cd2cd1bf50d4",
+      "version": "1.0.5",
       "addedAt": "2026-11-25",
-      "updatedAt": "2026-11-25",
-      "lastIssue": 200
+      "updatedAt": "2026-11-26",
+      "lastIssue": 202
     },
     "lyric-ai-director": {
       "owners": [
