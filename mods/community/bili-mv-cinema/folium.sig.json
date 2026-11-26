@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "bili-mv-cinema",
+  "modVersion": "1.7.0",
+  "digest": "sha256:7aca11a6ebf75d83bc9d4dca8963a2f7dd20c37bade296268bb51a97688e3a29",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-26T01:08:23.805Z",
+  "signature": "giIFtxx7doVdopGcAAEMV6p6flhfKkGcxP/3aaIZ728Wxv1SwT6qfC7hHgZTzUbEyGuH50OGk+yFWvSV57V6BA=="
+}
