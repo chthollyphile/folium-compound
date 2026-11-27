@@ -1,6 +1,10 @@
-// song-comments/client.mjs — 歌曲评论 v1.0.0
+// song-comments/client.mjs — 歌曲评论 v1.1.1
 //
 // 播放页进度条右侧的评论按钮 → 播放器侧栏「评论」页签，显示当前歌曲在网易云音乐的评论。
+//
+// 宿主兼容：0.7.x 的 song DTO 带 sourceRef{providerId, mediaId}；0.8.0 换成
+// source（平台 id）+ id（平台原生曲目 id）+ ref（队列令牌）。两种形态都认，
+// 见下面的 songSourceOf / rawIdOf。
 //
 // 数据来源：Folium 实验性 platform.raw（manifest 里声明 experimental: ["platform.raw"]
 // 与 permissions: ["platform.netease.read"]）。用到的白名单 endpoint：
@@ -18,13 +22,23 @@ const REFRESH_ICON =
   '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
   '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>';
 
+// 页签图标用的遮罩：黑色描边只取 alpha，配合 background-color: currentColor
+// 就能跟着按钮的常态 / 选中 / hover 颜色走，不用写死颜色。
+const TAB_ICON_MASK =
+  'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z\'/%3E%3C/svg%3E")';
+
 const HEART_ICON =
   '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
   '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>';
 
+// 高度：宿主把页签内容的高度量回去当外层容器的高度（ResizeObserver → st-t-unfold 的
+// height），所以这里绝不能把 height 钉成「容器剩下多少」——那是拿自己的高度当输入，
+// 一旦某次量到的是矮内容（比如非网易云曲目只有一行提示），就会永久锁死在这个高度。
+// 只给 max-height（由 JS 按宿主给的页签可用高度设）：内容矮就自然矮，内容高就撑到
+// 上限再内部滚动；拿不到宿主的可用高度就不设上限，让宿主的滚动容器接管。
 const CSS = `
-.sc-root{color:var(--folium-primary,#e8e8ec);font-family:var(--folium-font,system-ui);display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;}
-.sc-inner{display:flex;flex-direction:column;min-height:0;height:100%;}
+.sc-root{color:var(--folium-primary,#e8e8ec);font-family:var(--folium-font,system-ui);display:flex;flex-direction:column;min-width:0;min-height:0;}
+.sc-inner{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;}
 .sc-head{display:flex;align-items:flex-start;gap:8px;padding:0 0 9px;}
 .sc-head-main{min-width:0;flex:1;}
 .sc-song{font-size:15px;font-weight:700;line-height:1.35;word-break:break-word;}
@@ -84,6 +98,13 @@ export default function activate(folium) {
       if (typeof folium.log?.warn === 'function') folium.log.warn(`[song-comments] ${message}`);
     } catch (_) {}
   };
+
+  // 宿主版本写进日志：以后排查「到底是哪个版本不兼容」省事。
+  {
+    const minor = Number(folium.host?.folium?.minor) || 0;
+    const app = String(folium.host?.folia || '');
+    log(`ready (Folia ${app || 'unknown'} / mod API 1.${minor})`);
+  }
 
   /* ------------------------------------------------------------------ 设置 */
 
@@ -212,6 +233,9 @@ export default function activate(folium) {
     qishui: '汽水音乐',
     spotify: 'Spotify',
     ytm: 'YouTube Music',
+    local: '本地文件',
+    navidrome: 'Navidrome',
+    stage: '外部播放',
   };
 
   const platformLabel = (providerId) => PLATFORM_LABEL[providerId] || String(providerId || '');
@@ -254,10 +278,42 @@ export default function activate(folium) {
     return score;
   };
 
+  // 0.7.x：song.sourceRef = { kind:'online', providerId, mediaId }
+  // 0.8.0：song.source = 'netease' | 'qq' | 'local' | 'navidrome' | 'stage'，且没有 sourceRef。
+  const songSourceOf = (song) => {
+    const ref = song?.sourceRef;
+    if (ref && typeof ref === 'object' && ref.providerId) return String(ref.providerId);
+    if (typeof song?.source === 'string' && song.source) return song.source;
+    return '';
+  };
+
+  const songArtistOf = (song) => {
+    if (!song) return '';
+    if (typeof song.artist === 'string') return song.artist.trim();
+    const list = Array.isArray(song.artists) ? song.artists : [];
+    return list
+      .map((entry) => (typeof entry === 'string' ? entry : String(entry?.name || '')))
+      .filter(Boolean)
+      .join(' / ');
+  };
+
+  // 0.8.0 的 album 是字符串，0.7 的可能是 { name }。两种都读。
+  const songAlbumOf = (song) => {
+    const album = song?.album;
+    if (typeof album === 'string') return album;
+    if (album && typeof album === 'object') return String(album.name || '');
+    return '';
+  };
+
   const rawIdOf = (song) => {
     const ref = song?.sourceRef;
-    if (ref && ref.kind === 'online' && ref.providerId === 'netease' && ref.mediaId) {
-      return String(ref.mediaId);
+    if (ref && ref.providerId === 'netease' && ref.mediaId) return String(ref.mediaId);
+    if (song && typeof song.source === 'string') {
+      if (song.source !== 'netease') return null;
+      // 0.8.0 公开 DTO 的 id 是平台原生曲目 id（宿主 oe() 里就是 String(e.id)）。
+      // 网易云曲目 id 一定是纯数字；不是的话宁可走歌名检索，也别拿别的平台的号码去查评论。
+      const id = song.id === undefined || song.id === null ? '' : String(song.id);
+      if (/^\d+$/.test(id)) return id;
     }
     return null;
   };
@@ -472,6 +528,61 @@ export default function activate(folium) {
     warn(`progress button register failed: ${String(error?.message || error)}`);
   }
 
+  /* --------------------------------------------------------------- 页签图标 */
+
+  // 宿主 0.7.x 的 playerPanelTabs 只收 id / label / order / mount，注册项里的 icon 会被
+  // 丢掉，所有模组页签统一画成同一个拼图；而且只有侧栏窄到放不下文字时才画图标。
+  // 官方没给改图标的入口，这里用 styles 注册表（宿主会把它包进 @layer folium-mods 插到
+  // head）只覆盖自己那一个按钮：宿主画了图标就换成评论气泡，标签模式完全不动。
+  // 用 * 匹配 data-ponder-panel-tab-button 的值，宿主改 id 拼接格式也不会误伤别的页签。
+  const TAB_SEL = '[data-ponder-panel-tab-button*="song-comments"]';
+  const TAB_ICON_CSS = `
+${TAB_SEL} svg{display:none !important;}
+${TAB_SEL} > span:has(svg)::before,
+${TAB_SEL}:has(> svg)::before{
+  content:"";
+  flex:0 0 auto;
+  width:16px;
+  height:16px;
+  background-color:currentColor;
+  -webkit-mask-image:${TAB_ICON_MASK};
+  mask-image:${TAB_ICON_MASK};
+  -webkit-mask-repeat:no-repeat;
+  mask-repeat:no-repeat;
+  -webkit-mask-position:center;
+  mask-position:center;
+  -webkit-mask-size:16px 16px;
+  mask-size:16px 16px;
+}
+`;
+
+  const registerTabIcon = () => {
+    // 模组被重新激活时别重复注入（styles 注册表对同 id 重复注册的处理各版本不一致）。
+    try {
+      if (typeof document !== 'undefined' && document.documentElement.hasAttribute('data-song-comments-tab-icon')) return;
+    } catch (_) {}
+    try {
+      const styles = folium.registries?.styles;
+      if (styles && typeof styles.register === 'function') {
+        styles.register({ id: 'tab-icon', css: TAB_ICON_CSS });
+        document.documentElement.setAttribute('data-song-comments-tab-icon', 'registry');
+        return;
+      }
+    } catch (error) {
+      warn(`tab icon style register failed: ${String(error?.message || error)}`);
+    }
+    // 老宿主没有 styles 注册表：自己插一张表。效果一样，只是不进 @layer folium-mods。
+    try {
+      if (typeof document === 'undefined' || !document.head) return;
+      const el = document.createElement('style');
+      el.setAttribute('data-song-comments-tab-icon', '');
+      el.textContent = TAB_ICON_CSS;
+      document.head.appendChild(el);
+      document.documentElement.setAttribute('data-song-comments-tab-icon', 'inline');
+    } catch (_) {}
+  };
+  registerTabIcon();
+
   /* ------------------------------------------------------------------ 面板 */
 
   try {
@@ -514,6 +625,7 @@ export default function activate(folium) {
         const view = {
           songKey: null,
           song: null,
+          songSource: '', // 'netease' | 'qq' | 'local' …（0.8.0 的 source 字段）
           id: null,
           source: null, // 'exact' | 'search'
           match: null,
@@ -531,83 +643,60 @@ export default function activate(folium) {
         let disposed = false;
 
         /* ----------------------------- 高度自适应 -----------------------------
-           宿主的页签容器只保证宽度（fill: false + w-full），高度不是它管的。
-           于是 height:100% 会解析成某个偏大的值：内容不溢出、内部不滚动，
-           多出来的部分被外层裁掉，表现就是「滚不动」。
-           这里量出外层滚动容器的可视高度，把 root 钉成 px；量不到就退回
-           不限高 + 交给外层滚动，保证任何一种情况都能滚。
+           宿主的页签容器不给高度，而且它的高度是从我们这里量出去的：
+           ResizeObserver 量「内容区」的高度 → 写回外层折叠容器的 height。
+           所以任何「量容器剩下多少、再把自己的高度钉成那个值」的写法都是回环：
+           一旦某次量到的是矮内容（非网易云曲目只有一行提示），外层容器矮了，
+           下次再量还是那么矮，高度就永久卡死，切到有评论的曲目也长不回来。
+
+           正确做法是只单向地给上限，不读自己的高度：
+             · 用宿主给的页签可用高度 --pn-tab-room（宿主官方页签也用这个值算高度；
+               自定义属性会继承进 shadow root，读到的是宿主算好的数）；
+             · 读不到就不设上限，让宿主的滚动容器接管——宁可让整块面板滚，
+               也不能拿一个猜出来的上限把内容锁死。
+           内容矮 → 自然矮；内容高 → 撑到上限，列表内部滚动。两头都不会卡死。
         ------------------------------------------------------------------ */
 
-        let fittedHeight = 0;
+        const MAX_HEIGHT_MARGIN = 12;
+        let appliedMaxHeight = '';
+        let roomLogged = false;
 
-        const releaseHeight = () => {
-          if (fittedHeight === 0) return;
-          fittedHeight = 0;
-          root.style.height = 'auto';
-          root.style.maxHeight = 'none';
-          root.style.overflow = 'visible';
-          body.style.overflowY = 'visible';
+        // 宿主把「页签内容的可用高度」放在 --pn-tab-room 上（它自己的队列页签也用这个值
+        // 算列表高度）。自定义属性会继承进 shadow root，所以直接读到的是宿主算好的数，
+        // 不用自己去猜 header / 底栏占了多少。
+        const hostTabRoom = () => {
+          try {
+            const value = getComputedStyle(root).getPropertyValue('--pn-tab-room').trim();
+            return value && value !== 'initial' && value !== 'none' ? value : '';
+          } catch (_) {
+            return '';
+          }
         };
 
-        const fitHeight = () => {
+        const applyMaxHeight = () => {
           if (disposed || !root.isConnected) return;
-          const rect = root.getBoundingClientRect();
-          if (!rect.width || !rect.height) return; // 不在前台，量不到
-          if (rect.top < 0) return; // 面板已经被滚出视口，这会儿别改高度
-
-          // 往上找能当边界用的祖先：先找滚动容器，再找高度写死的裁切容器。
-          // 模组挂在 shadow root 里，普通 parentElement 会断在半路，要跨 shadow 边界。
-          let host = null;
-          let node = root.parentElement;
-          let depth = 0;
-          while (node && depth < 16) {
-            const style = getComputedStyle(node);
-            const overflowY = String(style.overflowY || '');
-            const boxes = node.clientHeight > 0;
-            if (boxes && (overflowY === 'auto' || overflowY === 'scroll')) {
-              host = node;
-              break;
-            }
-            if (boxes && overflowY === 'hidden' && String(style.height || '') !== 'auto') {
-              host = node;
-              break;
-            }
-            const scope = typeof node.getRootNode === 'function' ? node.getRootNode() : null;
-            const parent = node.parentElement || (scope && scope.host ? scope.host : null);
-            if (!parent || parent === document.body || parent === document.documentElement) break;
-            node = parent;
-            depth += 1;
+          if (!root.getBoundingClientRect().width) return; // 不在前台，量不到就不用算
+          const room = hostTabRoom();
+          // 拿不到宿主变量就干脆不设上限：内容自然排开，交给宿主的滚动容器去滚。
+          // 退而用「视口底 − 我的顶」是不行的——面板底边锚定、高度由内容撑出来，
+          // 内容一矮顶就下移，兜底值跟着变小，又会把高度锁死在矮内容那一档。
+          const next = room ? `calc(${room} - ${MAX_HEIGHT_MARGIN}px)` : '';
+          if (!roomLogged) {
+            roomLogged = true;
+            // 宿主换了变量名的话，这行会变成 room=-，高度就退回「让宿主自己滚」。
+            log(`height cap room=${room || '-'} maxHeight=${next || 'none'}`);
           }
+          if (next === appliedMaxHeight) return;
+          appliedMaxHeight = next;
+          root.style.maxHeight = next;
+        };
 
-          let available;
-          if (host) {
-            const hostRect = host.getBoundingClientRect();
-            const style = getComputedStyle(host);
-            const padTop = parseFloat(style.paddingTop) || 0;
-            const padBottom = parseFloat(style.paddingBottom) || 0;
-            available = hostRect.bottom - padBottom - Math.max(hostRect.top + padTop, rect.top);
-          } else {
-            available = window.innerHeight - rect.top - 12;
-          }
-
-          if (!Number.isFinite(available) || available < 160) {
-            releaseHeight();
-            return;
-          }
-
-          const next = Math.floor(available);
-          if (fittedHeight > 0) {
-            const delta = next - fittedHeight;
-            if (Math.abs(delta) < 1.5) return;
-            // 宿主容器高度跟着内容长起来时，别被自己越撑越大
-            if (delta > 0 && delta < 40) return;
-          }
-
-          fittedHeight = next;
-          root.style.height = next + 'px';
-          root.style.maxHeight = next + 'px';
-          root.style.overflow = 'hidden';
-          body.style.overflowY = 'auto';
+        // 内容变化（骨架 → 列表 / 列表 → 状态文案）后立刻重算一次，别等 ticker。
+        const scheduleMaxHeight = () => {
+          const raf = typeof requestAnimationFrame === 'function'
+            ? requestAnimationFrame
+            : (callback) => setTimeout(callback, 16);
+          raf(() => applyMaxHeight());
         };
 
         const setTab = (tab) => {
@@ -731,6 +820,7 @@ export default function activate(folium) {
         };
 
         const paintAll = () => {
+          scheduleMaxHeight();
           paintHead();
           if (view.loading && view.list.length === 0) {
             paintSkeleton();
@@ -745,15 +835,35 @@ export default function activate(folium) {
           }
           if (view.list.length === 0) {
             if (!view.id) {
-              paintState(
-                view.song
-                  ? esc(
-                      t(
-                        '这首曲目没有网易云版本，暂时看不到评论。可在设置里重新启用「非网易云曲目按歌名匹配」。',
-                        'This track has no NetEase version, so there are no comments. You can turn "Match other sources by title" back on in the settings.'
-                      )
+              if (!view.song) {
+                paintState(esc(t('播放一首歌再来看评论。', 'Play a song to read its comments.')));
+                return;
+              }
+              const settings = readSettings();
+              if (!settings.matchBySearch) {
+                paintState(
+                  esc(
+                    t(
+                      '「非网易云曲目按歌名匹配」是关着的，这类曲目不会去网易云找版本。可在设置里打开。',
+                      '"Match other sources by title" is off, so NetEase is not searched for this track. You can turn it on in the settings.'
                     )
-                  : esc(t('播放一首歌再来看评论。', 'Play a song to read its comments.'))
+                  )
+                );
+                return;
+              }
+              const title = view.song.title || '';
+              const from = platformLabel(view.songSource);
+              paintState(
+                esc(
+                  t(
+                    from
+                      ? `在网易云没找到《${title}》的对应版本（当前是${from}的曲目）。`
+                      : `在网易云没找到《${title}》的对应版本。`,
+                    from
+                      ? `No NetEase version of 《${title}》 was found (this track comes from ${from}).`
+                      : `No NetEase version of 《${title}》 was found.`
+                  )
+                )
               );
               return;
             }
@@ -779,7 +889,7 @@ export default function activate(folium) {
           const settings = readSettings();
           if (!settings.matchBySearch) return { id: null, source: null, match: null };
           const title = String(song?.title || '').trim();
-          const artist = String(song?.artist || '').trim();
+          const artist = songArtistOf(song);
           if (!title) return { id: null, source: null, match: null };
           const found = await searchOnce(title, artist, signal);
           if (!found) return { id: null, source: null, match: null };
@@ -819,6 +929,7 @@ export default function activate(folium) {
           if (!song) {
             view.loading = false;
             view.song = null;
+            view.songSource = '';
             view.id = null;
             view.source = null;
             view.list = [];
@@ -834,6 +945,11 @@ export default function activate(folium) {
               view.id = resolution.id;
               view.source = resolution.source;
               view.match = resolution.match;
+              // 一行诊断：宿主换了 DTO 形态时，这行能直接看出取到了什么。
+              log(
+                `resolve "${view.song?.title || ''}" source=${songSourceOf(song) || '-'} ` +
+                  `dtoId=${song?.id ?? '-'} neteaseId=${view.id || '-'} via=${view.source || 'none'}`
+              );
             }
             if (!view.id) {
               view.loading = false;
@@ -883,11 +999,14 @@ export default function activate(folium) {
 
         const syncSong = () => {
           const song = currentSong();
-          const key = [song?.id || '', song?.title || '', song?.artist || '', song?.sourceRef?.providerId || ''].join('\u0001');
+          const source = songSourceOf(song);
+          const key = [song?.id || '', song?.title || '', songArtistOf(song), source].join('\u0001');
           if (key === view.songKey) return false;
           view.songKey = key;
-          const album = typeof song?.album === 'string' ? song.album : song?.album?.name || '';
-          view.song = song ? { title: song.title, artist: song.artist, album } : null;
+          view.songSource = source;
+          view.song = song
+            ? { title: String(song.title || ''), artist: songArtistOf(song), album: songAlbumOf(song) }
+            : null;
           view.id = null;
           view.source = null;
           view.match = null;
@@ -959,11 +1078,11 @@ export default function activate(folium) {
           if (!root.isConnected) return;
           const visible = root.offsetWidth > 0 || root.offsetHeight > 0 || root.getClientRects().length > 0;
           if (!visible) return;
-          fitHeight();
+          applyMaxHeight();
           if (syncSong()) void load(true);
         }, 2000);
 
-        const onResize = () => fitHeight();
+        const onResize = () => applyMaxHeight();
         window.addEventListener('resize', onResize);
 
         syncSong();
@@ -972,7 +1091,7 @@ export default function activate(folium) {
         const raf = typeof requestAnimationFrame === 'function'
           ? requestAnimationFrame
           : (callback) => setTimeout(callback, 16);
-        raf(() => fitHeight());
+        raf(() => applyMaxHeight());
 
         return () => {
           disposed = true;
