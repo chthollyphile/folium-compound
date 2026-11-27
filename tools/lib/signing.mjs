@@ -10,6 +10,10 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+
+// The manifest versions the host reads (Folium 1 and 2), from the vendored host copy.
+const { MANIFEST_VERSIONS } = createRequire(import.meta.url)('../vendor/folia-manifest.cjs');
 
 export const SIGNATURE_FILE = 'folium.sig.json';
 export const SIGNATURE_FORMAT = 'folium-signature';
@@ -116,7 +120,7 @@ export const parseSignatureRecord = (raw) => {
 /** Reads `mod.json` and returns `{ id, version }`, throwing when either is missing. */
 export const readModIdentity = (modDir) => {
     const manifest = JSON.parse(fs.readFileSync(path.join(modDir, 'mod.json'), 'utf8'));
-    if (manifest.folium !== 1) throw new Error(`${modDir}: mod.json is not a Folium 1 manifest`);
+    if (!MANIFEST_VERSIONS.includes(manifest.folium)) throw new Error(`${modDir}: mod.json is not a Folium ${MANIFEST_VERSIONS.join(' or ')} manifest`);
     if (typeof manifest.id !== 'string' || !MOD_ID_PATTERN.test(manifest.id)) throw new Error(`${modDir}: invalid mod id`);
     if (typeof manifest.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error(`${modDir}: invalid version`);
     return { id: manifest.id, version: manifest.version, name: manifest.name ?? manifest.id, manifest };
