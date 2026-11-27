@@ -11,6 +11,15 @@
 export default function activate(folium) {
     let stopped = false;
 
+    // One log line so a support question can be answered without probing:
+    // Folia 0.8.0 has `host.folia`, older hosts leave it empty.
+    try {
+        const host = folium.host || {};
+        const app = String(host.folia || '未知');
+        const minor = (host.folium && host.folium.minor) || 0;
+        folium.log.info(`菜单栏歌词就绪（Folia ${app} / 模组 API 1.${minor}）`);
+    } catch (error) { /* logging must never break activation */ }
+
     const actions = {
         toggle: () => folium.playback.toggle(),
         next: () => folium.playback.next(),

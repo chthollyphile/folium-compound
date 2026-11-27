@@ -517,11 +517,11 @@
       "submission": 58,
       "source": "https://github.com/zhangyx0824/folia-mod-menubar-lyrics",
       "path": "menubar-lyrics",
-      "commit": "da40e11d6067cef8e15727c120b1de7f84afcf52",
-      "version": "1.0.2",
+      "commit": "d437efeee83dca81b83f5aafb409e10d0137f7ef",
+      "version": "1.1.0",
       "addedAt": "2026-10-21",
-      "updatedAt": "2026-10-21",
-      "lastIssue": 67
+      "updatedAt": "2026-11-27",
+      "lastIssue": 207
     },
     "mic-lyric-sync": {
       "owners": [

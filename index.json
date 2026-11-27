@@ -546,20 +546,20 @@
     {
       "id": "menubar-lyrics",
       "name": "菜单栏歌词",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "author": "pomepii",
       "description": "在 macOS 菜单栏显示当前播放的歌词，并提供播放 / 暂停、上一曲、下一曲、收藏控制。",
       "origin": "community",
       "channel": "release",
       "path": "mods/community/menubar-lyrics",
-      "digest": "sha256:c4502c511a2e46da6136a9d40e1338faa8069c9c683f3feb0caf49cec0994f0b",
+      "digest": "sha256:e48a0088986f3aad7e91d79424cc4d8b7e6fe7ab12852603ff83fc7036e3b29e",
       "keyId": "folium-ci-2026-1",
-      "signedAt": "2026-10-21T18:14:31.582Z",
+      "signedAt": "2026-11-27T01:09:31.848Z",
       "owners": [
         "Zhangyx0824"
       ],
       "source": "https://github.com/zhangyx0824/folia-mod-menubar-lyrics",
-      "sourceCommit": "da40e11d6067cef8e15727c120b1de7f84afcf52"
+      "sourceCommit": "d437efeee83dca81b83f5aafb409e10d0137f7ef"
     },
     {
       "id": "miside-drop",
