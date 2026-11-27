@@ -19,8 +19,24 @@
 //     and display settings. The host remounts the mode when the song changes.
 //
 // Nothing here queries or mutates host DOM outside its own container.
+//
+// Folia 0.8.0 / Folium 1.10: the public song DTO was reduced to
+// { id, title, artist, album, source, ref } — no duration, no coverUrl, no
+// artists[]. This mod only ever reads the title, and gets artwork through the
+// separate ctx.getCoverUrl() channel, so nothing else needed changing. The
+// one hard requirement is the `folia` range in mod.json: leaving the old
+// ">=0.7.21 <0.8.0" makes the host refuse to load the mod at all on 0.8.0.
 
 export default function activate(folium) {
+    // Log the host version once at startup; a future "which build is this?"
+    // question then needs no probing. Optional chaining keeps this harmless on
+    // older hosts and in the jsdom smoke harness (which has no host/log).
+    const hostMinor = Number(folium?.host?.folium?.minor) || 0;
+    const hostApp = String(folium?.host?.folia || '');
+    try {
+        folium?.log?.info?.(`动感波光就绪（Folia ${hostApp || '未知'} / 模组 API 1.${hostMinor}）`);
+    } catch { /* logging is best-effort only */ }
+
     const label = (zh, en) => ({ 'zh-CN': zh, en });
 
     const SETTINGS = [
@@ -722,6 +738,10 @@ function mountWaveLight(folium, container, ctx) {
         }
 
         const song = ctx.song;
+        // 0.8.0 keeps `title`; a few 0.7.x sources exposed `name` instead.
+        // The intro shows the title only, so the DTO shrink (no duration,
+        // coverUrl or artists[]) cannot affect it.
+        const songTitle = String(song?.title ?? song?.name ?? '').trim();
         const index = ctx.staticMode && ctx.staticLineIndex !== null
             ? ctx.staticLineIndex
             : ctx.getLineIndex();
@@ -747,7 +767,7 @@ function mountWaveLight(folium, container, ctx) {
         let translation = effLine?.translation?.trim() || '';
         if (!text) {
             // Intro: only the song title, never "title - artist".
-            text = song?.title || '♪';
+            text = songTitle || '♪';
             translation = '';
         }
         const keyword = s.keyword ? keywordOf(text, lineSeconds(effLine)) : '';

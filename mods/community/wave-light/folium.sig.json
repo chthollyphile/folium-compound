@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "wave-light",
-  "modVersion": "1.5.1",
-  "digest": "sha256:58000c3306bf396971a40b402e95b43ece6675266f884b9f2ee011157717a85c",
+  "modVersion": "1.6.0",
+  "digest": "sha256:275479e93f7f17089b9f8261e04eba1120879f60ded5236283ef7886308c4d90",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-10-27T02:02:17.300Z",
-  "signature": "Lb9VEjV6bgtEhQWU1STaOET9TqHoWQpeb73SfBuJzOMzZ74/aiX5Iujd/OIPIXHtO+wEu/zfxviLmqk7av50Bg=="
+  "signedAt": "2026-11-27T01:08:25.949Z",
+  "signature": "OIZQ2LZfyL7SluSic1RzCZB535JTm2QhbN8j47pvBCJvM+N23jp/Jx58vTr0X7t2Vx5XRGj+axvIhg26dKuAAQ=="
 }
