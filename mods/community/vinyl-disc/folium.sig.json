@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "vinyl-disc",
-  "modVersion": "1.7.10",
-  "digest": "sha256:8941fa8f585f2f088a30c90e560386283ed0e2489a743af844bfbfe78f3e3e77",
+  "modVersion": "1.8.0",
+  "digest": "sha256:e4a41dafe7cd9218b1b7ae298279eadbd64d9c41ab9bff584069229d5968afc4",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-10-24T05:38:13.451Z",
-  "signature": "FkNkRbujpdaGrM2YuGSLQ+mB8KxAXdjD2JJImkRKxFaXRYVIeVYOukawaXMcHuh/KIlO/rjdRw7KRf6p7E5qCA=="
+  "signedAt": "2026-11-27T01:08:13.665Z",
+  "signature": "RlXiuyRCCF9/CSb7nDOGAwtWLpbGc6b4wO1jaSYQbRydlacSkCIf+34gDDj80d+EAHY0pOMjL+6fPdelmmHqBQ=="
 }

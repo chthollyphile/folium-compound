@@ -22,6 +22,14 @@
 export default function activate(folium) {
     const label = (zh, en) => ({ 'zh-CN': zh, en });
 
+    // Version stamp: 0.8.0+ reports the app version in folium.host.folia; older
+    // hosts leave it empty. Log once so "which host is this really" is easy.
+    try {
+        const hostApp = String((folium.host && folium.host.folia) || '');
+        const hostMinor = (folium.host && folium.host.folium && folium.host.folium.minor) || 0;
+        folium.log.info(`vinyl-disc ready (Folia ${hostApp || 'unknown'} / mod API 1.${hostMinor})`);
+    } catch { /* logging is best-effort */ }
+
     const SETTINGS = [
         {
             key: 'discSide', type: 'select', defaultValue: 'right',
@@ -597,13 +605,39 @@ function mountVinyl(folium, container, ctx) {
         disc.style.setProperty('--vinyl-spin', `${s.spinSeconds}s`);
         disc.style.animationDuration = `${s.spinSeconds}s`;
         disc.style.animationPlayState = !paused && !ctx.staticMode ? 'running' : 'paused';
-        arm.style.display = s.showArm ? '' : 'none';
+        // Home-backdrop mode (see checkBackdrop): the stage sits behind the
+        // library wall and is blurred by the host, so only the soft halo
+        // should show — a blurred opaque disc reads as a dark blob.
+        disc.style.display = backdropAmbient ? 'none' : '';
+        arm.style.display = s.showArm && !backdropAmbient ? '' : 'none';
         arm.style.transform = !paused && s.showArm ? 'rotate(0deg)' : 'rotate(-50deg)';
-        sheen.style.display = s.sheen ? '' : 'none';
+        sheen.style.display = s.sheen && !backdropAmbient ? '' : 'none';
+        spindle.style.display = s.showSpindle && !backdropAmbient ? '' : 'none';
 
         // Ground shadow stays neutral; the coloured part is the halo behind it.
         disc.style.boxShadow = '0 18px 60px rgba(0,0,0,0.45)';
         applyHalo(diameter);
+    };
+
+    // The home wall ("墙后的画面") mounts this mode behind the library and
+    // blurs the layer with an inline `filter: blur(...)`. No context flag
+    // announces it, so detect the blur on an ancestor each frame (a cheap
+    // walk) and drop into an ambient layout — halo only — while it is there.
+    let backdropAmbient = false;
+    const checkBackdrop = () => {
+        let el = container.parentElement;
+        let blurred = false;
+        while (el && el !== document.documentElement) {
+            if ((el.style?.filter || '').includes('blur(')) {
+                blurred = true;
+                break;
+            }
+            el = el.parentElement;
+        }
+        if (blurred !== backdropAmbient) {
+            backdropAmbient = blurred;
+            applyLayout();
+        }
     };
 
     // A wide, soft bloom in the artwork's own colour, behind the record — the
@@ -693,6 +727,8 @@ function mountVinyl(folium, container, ctx) {
     // Karaoke timing only: the lyric clock and the sung colours change every
     // frame (and are never announced), so they are read here.
     const offFrame = ctx.onFrame(() => {
+        // Home-backdrop detection (cheap ancestor walk per frame).
+        checkBackdrop();
         // Karaoke: each word's sung colour sweeps in smoothly across the
         // glyph as the word is sung (--wp 0% -> 100%), with a gentle scale
         // pop while the word is active. The sung colour is the current
