@@ -86,6 +86,22 @@
       "updatedAt": "2026-11-24"
     },
     {
+      "id": "lx-music-source",
+      "name": "洛雪音源适配",
+      "kind": "other",
+      "category": "source",
+      "description": "Folia（Folium 2）模组：当内置音源（网易云 / QQ 音乐 / 酷狗）拿不到播放地址时，\n用你自行导入的洛雪（LX Music）自定义源脚本解析一个可播放直链，再交回 Folia 播放。\n模组不附带、不内置任何脚本；脚本由用户自备并在模组面板导入（本地文件或 URL），\n运行在 main 进程（node:vm）。仅桌面版；安装前需在「设置 → 模组」打开「社区模组」。\n安装包见仓库 Releases（v1.0.0 的 lx-music-source-1.0.0.zip），拖进模组面板即可；\n使用说明与问题反馈见仓库 README / Issues。",
+      "url": "https://github.com/hnxyhcz/folium-lx-music-source",
+      "owners": [
+        "hnxyhcz"
+      ],
+      "license": "MIT",
+      "tags": [],
+      "addedAt": "2026-11-27",
+      "updatedAt": "2026-11-27",
+      "submission": 205
+    },
+    {
       "id": "lx-source",
       "name": "LX 音源适配 / LX Source Adapter",
       "kind": "source",

@@ -26,3 +26,8 @@ Folia-related works kept elsewhere and listed here as links. They are not signed
   GNOME Shell 顶栏歌词扩展：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度与控制；悬浮详情里有封面、原文、翻译和播放控制。支持 GNOME Shell 45–51。
 - [lia.lines（Quickshell / Omarchy 歌词）](https://github.com/chthollyphile/lia.lines) — [@chthollyphile](https://github.com/chthollyphile) · 歌词显示  
   Omarchy 状态栏的 Quickshell 歌词插件：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度，没有歌词时显示媒体标题；悬浮详情里有封面、原文、翻译和播放控制。也能在不装 Omarchy 的 Quickshell 上用。
+
+## 其他 / Other
+
+- [洛雪音源适配](https://github.com/hnxyhcz/folium-lx-music-source) — [@hnxyhcz](https://github.com/hnxyhcz) · 音源  
+  Folia（Folium 2）模组：当内置音源（网易云 / QQ 音乐 / 酷狗）拿不到播放地址时， 用你自行导入的洛雪（LX Music）自定义源脚本解析一个可播放直链，再交回 Folia 播放。 模组不附带、不内置任何脚本；脚本由用户自备并在模组面板导入（本地文件或 URL）， 运行在 main 进程（node:vm）。仅桌面版；安装前需在「设置 → 模组」打开「社区模组」。 安装包见仓库 Releases（v1.0.0 的 lx-music-source-1.0.0.zip），拖进模组面板即可； 使用说明与问题反馈见仓库 README / Issues。
