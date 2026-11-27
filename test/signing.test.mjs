@@ -19,6 +19,7 @@ import {
     parseSignatureRecord,
     signMod,
     verifyMod,
+    readModIdentity,
 } from '../tools/lib/signing.mjs';
 
 const VECTOR_DIGEST = 'sha256:954b2e8f88ba256336eebe96506da418cdd089553b1cc3f1e460dcf467d373eb';
@@ -155,4 +156,18 @@ test('trees that cannot hash the same everywhere are refused', () => {
     const dir = writeVectorTree();
     fs.symlinkSync('client.mjs', path.join(dir, 'link.mjs'));
     assert.throws(() => computeSignedDigest(dir), /signed-tree-has-symlink/);
+});
+
+test('readModIdentity accepts Folium 1 and Folium 2 manifests, and nothing else', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'folium-identity-'));
+    try {
+        for (const folium of [1, 2]) {
+            fs.writeFileSync(path.join(dir, 'mod.json'), JSON.stringify({ folium, id: 'demo', version: '1.0.0' }));
+            assert.equal(readModIdentity(dir).id, 'demo');
+        }
+        fs.writeFileSync(path.join(dir, 'mod.json'), JSON.stringify({ folium: 3, id: 'demo', version: '1.0.0' }));
+        assert.throws(() => readModIdentity(dir), /not a Folium/);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
 });
