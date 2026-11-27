@@ -117,6 +117,22 @@
       "submission": 110
     },
     {
+      "id": "myfinder-folia-bridge",
+      "name": "MyFinder 任务栏音乐与设备电量显示",
+      "kind": "app",
+      "category": "system",
+      "description": "Windows 桌面端任务栏工具，在查看无线鼠标、键盘和耳机电量的同时，内置对 Folia 的任务栏音乐控制支持。检测到 Folia 后会自动部署本地桥接，在任务栏显示音符入口或常驻播放按钮；点击音符可打开音乐面板，支持切歌、拖动进度、调整音量、切换循环模式、查看播放队列以及收藏当前歌曲到网易云歌单。需安装并运行 Windows 桌面端 MyFinder Device Battery 1.5.0 及以上版本，安装方式见仓库 README。",
+      "url": "https://github.com/spake404/myfinder-device-battery",
+      "owners": [
+        "spake404"
+      ],
+      "license": "AGPL-3.0-only",
+      "tags": [],
+      "addedAt": "2026-11-27",
+      "updatedAt": "2026-11-27",
+      "submission": 212
+    },
+    {
       "id": "soda-music",
       "name": "汽水音乐（本机客户端）",
       "kind": "source",

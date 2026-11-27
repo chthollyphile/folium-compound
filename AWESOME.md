@@ -27,6 +27,11 @@ Folia-related works kept elsewhere and listed here as links. They are not signed
 - [lia.lines（Quickshell / Omarchy 歌词）](https://github.com/chthollyphile/lia.lines) — [@chthollyphile](https://github.com/chthollyphile) · 歌词显示  
   Omarchy 状态栏的 Quickshell 歌词插件：读 Folia 的歌词接口显示逐字歌词，配合 MPRIS 取播放进度，没有歌词时显示媒体标题；悬浮详情里有封面、原文、翻译和播放控制。也能在不装 Omarchy 的 Quickshell 上用。
 
+## 外部程序 / App
+
+- [MyFinder 任务栏音乐与设备电量显示](https://github.com/spake404/myfinder-device-battery) — [@spake404](https://github.com/spake404) · 系统集成  
+  Windows 桌面端任务栏工具，在查看无线鼠标、键盘和耳机电量的同时，内置对 Folia 的任务栏音乐控制支持。检测到 Folia 后会自动部署本地桥接，在任务栏显示音符入口或常驻播放按钮；点击音符可打开音乐面板，支持切歌、拖动进度、调整音量、切换循环模式、查看播放队列以及收藏当前歌曲到网易云歌单。需安装并运行 Windows 桌面端 MyFinder Device Battery 1.5.0 及以上版本，安装方式见仓库 README。
+
 ## 其他 / Other
 
 - [洛雪音源适配](https://github.com/hnxyhcz/folium-lx-music-source) — [@hnxyhcz](https://github.com/hnxyhcz) · 音源  
