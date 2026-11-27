@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // mods/taskbar-lyrics/view/preload.cjs
-// Secure IPC preload bridge for the taskbar lyrics drawer window,
+// Secure IPC preload bridge for the taskbar lyrics drawer and popup menu windows,
 // enabling snapshot consumption, drawer state coordination, hover-hide, display switching, and playback controls.
 
 contextBridge.exposeInMainWorld('taskbarBridge', {

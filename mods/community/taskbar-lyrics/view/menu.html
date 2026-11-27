@@ -7,48 +7,43 @@
   <link rel="stylesheet" href="menu.css">
 </head>
 <body>
-  <!-- mods/taskbar-lyrics/view/menu.html: Floating acrylic menu with unified breadcrumb navigation (书库 > 歌单 > 具体歌单 > 列表), play queue, and controls -->
+  <!-- mods/taskbar-lyrics/view/menu.html: Floating acrylic menu with play queue, online search, album/artist explore, and saved/recent lists -->
   <div id="menuRoot" class="menu-root">
-    <!-- Top Header: Breadcrumbs Navigation Bar (书库 > 歌单 > 具体歌单 > 列表) & Close Button -->
+    <!-- Top Header: 4 Public-API Tabs -->
     <div class="menu-header">
-      <div class="header-nav-bar">
-        <button id="navBackBtn" class="nav-back-btn hidden" type="button" title="返回上一级">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </button>
-        <div id="navCrumbs" class="nav-crumbs">
-          <span class="crumb active" data-depth="0">书库</span>
-        </div>
+      <div id="menuTabs" class="menu-tabs" role="tablist" aria-label="快捷面板导航">
+        <button class="menu-tab active" type="button" role="tab" data-tab="queue" aria-selected="true">队列</button>
+        <button class="menu-tab" type="button" role="tab" data-tab="search" aria-selected="false">搜索</button>
+        <button class="menu-tab" type="button" role="tab" data-tab="explore" aria-selected="false">探索</button>
+        <button class="menu-tab" type="button" role="tab" data-tab="saved" aria-selected="false">收藏</button>
       </div>
-      <button id="closeBtn" class="close-btn" type="button" title="关闭菜单">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
     </div>
 
     <!-- Main Content Viewport -->
     <div class="content-viewport">
-      <!-- Dynamic Top Toolbar (Pagination / Search / Info Badges) -->
-      <div id="viewToolbar" class="view-toolbar hidden">
-        <!-- Dynamically populated per view level -->
-      </div>
+      <!-- Dynamic Top Toolbar (Pagination / Search Box / Explore Nav / Saved Controls) -->
+      <div id="viewToolbar" class="view-toolbar"></div>
+
+      <!-- Optional Subbar (Provider Chips for Search, Sub-tabs for Saved/Recent) -->
+      <div id="viewSubbar" class="view-subbar hidden"></div>
 
       <!-- Scrollable Content Container -->
-      <div id="viewContainer" class="view-container">
-        <!-- Dynamically rendered:
-             - Root: 书库 Categories (播放队列, 歌单, 电台, 专辑, 本地音乐)
-             - Category list: 歌单列表, 专辑列表, 电台入口
-             - Songs list: 歌曲列表 (播放队列, 歌单内歌曲, 专辑内歌曲)
-        -->
-      </div>
+      <div id="viewContainer" class="view-container"></div>
     </div>
 
     <!-- Bottom Controls Area: Mode, Shuffle, Display Switch, Volume -->
     <div class="menu-footer">
       <div class="mode-row">
+        <button id="lyricsToggleBtn" class="mode-btn lyrics-eye-btn" type="button" aria-pressed="true" aria-label="显示/隐藏任务栏歌词" title="点击隐藏任务栏歌词（仅显示歌名与作者）">
+          <svg id="lyricsEyeIcon" class="mode-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <svg id="lyricsEyeOffIcon" class="mode-svg hidden" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+          </svg>
+        </button>
         <button id="loopModeBtn" class="mode-btn" type="button" title="切换播放模式 (列表循环 / 单曲循环 / 顺序播放)">
           <svg id="loopIconAll" class="mode-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="17 1 21 5 17 9"></polyline>
@@ -90,6 +85,22 @@
           </svg>
           <span id="displaySwitchLabel" class="mode-label">主屏</span>
         </button>
+      </div>
+
+      <!-- Lyric Timeline Offset Row (Mod-owned per-song adjustment + global setting sum) -->
+      <div class="offset-row">
+        <span class="offset-title" title="任务栏歌词独立时间轴偏移（正数让歌词更晚出现，全局偏移可在模组设置中调整）">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"></circle>
+            <polyline points="12 7 12 12 15.5 14"></polyline>
+          </svg>
+          <span>歌词偏移</span>
+        </span>
+        <div class="offset-controls">
+          <button id="offsetMinusBtn" class="offset-step-btn" type="button" title="当前曲目歌词提前 200ms">-0.2s</button>
+          <button id="offsetResetBtn" class="offset-value-btn" type="button" title="点击重置当前曲目偏移">0ms</button>
+          <button id="offsetPlusBtn" class="offset-step-btn" type="button" title="当前曲目歌词延后 200ms">+0.2s</button>
+        </div>
       </div>
 
       <!-- Volume Slider -->

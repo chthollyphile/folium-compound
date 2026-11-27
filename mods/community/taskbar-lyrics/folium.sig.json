@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "taskbar-lyrics",
-  "modVersion": "1.0.6",
-  "digest": "sha256:4a4e6a0968c80b818a5131f9b8b38d67d2b0b8e5cd9d3136791f2a9e986151fa",
+  "modVersion": "1.0.9",
+  "digest": "sha256:308fcd09cb69cc0813518f95feea509bbe92e123d29767828dab85837d76b9cc",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-11-04T16:28:57.128Z",
-  "signature": "8h55ZLV6U5kRMtmEzli1DQnLViqbG0bKsX+0gUtM8eapOrQFG4TLxRLAN+xu8CLEbq2Tz/ZhkOsFYIzKQgu6Aw=="
+  "signedAt": "2026-11-27T07:22:21.470Z",
+  "signature": "9O4hKAxh2/5pf0G6e6vTB4zHKKI+Y1KWe79jD/chEdW97Hp3/X7mhBobAUO3uPlWvM0hzEnnXg7IRxUftsv7AA=="
 }
