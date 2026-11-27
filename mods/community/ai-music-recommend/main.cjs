@@ -19,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { readArchiveProfileFrom } = require('./archive.cjs');
+const { readStatsProfileFrom } = require('./stats.cjs');
 
 const REQUEST_TIMEOUT_MS = 90000;
 const MAX_TOKENS = 4096;
@@ -222,9 +223,172 @@ const requestCompletion = async ({ url, apiKey, model, temperature, systemPrompt
   throw lastError ?? new Error('请求失败');
 };
 
-// ---------------------------------------------------------------- 提示词
+// ---------------------------------------------------------------- 验证模式
 
-/* 听歌档案的紧凑摘要：AI 只需要判断口味，不需要完整数据库。 */
+/* 工具定义：AI 唯一可用的是 search_songs——批量验证「歌手X是否真的唱过歌Y」。
+ * checks 数组一次最多提 20 个候选，避免逐首搜索把轮数耗光。也兼容单个
+ * title/artist 的旧写法（有的模型会无视数组）。 */
+const SEARCH_TOOL = Object.freeze({
+  type: 'function',
+  function: {
+    name: 'search_songs',
+    description: '在用户的音乐音源里批量搜索歌曲。用途：推荐前验证「某歌手是否真的唱过某首歌」。**批量提交**：把你当前想推荐的所有候选（歌名+你打算写的歌手版本）放进 checks 数组一次性验证（最多 20 个），而不是逐首搜索——每首歌的验证结果会按相同顺序返回。只有验证结果里出现「该歌手演唱的该歌曲」的候选才允许写进最终结果，未验证通过的换歌或换歌手后再提交一轮验证。',
+    parameters: {
+      type: 'object',
+      properties: {
+        checks: {
+          type: 'array',
+          description: '要验证的候选列表，最多 20 项',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: '歌名' },
+              artist: { type: 'string', description: '你打算推荐这首歌的哪个歌手的版本' },
+            },
+            required: ['title', 'artist'],
+          },
+        },
+        title: { type: 'string', description: '（单个候选的快捷写法，与 checks 二选一）歌名' },
+        artist: { type: 'string', description: '（单个候选的快捷写法）你打算写的歌手版本' },
+        limit: { type: 'integer', description: '每个候选的返回条数上限，默认8' },
+      },
+    },
+  },
+});
+
+/* 验证模式的多轮循环。没有 response_format 梯子（工具循环里退避重试会让
+ * 上下文混乱），失败直接抛；总轮数（用户可配）与总时长双重上限。 */
+const runVerifiedCompletion = async ({ url, apiKey, model, temperature, systemPrompt, sourcePrompt, want, signal, log, isDisposed, search, emit, maxRounds }) => {
+  const messages = [
+    { role: 'system', content: `${systemPrompt}\n\n【验证模式】你可以使用 search_songs 工具。硬性要求：最终 JSON 里的每一首歌，都必须在早前的工具调用中确认过「该歌手确实唱过这首歌」。没有验证过的歌不允许出现在结果里。如果连续搜索都找不到某歌手的版本，换别的歌手或别的歌。` },
+    { role: 'user', content: sourcePrompt },
+  ];
+  const MAX_ROUNDS = clampInt(maxRounds, 2, 24, 8);
+  const say = (text) => { try { emit?.(text); } catch { /* 推送失败不影响生成 */ } log?.info?.(text); };
+  say(`开始生成（验证模式，最多 ${MAX_ROUNDS} 轮）`);
+  const TOTAL_MS = Math.max(60000, MAX_ROUNDS * 25000);   // 轮数越多总时长越宽
+  const startedAt = Date.now();
+
+  for (let round = 0; round < MAX_ROUNDS; round += 1) {
+    if (isDisposed?.()) throw new Error('模组已停用');
+    if (Date.now() - startedAt > TOTAL_MS) throw new Error(`验证超时（${Math.round(TOTAL_MS / 1000)} 秒内没有完成推荐），请关闭验证模式或减少推荐数量`);
+    if (signal?.aborted) throw new Error('模组已停用');
+    say(`第 ${round + 1}/${MAX_ROUNDS} 轮：正在思考…`);
+
+    let response;
+    try {
+      response = await httpFetchOf()(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ model, messages, temperature, stream: false, tools: [SEARCH_TOOL], tool_choice: 'auto' }),
+        signal,
+      });
+    } catch (error) {
+      const name = String(error?.name ?? '');
+      const msg = String(error?.message ?? error);
+      throw new Error(
+        isDisposed?.() ? '模组已停用'
+          : (name === 'AbortError' || /abort/i.test(msg)) ? `请求超时（${Math.round(TOTAL_MS / 1000)} 秒上限）`
+            : msg,
+      );
+    }
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      const redact = (t) => String(t).split(apiKey).join('[已隐藏]');
+      throw new Error(`接口返回 ${response.status}：${redact(bodyText).slice(0, 300) || response.statusText}`);
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (error) {
+      throw new Error(`AI 返回的不是合法 JSON：${describeFailure(error, 15000)}`);
+    }
+    const choice = data?.choices?.[0];
+    const message = choice?.message;
+    const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
+
+    if (toolCalls.length === 0) {
+      // 收尾：模型给出最终答案
+      const text = extractContentText(message);
+      if (!text) {
+        throw new Error('AI 返回的内容是空的。');
+      }
+      say(`完成：共 ${Math.round((Date.now() - startedAt) / 1000)} 秒`);
+      return text;
+    }
+
+    // 工具轮：把每个 tool_call 里的候选展开成搜索任务，并发执行后按原顺序回灌
+    messages.push(message);
+    for (const call of toolCalls) {
+      const fnName = call?.function?.name;
+      let args = {};
+      try {
+        args = JSON.parse(call?.function?.arguments ?? '{}');
+      } catch { args = {}; }
+      if (fnName !== 'search_songs') {
+        messages.push({ role: 'tool', tool_call_id: call?.id ?? '', content: JSON.stringify({ error: '未知工具' }) });
+        continue;
+      }
+      // 候选展开：checks 数组（批量）或单个 title/artist（旧写法兼容）
+      let checks = Array.isArray(args?.checks)
+        ? args.checks
+            .filter((c) => c && typeof c.title === 'string' && c.title.trim())
+            .slice(0, 20)
+            .map((c) => ({ title: clip(c.title, 120), artist: clip(c.artist, 120) }))
+        : [];
+      if (checks.length === 0 && typeof args?.title === 'string' && args.title.trim()) {
+        checks = [{ title: clip(args.title, 120), artist: clip(args.artist, 120) }];
+      }
+      if (checks.length === 0) {
+        messages.push({ role: 'tool', tool_call_id: call?.id ?? '', content: JSON.stringify({ error: '没有可验证的候选：请传 checks 数组或 title/artist' }) });
+        continue;
+      }
+      const perLimit = clampInt(args?.limit, 1, 12, 8);
+      say(`批量验证 ${checks.length} 个候选…`);
+      const tSearch = Date.now();
+      // 并发搜索（复用渲染进程的并发池语义：这里用简单的分批 Promise）
+      const searchOne = async (cand) => {
+        const query = cand.artist ? `${cand.title} ${cand.artist}` : cand.title;
+        try {
+          const items = await search(query, perLimit);
+          const slim = (Array.isArray(items) ? items : []).slice(0, 12).map((item) => ({
+            title: clip(item?.title, 100),
+            artist: clip(item?.artist, 100),
+          }));
+          say(`「${cand.title}」${slim.length > 0 ? `搜到 ${slim.length} 条` : '没有该歌手的版本'}（${Date.now() - tSearch}ms）`);
+          return { query, results: slim, note: slim.length === 0 ? '没有搜到结果：该歌手可能没唱过这首歌，或音源未收录' : '' };
+        } catch (error) {
+          say(`「${cand.title}」搜索失败：${String(error?.message ?? error).slice(0, 60)}`);
+          return { query, results: [], note: '搜索失败，按「未验证通过」处理' };
+        }
+      };
+      // 分 4 路并发，压住 omni 的并发闸门
+      const resultsByIndex = new Array(checks.length);
+      let nextIdx = 0;
+      const worker = async () => {
+        while (nextIdx < checks.length) {
+          const idx = nextIdx++;
+          resultsByIndex[idx] = await searchOne(checks[idx]);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, checks.length) }, worker));
+      // 按候选顺序逐个回灌（每个 tool_call 一条 tool 消息）
+      messages.push({
+        role: 'tool',
+        tool_call_id: call?.id ?? '',
+        content: JSON.stringify({ verified: checks.map((c, i) => ({ title: c.title, artist: c.artist, ...resultsByIndex[i] })) }),
+      });
+    }
+  }
+  throw new Error(`工具调用轮数达到上限（${MAX_ROUNDS} 轮）还没拿到验证过的推荐；请增加轮数上限或减少推荐数量`);
+};
+
+// ---------------------------------------------------------------- 提示词
 const buildSourcePrompt = (digest, want, userNote, dislikes, playlists) => {
   const safe = digest && typeof digest === 'object' ? digest : {};
   const lines = [];
@@ -368,6 +532,62 @@ const readArchiveProfile = () => {
   return profile;
 };
 
+// ---------------------------------------------------------------- 本地听歌统计联动
+
+// 官方（社区）模组 listening-stats 的聚合位置：<userData>/mod-data/listening-stats/
+// 只读；文件 mtime 没变就直接用上次的聚合结果。
+const STATS_DATA_DIR = ['mod-data', 'listening-stats'];
+
+const statsCache = { signature: null, profile: null };
+
+const statsSignatureOf = (root) => {
+  let signature = '';
+  let latest = 0;
+  let found = 0;
+  const inspect = (rel) => {
+    try {
+      const st = fs.statSync(path.join(root, ...rel));
+      found += 1;
+      latest = Math.max(latest, Math.round(st.mtimeMs));
+    } catch { /* 文件不在：nothing to add */ }
+  };
+  inspect(['agg.json']);
+  inspect(['songs.json']);
+  try {
+    const eventsDir = path.join(root, 'events');
+    for (const name of fs.readdirSync(eventsDir)) {
+      if (!name.toLowerCase().endsWith('.ndjson')) continue;
+      found += 1;
+      try {
+        const st = fs.statSync(path.join(eventsDir, name));
+        latest = Math.max(latest, Math.round(st.mtimeMs));
+      } catch { /* raced */ }
+    }
+  } catch { /* no events dir */ }
+  signature = `${found}@${latest}`;
+  return found > 0 ? signature : null;
+};
+
+const readStatsProfile = () => {
+  const app = electronAppOf();
+  const userData = app?.getPath?.('userData');
+  if (!userData) return { status: 'unavailable', sessions: 0, songs: 0, plays: 0, topArtists: [], topSongs: [], recent: [], skips: [] };
+  const root = path.join(userData, ...STATS_DATA_DIR);
+  const signature = statsSignatureOf(root);
+  if (signature && statsCache.signature === signature && statsCache.profile) {
+    return statsCache.profile;
+  }
+  const profile = readStatsProfileFrom(userData);
+  if (profile.status === 'linked' && signature) {
+    statsCache.signature = signature;
+    statsCache.profile = profile;
+  } else {
+    statsCache.signature = null;
+    statsCache.profile = null;
+  }
+  return profile;
+};
+
 // ---------------------------------------------------------------- 激活
 
 module.exports = function activate(api) {
@@ -388,6 +608,46 @@ module.exports = function activate(api) {
   /* 「听歌档案」联动：渲染进程要摘要时实时来读（mtime 缓存兜底），
    * 不在 activate 时就读——安装与否、有没有记录都可能随时变化。 */
   api.rpc.handle('archiveProfile', () => readArchiveProfile());
+  api.rpc.handle('statsProfile', () => readStatsProfile());
+
+  // ---------------------------------------------------------------- 工具调用
+
+  /* 「验证后再推」模式（用户可选开启）：AI 用 search_songs 工具在音源里
+   * 确认“歌手X真的唱过歌Y”后才采纳，从根上消灭幻觉推荐。
+   * 搜索本身只有渲染进程能做（omni 是 client API），所以这里是 main ↔
+   * client 的往返：main 经 rpc.send 发搜索请求 → client 执行 omni 搜索 →
+   * client 经 rpc.call(tool-search-result) 回填；main 的循环以 Map 挂起等
+   * 候。轮数与总时长都有上限，防失控烧 token。 */
+  const TOOL_SEARCH_TIMEOUT_MS = 15000;
+  const pendingSearches = new Map(); // callId -> { resolve }
+  let searchCallSeq = 0;
+
+  api.rpc.handle('tool-search-result', (payload) => {
+    const callId = String(payload?.callId ?? '');
+    const pending = pendingSearches.get(callId);
+    if (!pending) return { ok: false };
+    pendingSearches.delete(callId);
+    clearTimeout(pending.timer);
+    pending.resolve(Array.isArray(payload?.items) ? payload.items : []);
+    return { ok: true };
+  });
+
+  const askClientSearch = (query, limit) => new Promise((resolve) => {
+    if (disposed) { resolve([]); return; }
+    const callId = `s${++searchCallSeq}-${Date.now().toString(36)}`;
+    const timer = setTimeout(() => {
+      pendingSearches.delete(callId);
+      resolve([]);
+    }, TOOL_SEARCH_TIMEOUT_MS);
+    pendingSearches.set(callId, { resolve, timer });
+    try {
+      api.rpc.send('tool-search-request', { callId, query: String(query ?? '').slice(0, 160), limit: clampInt(limit, 1, 12, 8) });
+    } catch {
+      clearTimeout(timer);
+      pendingSearches.delete(callId);
+      resolve([]);
+    }
+  });
 
   api.rpc.handle('recommend', async (payload) => {
     if (disposed) throw new Error('模组已停用');
@@ -414,27 +674,48 @@ module.exports = function activate(api) {
       { songs: payload?.playlistSongs, names: payload?.playlistNames },
     );
 
-    api.log.info(`请求 AI 推荐（${model}，要 ${want} 首）`);
+    api.log.info(`请求 AI 推荐（${model}，要 ${want} 首${config.useToolCalls ? '，验证模式' : ''}）`);
 
     const controller = new AbortController();
     inFlight.add(controller);
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     let raw;
     try {
-      raw = await requestCompletion({
-        url,
-        apiKey,
-        model,
-        temperature,
-        systemPrompt: SYSTEM_PROMPT,
-        sourcePrompt,
-        signal: controller.signal,
-        log: api.log,
-        isDisposed: () => disposed,
-        timeoutMs: REQUEST_TIMEOUT_MS,
-      });
+      if (config.useToolCalls === true) {
+        raw = await runVerifiedCompletion({
+          url,
+          apiKey,
+          model,
+          temperature,
+          systemPrompt: SYSTEM_PROMPT,
+          sourcePrompt,
+          want,
+          signal: controller.signal,
+          log: api.log,
+          isDisposed: () => disposed,
+          search: askClientSearch,
+          maxRounds: config.maxRounds,
+          emit: (text) => { try { api.rpc.send('activity-log', { text: String(text).slice(0, 200), at: Date.now() }); } catch { /* 窗口不在了 */ } },
+        });
+      } else {
+        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        try {
+          raw = await requestCompletion({
+            url,
+            apiKey,
+            model,
+            temperature,
+            systemPrompt: SYSTEM_PROMPT,
+            sourcePrompt,
+            signal: controller.signal,
+            log: api.log,
+            isDisposed: () => disposed,
+            timeoutMs: REQUEST_TIMEOUT_MS,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
+      }
     } finally {
-      clearTimeout(timer);
       inFlight.delete(controller);
     }
 

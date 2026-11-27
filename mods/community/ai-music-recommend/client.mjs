@@ -12,7 +12,7 @@
 // （settingsSections/homeTabs/commands）、ui（toast/icon/openHomeTab）、rpc。
 // 不读宿主内部状态，不碰 localStorage。
 
-const MINOR_REQUIRED = 7;       // 需要 Folium 1.7（Folia 0.7.22 起：secrets / rpc / openHomeTab）
+const MINOR_REQUIRED = 7;       // Folium 1.7 起（Folia 0.7.22+）所需成员才齐；Folium 2.x 全兼容
 const PLAY_MIN_MS = 30000;      // 一首歌听满这么久才算一次有效播放
 const HISTORY_KEY = 'history-v1';
 const RESULTS_KEY = 'results-v1';
@@ -55,8 +55,10 @@ export default function activate(folium) {
   // 老宿主上什么都不注册，免得装出一个按了没反应的模组。
   const major = Number(folium.host?.folium?.major ?? 1);
   const minor = Number(folium.host?.folium?.minor ?? 0);
-  if (major !== 1 || minor < MINOR_REQUIRED) {
-    folium.log?.warn?.(`AI 推荐音乐需要 Folium 1.${MINOR_REQUIRED} 以上（当前 ${major}.${minor}），已跳过激活`);
+  // Folium 1.7+ 与 2.x 都支持：2.x 是 1.x 的超集（本模组用到的成员全部健在），
+  // 旧名（api.storage.data 等）我们从没碰过，deprecated 警告一条也不会有。
+  if (major < 1 || (major === 1 && minor < MINOR_REQUIRED)) {
+    folium.log?.warn?.(`AI 推荐音乐需要 Folium 1.${MINOR_REQUIRED}+ 或 Folium 2.x（当前 ${major}.${minor}），已跳过激活`);
     return () => {};
   }
 
@@ -116,12 +118,20 @@ export default function activate(folium) {
         }
       };
       for (const song of Object.values(history.songs ?? {})) bump(splitArtists(song.a), song.p);
-      const archive = archiveProfile;
-      if (archiveLinked() && archive?.status === 'linked') {
-        for (const artist of archive.topArtists ?? []) bump(splitArtists(artist.name), artist.plays ?? 0);
-        for (const song of archive.topSongs ?? []) bump(splitArtists(song.a), song.p ?? 0);
+      let mode = 'all';
+      try { mode = readSettings().dataType; } catch { /* 默认 all */ }
+      if (mode === 'own' || mode === 'all') {
+        for (const song of Object.values(history.songs ?? {})) bump(splitArtists(song.a), song.p);
       }
-      // 歌单歌手也算「认识」：在歌单里出现一次记 2 分（弱于真实播放）。
+      if ((mode === 'archive' || mode === 'all') && archiveLinked() && archiveProfile?.status === 'linked') {
+        for (const artist of archiveProfile.topArtists ?? []) bump(splitArtists(artist.name), artist.plays ?? 0);
+        for (const song of archiveProfile.topSongs ?? []) bump(splitArtists(song.a), song.p ?? 0);
+      }
+      if ((mode === 'stats' || mode === 'all') && statsProfile?.status === 'linked') {
+        for (const artist of statsProfile.topArtists ?? []) bump(splitArtists(artist.name), artist.plays ?? 0);
+        for (const song of statsProfile.topSongs ?? []) bump(splitArtists(song.a), song.p ?? 0);
+      }
+      // 歌单歌手也算「认识」（playlists-only 或开了歌单联动时）：记 2 分（弱于真实播放）。
       if (playlistSongsCache) {
         for (const song of playlistSongsCache) bump(splitArtists(song.artist), 2);
       }
@@ -445,6 +455,29 @@ export default function activate(folium) {
         step: 1,
       },
       {
+        key: 'useToolCalls',
+        type: 'boolean',
+        label: T('验证后再推（AI 工具调用）', 'Verify before recommending (AI tool calls)'),
+        description: T(
+          '开启后 AI 会先在音源里搜索确认「这个歌手确实唱过这首歌」再写进推荐，从根上消灭编造的版本；代价是每次生成的 Token 消耗约增加 2–4 倍、耗时更长。默认关闭。',
+          'The AI verifies each pick against your music source before including it, eliminating hallucinated versions. Costs roughly 2–4× more tokens and takes longer. Off by default.',
+        ),
+        defaultValue: false,
+      },
+      {
+        key: 'maxRounds',
+        type: 'number',
+        label: T('验证轮数上限', 'Verification round limit'),
+        description: T(
+          '「验证后再推」开启时生效。候选是批量验证的，通常 3–5 轮足够；更复杂的口味可以调高。范围 2–24。',
+          'Applies when verification is on. Candidates are verified in batches; 3–5 rounds is usually enough. Range 2–24.',
+        ),
+        defaultValue: 8,
+        min: 2,
+        max: 24,
+        step: 1,
+      },
+      {
         key: 'autoEnqueue',
         type: 'boolean',
         label: T('搜索到后自动加入队列', 'Auto enqueue matched songs'),
@@ -462,14 +495,21 @@ export default function activate(folium) {
         defaultValue: '',
       },
       {
-        key: 'useArchive',
-        type: 'boolean',
-        label: T('联动「听歌档案」', 'Link with Listening Archive'),
+        key: 'dataType',
+        type: 'select',
+        label: T('推荐依据（听歌数据来源）', 'Recommendation basis (listening data source)'),
         description: T(
-          '检测到官方「听歌档案」模组的记录时，优先用它的长期听歌数据生成推荐（本模组自己的记录会合并进去，不会重复入账）。',
-          'When the official Listening Archive mod has records, they feed the recommendations (merged with this mod’s own records).',
+          '全部合并（默认）：本模组记录 + 「听歌档案」+「本地听歌统计」+ 账号歌单一起用；只选其一时仅用该来源；仅歌单则完全不看听歌记录。',
+          'Merge all (default): this mod’s records + Listening Archive + Listening Stats + account playlists together; pick a single source to use only that; playlists-only ignores listening data.',
         ),
-        defaultValue: true,
+        defaultValue: 'all',
+        options: [
+          { value: 'all', label: T('全部合并', 'Merge all') },
+          { value: 'own', label: T('仅本模组记录', 'This mod only') },
+          { value: 'archive', label: T('仅「听歌档案」', 'Listening Archive only') },
+          { value: 'stats', label: T('仅「本地听歌统计」', 'Listening Stats only') },
+          { value: 'playlists-only', label: T('仅账号歌单', 'Account playlists only') },
+        ],
       },
       {
         key: 'usePlaylists',
@@ -505,11 +545,14 @@ export default function activate(folium) {
         autoEnqueue: values.autoEnqueue === true,
         userNote: String(values.userNote ?? '').trim(),
         useArchive: values.useArchive !== false,
+        dataType: String(values.dataType ?? 'all'),
         usePlaylists: values.usePlaylists !== false,
+        useToolCalls: values.useToolCalls === true,
+        maxRounds: Math.round(Number(values.maxRounds)),
         trackHistory: values.trackHistory !== false,
       };
     } catch {
-      return { apiUrl: '', model: '', temperature: 0.8, recommendCount: 8, autoEnqueue: false, userNote: '', useArchive: true, usePlaylists: true, trackHistory: true };
+      return { apiUrl: '', model: '', temperature: 0.8, recommendCount: 8, autoEnqueue: false, userNote: '', dataType: 'all', useArchive: true, usePlaylists: true, useToolCalls: false, maxRounds: 8, trackHistory: true };
     }
   };
 
@@ -522,6 +565,9 @@ export default function activate(folium) {
   /** 「听歌档案」联动状态：null=还没查过；否则是 main 返回的 profile。 */
   let archiveProfile = null;
   let archiveStatusKnown = false;
+  /** 「本地听歌统计」联动状态（同款机制）。 */
+  let statsProfile = null;
+  let statsStatusKnown = false;
 
   const refreshArchive = async () => {
     try {
@@ -533,6 +579,17 @@ export default function activate(folium) {
       archiveProfile = null;
       archiveStatusKnown = false;
       log.warn?.('读取「听歌档案」记录失败', error);
+    }
+  };
+
+  const refreshStats = async () => {
+    try {
+      statsProfile = await folium.rpc.call('statsProfile');
+      statsStatusKnown = true;
+    } catch (error) {
+      statsProfile = null;
+      statsStatusKnown = false;
+      log.warn?.('读取「本地听歌统计」失败', error);
     }
   };
 
@@ -634,10 +691,21 @@ export default function activate(folium) {
     };
   };
 
+  /** 听歌数据源分派：按设置里的 dataType 决定 digest 用哪些来源。
+   *  'playlists-only' 返回空档案（generate 里跳过AI侧听歌依据）。 */
   const buildDigest = () => {
+    const cfg = readSettings();
     const own = buildOwnDigest();
-    if (!archiveLinked() || archiveProfile?.status !== 'linked') return own;
-    return mergeDigests(own, archiveProfile);
+    const mode = cfg.dataType;
+    const merge2 = (a, b) => mergeDigests(a, b);
+    if (mode === 'own') return own;
+    if (mode === 'archive') return archiveProfile?.status === 'linked' ? archiveProfile : { ...own, empty: true, topArtists: [], topSongs: [], recent: [] };
+    if (mode === 'stats') return statsProfile?.status === 'linked' ? statsProfile : { ...own, empty: true, topArtists: [], topSongs: [], recent: [] };
+    // 'all'（默认）：三方合并（各来源缺席时自然跳过；useArchive 旧开关继续管档案那一路）
+    let merged = own;
+    if (archiveLinked() && archiveProfile?.status === 'linked') merged = merge2(merged, archiveProfile);
+    if (statsProfile?.status === 'linked') merged = merge2(merged, statsProfile);
+    return merged;
   };
 
   // ---------------------------------------------------------------- 账号歌单
@@ -717,7 +785,11 @@ export default function activate(folium) {
   };
 
   const playlistsProfileOf = async () => {
-    if (!readSettings().usePlaylists) return { status: 'disabled', songs: [], playlistNames: [] };
+    let usePlaylistsSetting = true;
+    try { usePlaylistsSetting = readSettings().usePlaylists; } catch { /* 默认开 */ }
+    const mode = (() => { try { return readSettings().dataType; } catch { return 'all'; } })();
+    // 「仅歌单」模式下无视 usePlaylists 开关——用户选它就是要用歌单。
+    if (!usePlaylistsSetting && mode !== 'playlists-only') return { status: 'disabled', songs: [], playlistNames: [] };
     if (playlistsCache.profile && Date.now() - playlistsCache.at < PLAYLISTS_TTL_MS) return playlistsCache.profile;
     const profile = await collectPlaylistSongs();
     playlistsCache = { at: Date.now(), profile };
@@ -733,6 +805,11 @@ export default function activate(folium) {
   let resolvedThisSession = false;
   let clearArmedAt = 0;
   let keyKnown = null;          // null=还没查过；true/false=密钥是否已配置（缓存，避免每次重绘都发 IPC）
+
+  /* AI 实时活动日志：main 在工具循环里推的事件，存环形缓冲，推荐页的日志
+   * 栏渲染。缓冲独立于页面生命周期（页面没开时照样积累，打开就能看到尾巴）。 */
+  const ACTIVITY_CAP = 40;
+  const activityLog = [];   // {text, at} 新的在前
 
   const refreshKeyStatus = async () => {
     keyKnown = await hasKey();
@@ -1021,10 +1098,15 @@ export default function activate(folium) {
     render();
     try {
       // 生成前先刷新联动数据：听歌档案随时在追加；账号歌单 5 分钟缓存。
+      const cfgMode = readSettings().dataType;
       await refreshArchive();
-      playlistsProfile = await playlistsProfileOf();
+      await refreshStats();
       markFamiliarityDirty();
-      const digest = buildDigest();
+      // 数据源选择：仅歌单时完全不看听歌记录。
+      const playlistsOnly = cfgMode === 'playlists-only';
+      playlistsProfile = playlistsOnly || readSettings().usePlaylists ? await playlistsProfileOf() : null;
+      markFamiliarityDirty();
+      const digest = playlistsOnly ? { empty: true, trackedSongs: 0, totalPlays: 0, topArtists: [], topSongs: [], recent: [], skips: [] } : buildDigest();
       if (playlistsProfile?.status === 'linked' && Array.isArray(playlistsProfile.songs)) {
         playlistSongsCache = playlistsProfile.songs;
         digest.playlistSongs = playlistsProfile.songs;
@@ -1046,6 +1128,8 @@ export default function activate(folium) {
           temperature: cfg.temperature,
           want: cfg.recommendCount,
           userNote: cfg.userNote,
+          useToolCalls: cfg.useToolCalls === true,
+          maxRounds: Number.isFinite(cfg.maxRounds) ? cfg.maxRounds : 8,
         },
         digest,
         dislikes: dislikedList,
@@ -1555,6 +1639,21 @@ export default function activate(folium) {
         ? tr(`已记录 ${songs.length} 首歌 · 累计播放 ${totalPlays} 次`, `${songs.length} tracks · ${totalPlays} plays`)
         : tr('还没有听歌记录：多听几首，AI 就能认识你的口味', 'No history yet — play a few songs first');
       header.appendChild(stats);
+      // 数据源概览（一行说清当前推荐依据）。
+      {
+        const mode = (() => { try { return readSettings().dataType; } catch { return 'all'; } })();
+        const srcLine = document.createElement('div');
+        srcLine.style.cssText = css.dimmer;
+        const srcName = { all: tr('全部合并', 'merged'), own: tr('仅本模组记录', 'this mod only'), archive: tr('仅「听歌档案」', 'Listening Archive only'), stats: tr('仅「本地听歌统计」', 'Listening Stats only'), 'playlists-only': tr('仅账号歌单', 'playlists only') }[mode] ?? mode;
+        const parts = [];
+        if (mode === 'own' || mode === 'all') parts.push(tr(`本模组 ${songs.length} 首`, `${songs.length} own`));
+        if ((mode === 'archive' || mode === 'all')) parts.push(archiveProfile?.status === 'linked' ? tr(`听歌档案 ${archiveProfile.songs} 首`, `archive ${archiveProfile.songs}`) : tr('听歌档案无记录', 'archive: none'));
+        if ((mode === 'stats' || mode === 'all')) parts.push(statsProfile?.status === 'linked' ? tr(`本地统计 ${statsProfile.songs} 首`, `stats ${statsProfile.songs}`) : tr('本地统计无记录', 'stats: none'));
+        if (mode !== 'playlists-only' && playlistsProfile?.status === 'linked') parts.push(tr(`歌单 ${playlistsProfile.songs.length} 首`, `playlists ${playlistsProfile.songs.length}`));
+        srcLine.textContent = `${tr('推荐依据', 'Basis')}（${srcName}）：${parts.join(' · ') || tr('空', 'empty')}`;
+        header.appendChild(srcLine);
+      }
+
       // 「账号歌单」联动状态（只在本模组设置开启时展示；profile 由生成时刷新缓存）。
       if (playlistsProfile?.status && readSettings().usePlaylists) {
         const plLine = document.createElement('div');
@@ -1669,6 +1768,46 @@ export default function activate(folium) {
         card.appendChild(hint);
       }
       root.appendChild(card);
+
+      // ── AI 实时日志（验证模式生成时滚动展示；空闲时显示上一轮的尾巴）
+      if (activityLog.length > 0) {
+        const logCard = document.createElement('div');
+        logCard.style.cssText = `${css.card} padding:10px 14px;`;
+        const logHead = document.createElement('div');
+        logHead.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;';
+        const logTitle = document.createElement('div');
+        logTitle.style.cssText = css.sectionTitle;
+        logTitle.textContent = busy ? tr('AI 实时输出', 'AI live output') : tr('AI 输出记录', 'AI output (last run)');
+        logHead.appendChild(logTitle);
+        const clearLogBtn = document.createElement('button');
+        clearLogBtn.type = 'button';
+        clearLogBtn.style.cssText = css.ghostBtn;
+        clearLogBtn.textContent = tr('清空', 'Clear');
+        hover(clearLogBtn);
+        clearLogBtn.addEventListener('click', () => { activityLog.length = 0; render(); });
+        logHead.appendChild(clearLogBtn);
+        logCard.appendChild(logHead);
+
+        const logBox = document.createElement('div');
+        logBox.style.cssText = [
+          'display:flex', 'flex-direction:column', 'gap:2px',
+          'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace',
+          'font-size:11px', 'line-height:1.5',
+          'max-height:180px', 'overflow-y:auto',
+          'padding:8px 10px', 'border-radius:8px',
+          'background:rgba(0,0,0,0.28)',
+        ].join(';');
+        const t0 = activityLog.length > 0 ? activityLog[activityLog.length - 1].at : 0;
+        activityLog.forEach((entry, index) => {
+          const line = document.createElement('div');
+          const t = ((entry.at - t0) / 1000).toFixed(1);
+          line.style.cssText = `white-space:pre-wrap;word-break:break-all;opacity:${Math.max(0.35, 1 - index * 0.04)};`;
+          line.textContent = `[+${t}s] ${entry.text}`;
+          logBox.appendChild(line);
+        });
+        logCard.appendChild(logBox);
+        root.appendChild(logCard);
+      }
 
       // ── 推荐列表
       if (results.length > 0) {
@@ -1900,7 +2039,7 @@ export default function activate(folium) {
     // 打开页面时：刷新「听歌档案」联动状态；有上次的推荐还没在本会话搜索过，
     // 就补搜一轮。注意这里不给 allowAutoEnqueue：只是补齐匹配结果，不悄悄把
     // 旧歌塞进队列。
-    void refreshArchive().then(() => paint());
+    void Promise.all([refreshArchive(), refreshStats()]).then(() => paint());
     if (!resolvedThisSession && results.some((row) => row.status === 'pending')) {
       void resolveAll();
     }
@@ -2143,6 +2282,42 @@ export default function activate(folium) {
     },
   });
 
+  /* AI 实时活动日志订阅：main 在工具循环里推的事件进环形缓冲，推荐页日志栏渲染。
+   * 缓冲独立于页面生命周期（页面没开时照样积累，打开就能看到尾巴）。 */
+  try {
+    folium.rpc.on('activity-log', (payload) => {
+      const text = String(payload?.text ?? '').slice(0, 200);
+      if (!text) return;
+      activityLog.unshift({ text, at: Number(payload?.at) || Date.now() });
+      if (activityLog.length > ACTIVITY_CAP) activityLog.length = ACTIVITY_CAP;
+      render();
+    });
+  } catch (error) { log.warn?.('活动日志通道注册失败', error); }
+
+  /* 「验证后再推」的搜索通道：main 在工具循环里经 rpc.send 发来搜索请求，
+   * 这里用 omni 执行（只有渲染进程有 omni），再 rpc.call 回填。搜索失败
+   * 返回空列表——让 AI 判定「没搜到」并换歌，而不是让整次生成失败。 */
+  try {
+    folium.rpc.on('tool-search-request', async (payload) => {
+      const callId = String(payload?.callId ?? '');
+      const query = String(payload?.query ?? '').slice(0, 160);
+      const limit = Math.min(12, Math.max(1, Number(payload?.limit) || 8));
+      if (!callId || !query) return { ok: false };
+      let items = [];
+      try {
+        const answer = await folium.omni.searchSongs(query, { limit });
+        items = (Array.isArray(answer?.items) ? answer.items : [])
+          .filter((item) => item?.ref)
+          .slice(0, limit)
+          .map((item) => ({ title: String(item.title ?? '').slice(0, 100), artist: String(item.artist ?? '').slice(0, 100) }));
+      } catch (error) {
+        log.warn?.('验证搜索失败', error);
+      }
+      try { await folium.rpc.call('tool-search-result', { callId, items }); } catch { /* main 已超时放弃 */ }
+      return { ok: true };
+    });
+  } catch (error) { log.warn?.('工具搜索通道注册失败', error); }
+
   const unsubscribers = [];
   try { unsubscribers.push(folium.events.on('playback.songChanged', onSongChanged)); } catch (error) { log.warn?.('songChanged 监听失败', error); }
   try {
@@ -2160,6 +2335,7 @@ export default function activate(folium) {
     await loadResults();
     await loadDislike();
     await refreshArchive();
+    await refreshStats();
     try {
       const song = playback.getState()?.song;
       if (song?.ref) current = { key: keyOf(songSnapshot(song)), dto: songSnapshot(song), since: Date.now(), counted: true };

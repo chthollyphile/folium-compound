@@ -18,14 +18,15 @@
       "owners": [
         "YaoChenMioYow"
       ],
-      "category": "other",
+      "category": "playback",
       "submission": 182,
       "source": "https://github.com/YaoChenMioYow/folia-mod-ai-music-recommend",
       "path": "",
-      "commit": "6819f865def4228661234f35e73b3fd922438d2f",
-      "version": "1.5.0",
+      "commit": "63205d918058014101f9ca957dfdde58d172f760",
+      "version": "2.3.0",
       "addedAt": "2026-11-24",
-      "updatedAt": "2026-11-24"
+      "updatedAt": "2026-11-27",
+      "lastIssue": 211
     },
     "album-play": {
       "owners": [

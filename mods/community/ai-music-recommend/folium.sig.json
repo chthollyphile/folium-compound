@@ -2,9 +2,9 @@
   "format": "folium-signature",
   "version": 1,
   "modId": "ai-music-recommend",
-  "modVersion": "1.5.0",
-  "digest": "sha256:df7f23200e833581fd9128cc5d587dd5444b27cdc44bd82fbfdcaa6a81f94723",
+  "modVersion": "2.3.0",
+  "digest": "sha256:ee13d28b58f72fa8b9c50d0c748fa0bf30a0125cac1e29af2693b0233a8182cc",
   "keyId": "folium-ci-2026-1",
-  "signedAt": "2026-11-24T06:56:16.907Z",
-  "signature": "j01wlwPfImlsfYb+yQxJdJ64y2syCBT2XSyh1lztbrzy571YzwMOLxva3GFltL//XMLNytllMAA9FcqwF6sOCw=="
+  "signedAt": "2026-11-27T07:23:08.486Z",
+  "signature": "eLUyagCpnHZfFQ3un+cmKGbCSx9bMgqF5KkEEDZABA5HXBiRFWOxi91lB1RI+45wEHFiUickhP5V8nImAm7oAQ=="
 }

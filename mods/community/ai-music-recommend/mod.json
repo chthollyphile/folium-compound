@@ -1,10 +1,10 @@
 {
-  "folium": 1,
+  "folium": 2,
   "id": "ai-music-recommend",
   "name": "AI 推荐音乐",
-  "version": "1.5.0",
+  "version": "2.3.0",
   "author": "YaoCh",
-  "description": "记录你平时的听歌喜好，用 OpenAI 兼容接口让 AI 推荐新歌，并自动在音源里搜索匹配成可播放的曲目；联动官方「听歌档案」与你网易云账号的歌单（只读），同名歌优先推你常听的版本；「推荐电台」接管队列连播、关闭时恢复原歌单。",
+  "description": "根据你的听歌口味，用 OpenAI 兼容接口让 AI 推荐新歌，并自动在音源里搜索匹配成可播放的曲目；听歌数据来源可定制（本模组记录／听歌档案／本地听歌统计／账号歌单，或全部合并），同名歌优先推你常听的版本；可选「验证后再推」让 AI 批量在音源确认歌曲真实存在（轮数可调）；推荐电台接管队列连播、关闭时恢复原歌单。已适配 Folium 2。",
   "main": "main.cjs",
   "client": "client.mjs",
   "preview": "preview.png",
@@ -14,7 +14,7 @@
     "playback.queue",
     "platform.netease.read"
   ],
-  "folia": ">=0.7.22 <0.8.0",
+  "folia": ">=0.7.22 <=0.8.99",
   "experimental": [
     "platform.raw"
   ]
