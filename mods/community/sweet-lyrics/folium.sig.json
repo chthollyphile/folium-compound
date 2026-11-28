@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "sweet-lyrics",
+  "modVersion": "2.4.0",
+  "digest": "sha256:fb2797300c833c5496e0a1f8825a395c53f68e21fbd15e8d52e2c21949be0443",
+  "keyId": "folium-ci-2026-1",
+  "signedAt": "2026-11-28T01:07:45.913Z",
+  "signature": "6KymjVdezBNWnpjU3RF2KaT8oRKIr0BpyEHQAn9rPB4dD7TEqvOrEhN0Ly1hYVnh6MTiHF0Du/QqJ8JrkQu/Ag=="
+}

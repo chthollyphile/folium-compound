@@ -674,6 +674,19 @@
       "updatedAt": "2026-11-08",
       "lastIssue": 134
     },
+    "sweet-lyrics": {
+      "owners": [
+        "zgp2686"
+      ],
+      "category": "visualizer",
+      "submission": 214,
+      "source": "https://github.com/zgp2686/sweet-lyrics",
+      "path": "",
+      "commit": "b5b3f91c941318b8cc862fb96bb13f856526dfe2",
+      "version": "2.4.0",
+      "addedAt": "2026-11-28",
+      "updatedAt": "2026-11-28"
+    },
     "taskbar-controls": {
       "owners": [
         "q13244583628"
